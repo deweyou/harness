@@ -32,3 +32,6 @@ coverage/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Superpowers local brainstorming artifacts
+.superpowers/
