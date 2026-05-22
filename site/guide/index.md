@@ -9,6 +9,8 @@ description: Repository guide for the agents hub.
 
 [English](https://github.com/deweyou/agents/blob/main/README.md) | [简体中文](https://github.com/deweyou/agents/blob/main/README_ZH.md)
 
+Website: [deweyou.github.io/agents](https://deweyou.github.io/agents/)
+
 Personal agent asset hub. This repository keeps reusable **skills**,
 **rules**, and the `deweyou-cli` package in one place so they can be installed
 or wired into other repositories consistently.

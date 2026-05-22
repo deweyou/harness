@@ -9,6 +9,8 @@ description: Agents hub 仓库指南。
 
 [English](https://github.com/deweyou/agents/blob/main/README.md) | [简体中文](https://github.com/deweyou/agents/blob/main/README_ZH.md)
 
+网站：[deweyou.github.io/agents](https://deweyou.github.io/agents/)
+
 个人 agent 资产中心。这个仓库集中维护可复用的 **skills**、
 **rules**，以及 `deweyou-cli` 包，用来把这些资产一致地安装或接入到其他仓库。
 
