@@ -1,0 +1,91 @@
+{
+  "skills": [
+    {
+      "name": "repo-memory",
+      "description": "Repository memory workflow for durable project knowledge. Use before commits or PRs, after meaningful code or workflow changes, when initializing or updating AGENTS.md/docs/CLAUDE.md, or when local skills and repo conventions may need knowledge updates.",
+      "hasEnglish": true,
+      "hasChinese": true,
+      "englishReadme": "skills/repo-memory/README.md",
+      "chineseReadme": "skills/repo-memory/README_ZH.md",
+      "source": "skills/repo-memory/SKILL.md"
+    },
+    {
+      "name": "git-delivery",
+      "description": "Branch-aware git delivery workflow. Use before editing new coding or asset tasks to check branch, dirty work, and base sync; use when the user asks to commit, submit, push, open a PR, ship work, resolve base conflicts, or follow PR CI, while protecting unrelated work.",
+      "hasEnglish": true,
+      "hasChinese": true,
+      "englishReadme": "skills/git-delivery/README.md",
+      "chineseReadme": "skills/git-delivery/README_ZH.md",
+      "source": "skills/git-delivery/SKILL.md"
+    },
+    {
+      "name": "spec-driven-coding",
+      "description": "Enforce the repository's spec-driven coding workflow for new features, behavior changes, and multi-step implementation work. Use this skill when starting a requirement, feature, refactor with behavior impact, or ambiguous coding task. It requires Superpowers brainstorming/spec/plan/task flow before coding unless the task is a simple bugfix, and still requires TDD, unit coverage, verification, and spec updates when requirements change.",
+      "hasEnglish": true,
+      "hasChinese": true,
+      "englishReadme": "skills/spec-driven-coding/README.md",
+      "chineseReadme": "skills/spec-driven-coding/README_ZH.md",
+      "source": "skills/spec-driven-coding/SKILL.md"
+    },
+    {
+      "name": "skill-eval",
+      "description": "Skill evaluation workflow. Use only when the user explicitly asks to generate or complete skill eval cases, run a skill eval suite, test skill routing, or evaluate whether prompts trigger the right skill.",
+      "hasEnglish": true,
+      "hasChinese": true,
+      "englishReadme": "skills/skill-eval/README.md",
+      "chineseReadme": "skills/skill-eval/README_ZH.md",
+      "source": "skills/skill-eval/SKILL.md"
+    },
+    {
+      "name": "product-notes",
+      "description": "Product notes workflow for turning product thinking into durable notes. Use when the user wants to capture ideas, positioning, iteration plans, decisions, insights, competitor observations, release reviews, or discussion outcomes in a custom product notes workspace.",
+      "hasEnglish": true,
+      "hasChinese": true,
+      "englishReadme": "skills/product-notes/README.md",
+      "chineseReadme": "skills/product-notes/README_ZH.md",
+      "source": "skills/product-notes/SKILL.md"
+    },
+    {
+      "name": "ui-design",
+      "description": "UX/UI design workflow for research, flow design, visual style, implementation, review, and AI design prompts. Use for web, mobile/H5, native apps, HarmonyOS, mini programs, macOS, dashboards, tools, component libraries, onboarding, settings, empty states, UX references, or explicit UI/UX/style requests.",
+      "hasEnglish": true,
+      "hasChinese": true,
+      "englishReadme": "skills/ui-design/README.md",
+      "chineseReadme": "skills/ui-design/README_ZH.md",
+      "source": "skills/ui-design/SKILL.md"
+    },
+    {
+      "name": "product-design",
+      "description": "Product design workflow for personal products. Use when the user asks whether to build an idea or feature, how to shape the next version, how similar products solve a problem, or how to turn product thinking into a buildable decision without enterprise process theater.",
+      "hasEnglish": true,
+      "hasChinese": true,
+      "englishReadme": "skills/product-design/README.md",
+      "chineseReadme": "skills/product-design/README_ZH.md",
+      "source": "skills/product-design/SKILL.md"
+    }
+  ],
+  "rules": [
+    {
+      "name": "collaboration-defaults",
+      "description": "Default agent collaboration behavior for language, ambiguity, context, task order, parallel work, evidence, safety, and handoff.",
+      "source": "rules/collaboration-defaults.md"
+    },
+    {
+      "name": "code-style",
+      "description": "Code expression preferences for naming, functions, comments, errors, and tests.",
+      "source": "rules/code-style.md"
+    },
+    {
+      "name": "engineering-principles",
+      "description": "Design preferences for module boundaries, abstraction, dependencies, state, and easy-to-delete code.",
+      "source": "rules/engineering-principles.md"
+    }
+  ],
+  "designs": [
+    {
+      "name": "dewey-interface",
+      "description": "Restrained, typographic, component-driven interface style for Dewey's personal products.",
+      "source": "design/dewey-interface.md"
+    }
+  ]
+}
