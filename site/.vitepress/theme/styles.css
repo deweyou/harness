@@ -53,32 +53,24 @@
 
 .agents-home {
   margin: 0 auto;
-  max-width: 1184px;
-  padding: 24px 24px 72px;
+  max-width: 1080px;
+  padding: 44px 24px 88px;
   color: var(--vp-c-text-1);
 }
 
 .agents-hero {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(380px, 1.1fr);
-  gap: 32px;
-  align-items: stretch;
-  min-height: 520px;
-  padding: 40px 0 32px;
-}
-
-.agents-hero__content,
-.agents-cli {
-  background: var(--agents-surface);
-  border: 1px solid var(--agents-border);
-  border-radius: var(--agents-radius);
+  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+  gap: 64px;
+  align-items: start;
+  padding: 52px 0 56px;
 }
 
 .agents-hero__content {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 40px;
+  justify-content: flex-start;
+  padding-top: 8px;
 }
 
 .agents-eyebrow {
@@ -103,16 +95,16 @@
 .agents-hero h1 {
   margin: 0;
   max-width: 680px;
-  font-size: clamp(34px, 4vw, 50px);
-  line-height: 1.07;
+  font-size: clamp(36px, 5vw, 64px);
+  line-height: 1.02;
 }
 
 .agents-hero__intro {
-  margin: 24px 0 0;
+  margin: 26px 0 0;
   max-width: 620px;
   color: var(--vp-c-text-2);
-  font-size: 20px;
-  line-height: 1.55;
+  font-size: 19px;
+  line-height: 1.68;
 }
 
 .agents-hero__map-copy {
@@ -175,7 +167,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 28px 0;
+  padding-top: 8px;
 }
 
 .agents-section-heading {
@@ -195,15 +187,17 @@
 }
 
 .agents-section-heading--compact h2 {
-  font-size: 26px;
-  line-height: 1.25;
+  max-width: 440px;
+  font-size: 24px;
+  line-height: 1.28;
 }
 
 .agents-map-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 0;
   flex: 1;
+  border-top: 1px solid var(--agents-border);
 }
 
 .agents-map-node,
@@ -211,24 +205,23 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border: 1px solid var(--agents-muted-border);
-  border-radius: var(--agents-radius-sm);
-  background: var(--agents-surface);
+  border: 0;
+  border-bottom: 1px solid var(--agents-muted-border);
+  border-radius: 0;
+  background: transparent;
   color: inherit;
   text-decoration: none;
-  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+  transition: color 160ms ease, background-color 160ms ease;
 }
 
 .agents-map-node {
-  min-height: 190px;
-  padding: 18px;
+  min-height: 0;
+  padding: 18px 0;
 }
 
 .agents-map-node:hover,
 .agents-workflow-card:hover {
-  border-color: var(--agents-primary);
-  color: inherit;
-  transform: translateY(-1px);
+  color: var(--agents-primary);
 }
 
 .agents-map-node__label,
@@ -241,15 +234,15 @@
 
 .agents-map-node__description,
 .agents-workflow-card__description {
-  margin-top: 12px;
+  margin-top: 8px;
   color: var(--vp-c-text-2);
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.62;
 }
 
 .agents-map-node__meta {
-  margin-top: auto;
-  padding-top: 20px;
+  margin-top: 12px;
+  padding-top: 0;
   color: var(--vp-c-text-3);
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
@@ -258,27 +251,30 @@
 }
 
 .agents-section {
-  padding: 42px 0 20px;
+  padding: 52px 0 24px;
+  border-top: 1px solid var(--agents-border);
 }
 
 .agents-workflow-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+  border-top: 1px solid var(--agents-border);
 }
 
 .agents-workflow-card {
-  min-height: 176px;
-  padding: 20px;
+  min-height: 0;
+  padding: 20px 0;
 }
 
 .agents-cli {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(360px, 1.15fr);
-  gap: 28px;
+  grid-template-columns: minmax(0, 0.82fr) minmax(360px, 1.18fr);
+  gap: 36px;
   align-items: stretch;
-  margin-top: 30px;
-  padding: 28px;
+  margin-top: 48px;
+  border-top: 1px solid var(--agents-border);
+  padding-top: 44px;
 }
 
 .agents-cli__copy {
@@ -287,9 +283,9 @@
 
 .agents-command {
   min-width: 0;
-  min-height: 220px;
+  min-height: 190px;
   margin: 0;
-  border: 1px solid var(--agents-muted-border);
+  border: 1px solid var(--agents-border);
   border-radius: var(--agents-radius-sm);
   background: var(--agents-code-bg);
   padding: 20px;
@@ -314,34 +310,30 @@
 
   .agents-hero {
     min-height: 0;
+    gap: 36px;
   }
 
   .agents-workflow-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
   .agents-home {
-    padding: 12px 16px 56px;
+    padding: 20px 16px 60px;
   }
 
   .agents-hero {
-    gap: 16px;
-    padding-top: 20px;
-  }
-
-  .agents-hero__content,
-  .agents-cli {
-    padding: 22px;
+    gap: 30px;
+    padding: 24px 0 40px;
   }
 
   .agents-system-map {
-    padding: 10px 0 0;
+    padding-top: 0;
   }
 
   .agents-hero h1 {
-    font-size: clamp(34px, 12vw, 46px);
+    font-size: clamp(34px, 12vw, 44px);
   }
 
   .agents-hero__intro {
@@ -355,7 +347,7 @@
 
   .agents-map-node,
   .agents-workflow-card {
-    min-height: 148px;
+    min-height: 0;
   }
 
   .agents-button,
