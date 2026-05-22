@@ -6,6 +6,7 @@ repository.
 ```mermaid
 flowchart TD
     Source["skills/, rules/, and design/"] --> Registry["deweyou-cli agent update"]
+    Readmes["README.md and README_ZH.md files"] --> SiteSync["pnpm run site:sync"]
     Registry --> Project["project init"]
     Registry --> Global["global init"]
     Project --> ProjectAssets[".agents/manifest.json and .agents assets"]
@@ -13,9 +14,11 @@ flowchart TD
     Project --> ProjectInstructions["AGENTS.md and CLAUDE.md rule sections"]
     Global --> GlobalSkills["tool-native skill symlinks"]
     Global --> GlobalRules["user-level instruction rule sections"]
+    SiteSync --> SiteDocs["site/ generated Markdown"]
+    SiteDocs --> Pages["GitHub Pages VitePress site"]
 ```
 
-*Last updated: 2026-05-21 | Reason: Added the skill README maintenance contract.*
+*Last updated: 2026-05-22 | Reason: Added the GitHub Pages site publishing path.*
 
 ## Repository Conventions
 
@@ -79,6 +82,22 @@ For skills specifically, also check `README.md`, `README_ZH.md`, `SKILL.md`,
 ```bash
 rg -i "personal-name-or-brand-pattern" skills
 ```
+
+## GitHub Pages Site
+
+The public site is a VitePress project under [`site/`](../site/). The source of
+truth remains the repository Markdown files, not the generated site pages.
+
+- Run `pnpm run site:sync` after changing root or skill README content so
+  generated pages under `site/` stay in sync.
+- Run `pnpm run site:build` before handoff when site content, theme, navigation,
+  README links, or Pages deployment changes.
+- Keep root English pages in the VitePress root locale, such as
+  `site/skills/`, and Chinese pages under `site/zh/`.
+- Do not put the deployment base `/agents/` into generated source links.
+  VitePress applies `base: '/agents/'` during build.
+- GitHub Pages deployment lives in
+  [`.github/workflows/pages.yml`](../.github/workflows/pages.yml).
 
 ## Generated Registry
 
