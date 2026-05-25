@@ -336,8 +336,19 @@ The workflow:
    `cli/CHANGELOG.md`, creates a `cli-vX.Y.Z` tag, publishes
    `deweyou-cli`, then pushes the release commit and tag.
 
-The workflow requires `NPM_TOKEN` in GitHub Actions secrets. It skips release
-commits whose message starts with `chore(release):` to avoid publish loops.
+The workflow uses npm Trusted Publishing through GitHub Actions OIDC. Configure
+the `deweyou-cli` package on npm with:
+
+- Publisher: `GitHub Actions`
+- Organization or user: `deweyou`
+- Repository: `agents`
+- Workflow filename: `cli-release.yml`
+- Environment name: blank unless a protected GitHub environment is added
+- Allowed action: `npm publish`
+
+The workflow needs `id-token: write` permission and does not use an `NPM_TOKEN`
+secret. It skips release commits whose message starts with `chore(release):` to
+avoid publish loops.
 
 ### Version Rules
 
