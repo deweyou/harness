@@ -5,7 +5,7 @@
   "description": "Dewey's personal agent workflow bootstrapper",
   "repository": {
     "type": "git",
-    "url": "https://github.com/deweyou/agents.git",
+    "url": "git+https://github.com/deweyou/agents.git",
     "directory": "cli"
   },
   "files": [

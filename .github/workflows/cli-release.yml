@@ -15,6 +15,9 @@ jobs:
   publish:
     if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,6 +79,23 @@ jobs:
           git add cli/package.json cli/CHANGELOG.md
           git commit -m "chore(release): cli v${{ steps.release.outputs.version }}"
           git tag -a "cli-v${{ steps.release.outputs.version }}" -m "cli v${{ steps.release.outputs.version }}"
+
+      - name: Verify trusted publishing environment
+        if: ${{ steps.release.outputs.released == 'true' }}
+        working-directory: cli
+        run: |
+          npm --version
+          node --version
+          node -e "const pkg = require('./package.json'); console.log('repository.url=' + pkg.repository?.url)"
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+            echo "::error::ACTIONS_ID_TOKEN_REQUEST_URL is not set; npm cannot use GitHub OIDC trusted publishing."
+            exit 1
+          fi
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error::ACTIONS_ID_TOKEN_REQUEST_TOKEN is not set; npm cannot use GitHub OIDC trusted publishing."
+            exit 1
+          fi
+          echo "GitHub OIDC request environment is available."
 
       - name: Publish npm package
         if: ${{ steps.release.outputs.released == 'true' }}
