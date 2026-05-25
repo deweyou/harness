@@ -3,13 +3,18 @@
   "version": "0.5.0",
   "type": "module",
   "description": "Dewey's personal agent workflow bootstrapper",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deweyou/agents.git",
+    "directory": "cli"
+  },
   "files": [
     "dist",
     "README.md",
     "CHANGELOG.md"
   ],
   "bin": {
-    "deweyou-cli": "./dist/deweyou.mjs"
+    "deweyou-cli": "dist/deweyou.mjs"
   },
   "scripts": {
     "build": "vp pack src/bin/deweyou.ts --out-dir dist --clean",
