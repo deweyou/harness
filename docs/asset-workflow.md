@@ -347,8 +347,9 @@ the `deweyou-cli` package on npm with:
 - Allowed action: `npm publish`
 
 The workflow needs `id-token: write` permission and does not use an `NPM_TOKEN`
-secret. It skips release commits whose message starts with `chore(release):` to
-avoid publish loops.
+secret. npm Trusted Publishing requires npm CLI 11.5.1 or newer, so the release
+job upgrades npm before installing CLI dependencies. It skips release commits
+whose message starts with `chore(release):` to avoid publish loops.
 
 ### Version Rules
 
