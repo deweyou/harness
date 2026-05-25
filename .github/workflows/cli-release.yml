@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -78,8 +79,6 @@ jobs:
         if: ${{ steps.release.outputs.released == 'true' }}
         working-directory: cli
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Push release commit and tag
         if: ${{ steps.release.outputs.released == 'true' }}
