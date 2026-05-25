@@ -210,6 +210,9 @@ describe('main', () => {
 
     assert.match(output, /Usage:/)
     assert.match(output, /deweyou-cli agent init/)
+    assert.match(output, /deweyou-cli agent skills add/)
+    assert.match(output, /deweyou-cli agent sync/)
+    assert.match(output, /deweyou-cli agent upgrade/)
     assert.match(output, /deweyou-cli agent doctor/)
   })
 
@@ -225,10 +228,16 @@ describe('main', () => {
     const contextOutput = await captureLog(() => main(['agent', 'context', '-h']))
     const updateOutput = await captureLog(() => main(['agent', 'update', '-h']))
     const doctorOutput = await captureLog(() => main(['agent', 'doctor', '-h']))
+    const skillsOutput = await captureLog(() => main(['agent', 'skills', '-h']))
+    const syncOutput = await captureLog(() => main(['agent', 'sync', '-h']))
+    const upgradeOutput = await captureLog(() => main(['agent', 'upgrade', '-h']))
 
     assert.match(contextOutput, /deweyou-cli agent context \[--format markdown\|json\]/)
     assert.match(updateOutput, /deweyou-cli agent update/)
     assert.match(doctorOutput, /deweyou-cli agent doctor/)
+    assert.match(skillsOutput, /deweyou-cli agent skills add <source>/)
+    assert.match(syncOutput, /deweyou-cli agent sync/)
+    assert.match(upgradeOutput, /deweyou-cli agent upgrade \[skill \.\.\.\]/)
   })
 
   it('prints scoped help for unknown nested help targets', async () => {
