@@ -350,8 +350,10 @@ The workflow needs `id-token: write` permission and does not use an `NPM_TOKEN`
 secret. Do not configure `actions/setup-node` with `registry-url` for this
 workflow because that creates token-oriented npm auth files. npm Trusted
 Publishing requires npm CLI 11.5.1 or newer, so the release job upgrades npm
-before installing CLI dependencies. It skips release commits whose message
-starts with `chore(release):` to avoid publish loops.
+before installing CLI dependencies. The CLI package metadata must include a
+`repository.url` that exactly matches `https://github.com/deweyou/agents.git`,
+which npm uses when matching the trusted publisher. It skips release commits
+whose message starts with `chore(release):` to avoid publish loops.
 
 ### Version Rules
 
