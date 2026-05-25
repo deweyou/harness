@@ -150,6 +150,52 @@ Flags:
 `--yes` does not guess a default asset set. It only confirms a scripted
 selection you already provided.
 
+### `deweyou-cli agent skills`
+
+Wraps the community `skills` CLI with Dewey-shaped commands. Dewey does not
+replace `skills-lock.json` or reimplement skill installation; it delegates skill
+add, update, restore, list, and remove operations to `npx skills` so users can
+stay in the `deweyou-cli` command surface.
+
+```bash
+deweyou-cli agent skills add deweyou/agents --skills repo-memory,git-delivery --tools codex,claude --yes
+deweyou-cli agent skills update repo-memory --scope project --yes
+deweyou-cli agent skills update --global --yes
+deweyou-cli agent skills sync --yes
+deweyou-cli agent skills list --scope project --json
+deweyou-cli agent skills remove repo-memory --scope project --yes
+```
+
+Common aliases:
+
+```bash
+deweyou-cli agent sync --yes
+deweyou-cli agent upgrade --scope project --yes
+deweyou-cli agent upgrade --global --yes
+```
+
+Mapping:
+
+| Dewey command | Underlying skills command |
+|---------------|---------------------------|
+| `agent skills add <source>` | `npx skills add <source>` |
+| `agent skills update` / `agent upgrade` | `npx skills update` |
+| `agent skills sync` / `agent sync` | `npx skills experimental_install` |
+| `agent skills list` | `npx skills list` |
+| `agent skills remove` | `npx skills remove` |
+
+Flags:
+
+| Flag | Meaning |
+|------|---------|
+| `--skills a,b` | Select comma-separated skill ids for add/remove. |
+| `--tools codex,claude\|all` | Select target agent tools. |
+| `--scope project\|global` | Select project or global scope when supported. |
+| `--global` | Shortcut for global scope. |
+| `--copy` | Copy files instead of symlinking when adding. |
+| `--json` | Print machine-readable output when listing. |
+| `--yes` | Run without prompts. |
+
 ### `deweyou-cli agent context`
 
 Prints the active agent context for the current repository.
