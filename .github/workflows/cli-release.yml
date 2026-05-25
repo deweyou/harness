@@ -24,7 +24,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org/
 
       - name: Update npm for trusted publishing
         run: npm install -g npm@^11.5.1
@@ -81,7 +80,13 @@ jobs:
       - name: Publish npm package
         if: ${{ steps.release.outputs.released == 'true' }}
         working-directory: cli
-        run: npm publish --access public
+        run: |
+          if [[ -n "${NPM_CONFIG_USERCONFIG:-}" ]]; then
+            rm -f "$NPM_CONFIG_USERCONFIG"
+            unset NPM_CONFIG_USERCONFIG
+          fi
+          unset NODE_AUTH_TOKEN
+          npm publish --access public
 
       - name: Push release commit and tag
         if: ${{ steps.release.outputs.released == 'true' }}
