@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 - 2026-05-25
+
+### Fixed
+
+- ci: diagnose trusted publishing oidc
 ## Unreleased
 
 ### Added
