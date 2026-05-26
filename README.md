@@ -88,7 +88,7 @@ assets, previews, or eval cases.
 
 | Skill | Description | Source |
 |-------|-------------|--------|
-| `repo-memory` | Durable repository memory workflow. It initializes and refreshes repo context, runs pre-commit memory checks, updates docs when work changes important knowledge, and checks local skill drift. | [`skills/repo-memory/`](./skills/repo-memory/) |
+| `repo-memory` | Durable repository memory workflow. It initializes and refreshes repo context, runs pre-commit memory checks, updates docs and UI design memory when work changes important knowledge, and checks local skill drift. | [`skills/repo-memory/`](./skills/repo-memory/) |
 | `git-delivery` | Branch-aware git delivery workflow for start-of-work checks, intentional staging, commits, base-branch conflict checks, safe rebases, pushes, PR creation, CI follow-up, and automatic low-risk CI repair. | [`skills/git-delivery/`](./skills/git-delivery/) |
 | `spec-driven-coding` | Spec-driven coding workflow for features, behavior changes, and multi-step implementation. It keeps Superpowers specs, plans, TDD, verification, and requirement updates aligned before and during coding. | [`skills/spec-driven-coding/`](./skills/spec-driven-coding/) |
 | `skill-eval` | Repository-local evaluation workflow for skills. It generates eval cases, runs routing or execution tests through an agent CLI, grades transcripts, and summarizes trigger accuracy. | [`skills/skill-eval/`](./skills/skill-eval/) |
