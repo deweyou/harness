@@ -1,6 +1,6 @@
 {
   "name": "deweyou-cli",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "Dewey's personal agent workflow bootstrapper",
   "repository": {

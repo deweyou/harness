@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0 - 2026-05-26
+
+### Breaking Changes
+
+- delegate init skill installs to skills cli
 ## 0.5.1 - 2026-05-25
 
 ### Fixed
