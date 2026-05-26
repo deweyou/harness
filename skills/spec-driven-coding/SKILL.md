@@ -4,9 +4,9 @@ description: >
   Enforce the repository's spec-driven coding workflow for new features, behavior changes,
   and multi-step implementation work. Use this skill when starting a requirement,
   feature, refactor with behavior impact, or ambiguous coding task. It requires
-  Superpowers brainstorming/spec/plan/task flow before coding unless the task is a
-  simple bugfix, and still requires TDD, unit coverage, verification, and spec
-  updates when requirements change.
+  Superpowers brainstorming/spec/plan/task flow before coding, defaults plan
+  execution to subagent-driven development unless blocked, and still requires TDD,
+  verification, and spec updates when requirements change.
 ---
 
 # Spec-Driven Coding
@@ -32,6 +32,7 @@ Before implementation, check whether Superpowers skills are available:
 
 - brainstorming
 - writing-plans
+- subagent-driven-development
 - test-driven-development
 - systematic-debugging
 - verification-before-completion
@@ -52,10 +53,30 @@ Do not write implementation code until the spec is aligned.
 2. Write the design/spec artifact required by the active workflow.
 3. Get user approval for the spec.
 4. Use Superpowers writing-plans to produce the implementation plan and task list.
-5. Only then begin coding.
+5. Execute the plan with Superpowers subagent-driven-development by default.
+6. Only then begin coding.
 
 Keep the spec focused. If the request grows into multiple independent systems,
 split it before implementation.
+
+## Plan Execution Default
+
+After an approved spec and implementation plan exist, default to
+`superpowers:subagent-driven-development`. If `writing-plans` offers a choice
+between subagent-driven and inline execution, select subagent-driven without
+asking the user again when the subagent skill is available and the plan's tasks
+can be dispatched independently.
+
+Do not choose inline execution by default. Use `superpowers:executing-plans` only
+when one of these is true:
+
+- the user explicitly asks for inline execution
+- subagent-driven-development is unavailable in the current environment
+- the plan is so tightly coupled that fresh subagents cannot work task-by-task
+  without losing essential context
+
+If inline execution is needed for one of those reasons, state the blocker or user
+preference explicitly before using it.
 
 ## Coding Flow
 
@@ -96,6 +117,8 @@ Report:
 
 - which flow was used
 - spec/plan artifacts created or updated
+- plan execution mode: subagent-driven by default, or the explicit inline
+  fallback reason
 - tests added or skipped with reason
 - verification commands and results
 - whether repo memory or spec updates were needed after coding

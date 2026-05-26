@@ -7,8 +7,9 @@
 
 `spec-driven-coding` keeps implementation aligned before code changes begin. It
 classifies the task, uses Superpowers brainstorming/spec/plan workflows when the
-work is feature-shaped or ambiguous, keeps simple bugfixes lighter, and requires
-tests plus verification before claiming completion.
+work is feature-shaped or ambiguous, defaults approved plans to subagent-driven
+execution, keeps simple bugfixes lighter, and requires tests plus verification
+before claiming completion.
 
 ```mermaid
 flowchart TD
@@ -18,7 +19,8 @@ flowchart TD
     Full --> Brainstorm["Brainstorm requirement"]
     Brainstorm --> Spec["Write and approve spec"]
     Spec --> Plan["Write implementation plan"]
-    Plan --> TDD["Implement with TDD"]
+    Plan --> Subagents["Execute with subagents by default"]
+    Subagents --> TDD["Implement with TDD"]
     Bugfix --> Debug["Reproduce and understand failure"]
     Debug --> Regression["Add regression test when practical"]
     Regression --> TDD
@@ -45,6 +47,8 @@ deweyou-cli agent init --skills spec-driven-coding
   systematic-debugging, and verification-before-completion when available.
 - Defers implementation until the spec and plan are aligned for features,
   behavior changes, and ambiguous tasks.
+- Defaults approved implementation plans to subagent-driven development; inline
+  execution is an explicit fallback.
 - Keeps simple bugfixes focused on reproduction, regression tests, the smallest
   responsible fix, and targeted verification.
 - Updates specs or repo memory when requirements or durable behavior change.
@@ -53,7 +57,8 @@ deweyou-cli agent init --skills spec-driven-coding
 
 1. Classify the task before editing.
 2. For full spec flow, check required Superpowers skills, brainstorm, write the
-   spec, get approval, and write the implementation plan.
+   spec, get approval, write the implementation plan, and execute it with
+   subagent-driven development by default.
 3. For lightweight bugfixes, reproduce the issue and add a regression test when
    practical.
 4. Implement with TDD or focused verification where tests cannot cover the risk.
