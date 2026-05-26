@@ -182,7 +182,8 @@ It verifies:
 
 - local cache registry exists and is valid
 - repository `.agents/manifest.json` exists and is valid
-- `AGENTS.md` exists
+- `AGENTS.md` exists when selected rules or a design contract require
+  repository instructions
 - selected skills, rules, and design contracts still exist in the registry
 - selected asset hashes match the repository's initialized snapshot
 - selected asset files are present
@@ -196,7 +197,7 @@ The command exits with a non-zero status when a check fails.
 |------|-------------------|----------|
 | `link` | Installs selected skills through `npx skills`; symlinks selected rules and optionally root `DESIGN.md`. | Daily local work where updates should be immediately visible after cache refresh. |
 | `copy` | Installs selected skills through `npx skills --copy`; copies selected rules and optionally root `DESIGN.md`. | Repositories that should keep a snapshot of the selected assets. |
-| `pointer` | Writes only `.agents/manifest.json` and `AGENTS.md`; assets stay in the global cache. | Minimal repo footprint and tooling that can follow absolute cache paths. |
+| `pointer` | Writes `.agents/manifest.json`; selected assets stay in the global cache. `AGENTS.md` is updated only when selected rules or a design contract require repository instructions. | Minimal repo footprint and tooling that can follow absolute cache paths. |
 
 ## Files Created
 
@@ -210,8 +211,9 @@ AGENTS.md
 DESIGN.md
 ```
 
-`AGENTS.md` receives a managed workflow section that points agents at the selected
-workflow context. Existing content outside that managed section is preserved.
+`AGENTS.md` receives managed sections only when selected rules or a design
+contract require repository instructions. Existing content outside those managed
+sections is preserved.
 
 Project installs write repository instruction files such as `AGENTS.md` and
 `CLAUDE.md`. Skill installs are delegated to `npx skills add`, which writes

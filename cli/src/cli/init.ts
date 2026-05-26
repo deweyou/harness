@@ -15,7 +15,7 @@ import { cachePaths } from './cache.ts'
 import { readJson, writeJson } from './manifest.ts'
 import { upsertAgentsSection } from './agents-md.ts'
 import { applyRuleInstall, planRuleInstall } from './rule-install.ts'
-import { runSkillsInstall } from './skill-install.ts'
+import { DEFAULT_SKILLS_SOURCE, runSkillsInstall } from './skill-install.ts'
 import type { SkillsInstaller } from './skill-install.ts'
 import type {
   AssetKind,
@@ -174,7 +174,7 @@ export async function initRepo(options: InitRepoOptions = {}): Promise<InitResul
     if (assets.skills.length > 0) {
       await skillsInstaller({
         cwd: repoRoot,
-        source: cacheManifest.source.root,
+        source: DEFAULT_SKILLS_SOURCE,
         skills: assets.skills,
         tools,
         scope: 'project',
@@ -185,7 +185,9 @@ export async function initRepo(options: InitRepoOptions = {}): Promise<InitResul
   }
 
   await writeJson(join(agentsRoot, 'manifest.json'), manifest)
-  await upsertAgentsSection(repoRoot)
+  if (assets.design) {
+    await upsertAgentsSection(repoRoot)
+  }
   await applyRuleInstall(rulePlan)
 
   return manifest
@@ -273,7 +275,7 @@ async function initGlobal({
   if (assets.skills.length > 0) {
     await skillsInstaller({
       cwd: repoRoot,
-      source: cacheManifest.source.root,
+      source: DEFAULT_SKILLS_SOURCE,
       skills: assets.skills,
       tools,
       scope: 'global',
@@ -802,7 +804,7 @@ async function buildInitPlan({
     files: [
       ...assetPlans.map((asset) => asset.destination),
       join(agentsRoot, 'manifest.json'),
-      join(repoRoot, 'AGENTS.md'),
+      ...(assets.design ? [join(repoRoot, 'AGENTS.md')] : []),
     ],
   }
 }
