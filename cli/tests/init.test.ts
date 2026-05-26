@@ -164,6 +164,50 @@ Keep this outro.
     )
   })
 
+  it('project skills-only init installs skills without writing AGENTS.md', async () => {
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
+
+    const manifest = await initRepo({
+      homeDir,
+      repoRoot,
+      selected: { skills: ['demo'], rules: [] },
+      mode: 'link',
+      tools: ['codex'],
+      skillsInstaller,
+    })
+
+    assert.deepEqual(manifest.assets, {
+      skills: ['demo'],
+      rules: [],
+    })
+    assert.equal(
+      await readlink(join(repoRoot, '.agents/skills/demo')),
+      await realpath(join(homeDir, '.deweyou/agents/assets/skills/demo')),
+    )
+    await assert.rejects(() => stat(join(repoRoot, 'AGENTS.md')), {
+      code: 'ENOENT',
+    })
+  })
+
+  it('installs skills from the GitHub asset hub instead of the local cache path', async () => {
+    const { homeDir, repoRoot } = await createInitFixture()
+    const calls = []
+
+    await initRepo({
+      homeDir,
+      repoRoot,
+      selected: { skills: ['demo'], rules: [] },
+      mode: 'link',
+      tools: ['codex'],
+      skillsInstaller: async (options) => {
+        calls.push(options)
+      },
+    })
+
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].source, 'deweyou/agents')
+  })
+
   it.each(['link', 'copy'] as const)(
     'project inline %s mode reads rule bodies before installing project rule assets',
     async (mode) => {
@@ -273,7 +317,7 @@ Keep this outro.
           tools: ['codex'],
           ruleWiring: 'reference',
         }),
-      /Refusing to write Dewey workflow through symlink/,
+      /Refusing to write Dewey rules through symlink/,
     )
 
     assert.equal(await readFile(sharedAgents, 'utf8'), original)
@@ -419,7 +463,6 @@ Keep this outro.
     })
     assert.deepEqual(plan.files, [
       join(repoRoot, '.agents/manifest.json'),
-      join(repoRoot, 'AGENTS.md'),
     ])
     await assert.rejects(() => stat(join(repoRoot, '.agents')), {
       code: 'ENOENT',

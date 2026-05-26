@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import type { InstallMode, InstallScope, InstallTool } from './types.ts'
 
 const SKILLS_PACKAGE = 'skills@latest'
+export const DEFAULT_SKILLS_SOURCE = 'deweyou/agents'
 
 export interface SkillsAddOptions {
   cwd: string

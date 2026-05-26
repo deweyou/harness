@@ -43,12 +43,14 @@ export async function checkDoctor({
   const manifestValid =
     manifest !== undefined && validateManifest(manifest, checks)
 
-  await statCheck({
-    path: agentsMdPath,
-    checks,
-    passMessage: 'AGENTS.md exists',
-    missingMessage: 'AGENTS.md is missing. Run `deweyou-cli agent init`.',
-  })
+  if (!manifestValid || requiresAgentsMd(manifest as RepoManifest)) {
+    await statCheck({
+      path: agentsMdPath,
+      checks,
+      passMessage: 'AGENTS.md exists',
+      missingMessage: 'AGENTS.md is missing. Run `deweyou-cli agent init`.',
+    })
+  }
 
   if (manifestValid && registryValid) {
     const validManifest = manifest as RepoManifest
@@ -260,6 +262,10 @@ function validateManifest(
   }
 
   return checks.length === before
+}
+
+function requiresAgentsMd(manifest: RepoManifest): boolean {
+  return manifest.assets.rules.length > 0 || Boolean(manifest.assets.design)
 }
 
 async function checkSelectedAssets({

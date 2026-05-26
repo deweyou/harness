@@ -205,6 +205,13 @@ describe('main', () => {
     assert.equal(longOutput, shortOutput)
   })
 
+  it('prints top-level help for unknown help topics', async () => {
+    const output = await captureLog(() => main(['nope', '-h']))
+
+    assert.match(output, /Usage:/)
+    assert.match(output, /deweyou-cli agent <command>/)
+  })
+
   it('prints agent help for nested -h', async () => {
     const output = await captureLog(() => main(['agent', '-h']))
 
@@ -243,7 +250,7 @@ describe('main', () => {
     const shortOutput = await captureLog(() => main(['-v']))
     const longOutput = await captureLog(() => main(['--version']))
 
-    assert.match(shortOutput, /^0\.\d+\.\d+$/)
+    assert.match(shortOutput, /^\d+\.\d+\.\d+$/)
     assert.equal(longOutput, shortOutput)
   })
 })

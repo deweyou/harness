@@ -22,6 +22,36 @@ describe('checkDoctor', () => {
     )
   })
 
+  it('passes for a skills-only repo without AGENTS.md', async () => {
+    const { homeDir, repoRoot } = await createDoctorFixture({
+      mode: 'link',
+      selected: { skills: ['demo'], rules: [] },
+    })
+
+    const result = await checkDoctor({ homeDir, repoRoot })
+
+    assert.equal(result.ok, true)
+    assert.doesNotMatch(
+      result.checks.map((check) => check.message).join('\n'),
+      /AGENTS\.md/,
+    )
+  })
+
+  it('passes for a design-only repo with AGENTS.md routing', async () => {
+    const { homeDir, repoRoot } = await createDoctorFixture({
+      mode: 'link',
+      selected: { skills: [], rules: [], design: 'dewey-interface' },
+    })
+
+    const result = await checkDoctor({ homeDir, repoRoot })
+
+    assert.equal(result.ok, true)
+    assert.match(
+      result.checks.map((check) => check.message).join('\n'),
+      /AGENTS\.md exists/,
+    )
+  })
+
   it('fails when the local asset cache registry is missing', async () => {
     const { homeDir, repoRoot } = await createDoctorFixture({ mode: 'link' })
 
@@ -166,7 +196,10 @@ describe('checkDoctor', () => {
   })
 })
 
-async function createDoctorFixture({ mode } = {}) {
+async function createDoctorFixture({
+  mode,
+  selected = { skills: ['demo'], rules: ['demo-rule'] },
+} = {}) {
   const homeDir = await mkdtemp(join(tmpdir(), 'deweyou-home-'))
   const repoRoot = await mkdtemp(join(tmpdir(), 'deweyou-repo-'))
   const sourceRoot = await createAssetHub()
@@ -179,7 +212,7 @@ async function createDoctorFixture({ mode } = {}) {
   await initRepo({
     homeDir,
     repoRoot,
-    selected: { skills: ['demo'], rules: ['demo-rule'] },
+    selected,
     mode,
     skillsInstaller: createFakeSkillsInstaller(homeDir),
   })
@@ -209,6 +242,7 @@ async function createAssetHub() {
 
   await mkdir(join(root, 'skills/demo'), { recursive: true })
   await mkdir(join(root, 'rules'), { recursive: true })
+  await mkdir(join(root, 'design'), { recursive: true })
 
   await writeFile(
     join(root, 'skills/demo/SKILL.md'),
@@ -229,6 +263,17 @@ description: Demo rule
 ---
 
 # Demo rule body
+`,
+  )
+
+  await writeFile(
+    join(root, 'design/dewey-interface.md'),
+    `---
+name: dewey-interface
+description: Dewey interface design contract
+---
+
+# Dewey Interface
 `,
   )
 

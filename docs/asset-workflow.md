@@ -114,6 +114,8 @@ mode and wire repository instruction files:
 - A selected design contract is installed as root `DESIGN.md`.
 - `AGENTS.md` and `CLAUDE.md` receive managed rule sections when rules are
   selected.
+- `AGENTS.md` receives the design routing section only when a design contract is
+  selected. Skills-only installs do not create or update `AGENTS.md`.
 
 Global installs keep instruction files lean:
 
