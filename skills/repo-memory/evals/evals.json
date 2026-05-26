@@ -56,6 +56,19 @@
         "The run updates focused durable docs rather than broad unrelated documentation",
         "The run reports owned skill updates and dependency skill follow-ups"
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "This React app already has a dashboard UI. I changed the navigation density, button radius, and chart color rules. Before commit, update repo memory and make sure future agents keep the design style.",
+      "expected_output": "The run recognizes UI design style as durable memory. It first checks for root DESIGN.md and updates it directly when present. If DESIGN.md is missing, it searches the existing knowledge directory for a relevant design, UI, style, brand, or frontend doc and updates that file in place. If neither exists, it creates root DESIGN.md as the design contract. When root DESIGN.md exists or is created, it checks AGENTS.md and adds a UI/UX/visual-design instruction to read DESIGN.md if that reference is missing.",
+      "files": [],
+      "expectations": [
+        "The run treats changed navigation density, radius, and chart colors as durable UI design memory",
+        "Root DESIGN.md has first priority for design memory reads and updates",
+        "Existing design-related knowledge docs are reused when DESIGN.md is absent",
+        "A new root DESIGN.md is created only when no existing design contract or design-related knowledge doc exists",
+        "AGENTS.md is checked and updated to reference DESIGN.md when a root DESIGN.md exists or is created"
+      ]
     }
   ]
 }
