@@ -14,6 +14,8 @@
 ### Changed
 
 - clarify global init success output and help text
+- delegate `agent init` skill installs to `npx skills` and remove the extra
+  Dewey skills wrapper commands
 
 ## 0.5.0 - 2026-05-17
 

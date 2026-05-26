@@ -4,6 +4,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  cp,
   readFile,
   readlink,
   realpath,
@@ -560,6 +561,7 @@ describe('coverage gaps', () => {
       selected: { skills: ['demo'], rules: ['demo-rule'] },
       mode: 'copy',
       force: true,
+      skillsInstaller: createFakeSkillsInstaller(homeDir),
     })
     assert.equal(replaced.mode, 'copy')
   })
@@ -654,10 +656,11 @@ describe('coverage gaps', () => {
       selected: { skills: ['demo'], rules: [] },
       scope: 'global',
       tools: ['codex'],
+      skillsInstaller: createFakeSkillsInstaller(homeDir),
     })
     assert.deepEqual(globalSkills.assets, { skills: ['demo'], rules: [] })
     assert.equal(
-      await readlink(join(homeDir, '.codex/skills/demo')),
+      await readlink(join(homeDir, '.agents/skills/demo')),
       await realpath(join(homeDir, '.deweyou/agents/assets/skills/demo')),
     )
     await assert.rejects(
@@ -708,6 +711,7 @@ describe('coverage gaps', () => {
       selected: { skills: ['demo'], rules: ['demo-rule'] },
       mode: 'link',
       force: true,
+      skillsInstaller: createFakeSkillsInstaller(homeDir),
     })
 
     assert.equal(refreshed.mode, 'link')
@@ -991,9 +995,39 @@ async function createFixture({ mode }) {
     repoRoot,
     selected: { skills: ['demo'], rules: ['demo-rule'] },
     mode,
+    skillsInstaller: createFakeSkillsInstaller(homeDir),
   })
 
   return { homeDir, repoRoot, sourceRoot }
+}
+
+function createFakeSkillsInstaller(homeDir) {
+  const assetsRoot = cachePaths({ homeDir }).assetsRoot
+
+  return async ({ cwd, skills, tools, scope, mode }) => {
+    const root = scope === 'global' ? homeDir : cwd
+
+    await Promise.all(
+      tools.flatMap((tool) =>
+        skills.map(async (skill) => {
+          const source = join(assetsRoot, 'skills', skill)
+          const destination = join(
+            root,
+            tool === 'claude' ? '.claude/skills' : '.agents/skills',
+            skill,
+          )
+
+          await rm(destination, { recursive: true, force: true })
+          await mkdir(join(destination, '..'), { recursive: true })
+          if (mode === 'copy') {
+            await cp(source, destination, { recursive: true })
+          } else {
+            await symlink(await realpath(source), destination)
+          }
+        }),
+      ),
+    )
+  }
 }
 
 async function createAssetHub() {

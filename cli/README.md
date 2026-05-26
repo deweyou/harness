@@ -150,52 +150,6 @@ Flags:
 `--yes` does not guess a default asset set. It only confirms a scripted
 selection you already provided.
 
-### `deweyou-cli agent skills`
-
-Wraps the community `skills` CLI with Dewey-shaped commands. Dewey does not
-replace `skills-lock.json` or reimplement skill installation; it delegates skill
-add, update, restore, list, and remove operations to `npx skills` so users can
-stay in the `deweyou-cli` command surface.
-
-```bash
-deweyou-cli agent skills add deweyou/agents --skills repo-memory,git-delivery --tools codex,claude --yes
-deweyou-cli agent skills update repo-memory --scope project --yes
-deweyou-cli agent skills update --global --yes
-deweyou-cli agent skills sync --yes
-deweyou-cli agent skills list --scope project --json
-deweyou-cli agent skills remove repo-memory --scope project --yes
-```
-
-Common aliases:
-
-```bash
-deweyou-cli agent sync --yes
-deweyou-cli agent upgrade --scope project --yes
-deweyou-cli agent upgrade --global --yes
-```
-
-Mapping:
-
-| Dewey command | Underlying skills command |
-|---------------|---------------------------|
-| `agent skills add <source>` | `npx skills add <source>` |
-| `agent skills update` / `agent upgrade` | `npx skills update` |
-| `agent skills sync` / `agent sync` | `npx skills experimental_install` |
-| `agent skills list` | `npx skills list` |
-| `agent skills remove` | `npx skills remove` |
-
-Flags:
-
-| Flag | Meaning |
-|------|---------|
-| `--skills a,b` | Select comma-separated skill ids for add/remove. |
-| `--tools codex,claude\|all` | Select target agent tools. |
-| `--scope project\|global` | Select project or global scope when supported. |
-| `--global` | Shortcut for global scope. |
-| `--copy` | Copy files instead of symlinking when adding. |
-| `--json` | Print machine-readable output when listing. |
-| `--yes` | Run without prompts. |
-
 ### `deweyou-cli agent context`
 
 Prints the active agent context for the current repository.
@@ -240,8 +194,8 @@ The command exits with a non-zero status when a check fails.
 
 | Mode | Repository Writes | Best For |
 |------|-------------------|----------|
-| `link` | Symlinks selected assets into `.agents/skills/`, `.agents/rules/`, and optionally root `DESIGN.md`. | Daily local work where updates should be immediately visible after cache refresh. |
-| `copy` | Copies selected assets into `.agents/skills/`, `.agents/rules/`, and optionally root `DESIGN.md`. | Repositories that should keep a snapshot of the selected assets. |
+| `link` | Installs selected skills through `npx skills`; symlinks selected rules and optionally root `DESIGN.md`. | Daily local work where updates should be immediately visible after cache refresh. |
+| `copy` | Installs selected skills through `npx skills --copy`; copies selected rules and optionally root `DESIGN.md`. | Repositories that should keep a snapshot of the selected assets. |
 | `pointer` | Writes only `.agents/manifest.json` and `AGENTS.md`; assets stay in the global cache. | Minimal repo footprint and tooling that can follow absolute cache paths. |
 
 ## Files Created
@@ -260,9 +214,11 @@ DESIGN.md
 workflow context. Existing content outside that managed section is preserved.
 
 Project installs write repository instruction files such as `AGENTS.md` and
-`CLAUDE.md`. Global skill installs symlink selected skills into tool-native
-directories such as `~/.codex/skills/<skill>` and
-`~/.claude/skills/<skill>`. Global rule installs write user-level instruction
+`CLAUDE.md`. Skill installs are delegated to `npx skills add`, which writes
+the selected skill package into agent-native skill directories such as
+`.agents/skills/<skill>` or `.claude/skills/<skill>` for project installs and
+`~/.agents/skills/<skill>` or `~/.claude/skills/<skill>` for global installs.
+Global rule installs write user-level instruction
 files such as `~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`.
 
 ## Safety Notes

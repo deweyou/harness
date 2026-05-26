@@ -108,7 +108,8 @@ them.
 Project installs write selected assets into `.agents/` according to the selected
 mode and wire repository instruction files:
 
-- Skills are installed under `.agents/skills/<skill>/`.
+- Skills are installed by `npx skills add` into the selected agents' native
+  skill directories.
 - Rules are installed under `.agents/rules/<rule>.md`.
 - A selected design contract is installed as root `DESIGN.md`.
 - `AGENTS.md` and `CLAUDE.md` receive managed rule sections when rules are
@@ -116,8 +117,8 @@ mode and wire repository instruction files:
 
 Global installs keep instruction files lean:
 
-- Skills are symlinked into tool-native directories such as
-  `~/.codex/skills/<skill>` and `~/.claude/skills/<skill>`.
+- Skills are installed by `npx skills add -g` into user-level skill directories
+  such as `~/.agents/skills/<skill>` and `~/.claude/skills/<skill>`.
 - Rules are written into user-level instruction files such as
   `~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`.
 - Rule `reference` wiring writes the rule name, description, and path. Agents

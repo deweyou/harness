@@ -4,6 +4,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  cp,
   readFile,
   readlink,
   realpath,
@@ -31,7 +32,7 @@ describe('initRepo', () => {
   })
 
   it('link mode creates asset symlinks, writes a manifest, and upserts AGENTS.md', async () => {
-    const { homeDir, repoRoot, sourceRoot } = await createInitFixture()
+    const { homeDir, repoRoot, sourceRoot, skillsInstaller } = await createInitFixture()
 
     await writeFile(
       join(repoRoot, 'AGENTS.md'),
@@ -54,6 +55,7 @@ Keep this outro.
       repoRoot,
       selected: { skills: ['demo'], rules: ['demo-rule'], design: 'dewey-interface' },
       mode: 'link',
+      skillsInstaller,
     })
     const paths = cachePaths({ homeDir })
     const registry = await loadRegistry(sourceRoot)
@@ -130,13 +132,14 @@ Keep this outro.
   })
 
   it('copy mode creates real copied asset files', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     await initRepo({
       homeDir,
       repoRoot,
       selected: { skills: ['demo'], rules: ['demo-rule'], design: 'dewey-interface' },
       mode: 'copy',
+      skillsInstaller,
     })
 
     assert.equal(
@@ -183,7 +186,7 @@ Keep this outro.
   )
 
   it('project inline dryRun plans files without reading missing project rule assets', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     const plan = await initRepo({
       homeDir,
@@ -206,7 +209,7 @@ Keep this outro.
   })
 
   it('pointer mode writes a manifest without creating asset files', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     const manifest = await initRepo({
       homeDir,
@@ -370,6 +373,7 @@ Keep this outro.
     })
     assert.deepEqual(plan.files, [
       join(repoRoot, '.agents/skills/demo'),
+      join(repoRoot, '.claude/skills/demo'),
       join(repoRoot, '.agents/rules/demo-rule.md'),
       join(repoRoot, '.agents/manifest.json'),
       join(repoRoot, 'AGENTS.md'),
@@ -455,10 +459,10 @@ Keep this outro.
   })
 
   it('preserves explicit non-scripted mode over prompted values', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     const manifest = await runInit(
-      { homeDir, repoRoot, mode: 'copy' },
+      { homeDir, repoRoot, mode: 'copy', skillsInstaller },
       {
         async promptForInit() {
           return {
@@ -484,7 +488,7 @@ Keep this outro.
   })
 
   it('preserves explicit non-scripted scope over prompted values', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     const manifest = await runInit(
       { homeDir, repoRoot, scope: 'global' },
@@ -508,7 +512,7 @@ Keep this outro.
   })
 
   it('scripted global runInit forwards scope, tools, and rule wiring to initRepo', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     const manifest = await runInit({
       homeDir,
@@ -579,7 +583,7 @@ Keep this outro.
   })
 
   it('scripted global runInit links selected skills into tool skill directories', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     const manifest = await runInit({
       homeDir,
@@ -588,12 +592,13 @@ Keep this outro.
       skills: ['demo'],
       tools: ['codex', 'claude'],
       yes: true,
+      skillsInstaller,
     })
 
     assert.equal(manifest.scope, 'global')
     assert.deepEqual(manifest.assets, { skills: ['demo'], rules: [] })
     assert.equal(
-      await readlink(join(homeDir, '.codex/skills/demo')),
+      await readlink(join(homeDir, '.agents/skills/demo')),
       await realpath(join(homeDir, '.deweyou/agents/assets/skills/demo')),
     )
     assert.equal(
@@ -608,7 +613,7 @@ Keep this outro.
   })
 
   it('scripted --global shortcut links selected skills into tool skill directories', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     const output = await captureLog(() =>
       runInit({
@@ -618,19 +623,20 @@ Keep this outro.
         skills: ['demo'],
         tools: ['codex'],
         yes: true,
+        skillsInstaller,
       }),
     )
 
     assert.match(output, /Initialized Dewey workflow globally\./)
     assert.equal(
-      await readlink(join(homeDir, '.codex/skills/demo')),
+      await readlink(join(homeDir, '.agents/skills/demo')),
       await realpath(join(homeDir, '.deweyou/agents/assets/skills/demo')),
     )
     await assert.rejects(() => stat(join(repoRoot, '.agents')), { code: 'ENOENT' })
   })
 
   it('rejects conflicting global shortcut and project scope', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
 
     await assert.rejects(
       () =>
@@ -761,7 +767,7 @@ Keep this outro.
   })
 
   it('planning failure preserves existing managed assets and manifest', async () => {
-    const { homeDir, repoRoot } = await createInitFixture()
+    const { homeDir, repoRoot, skillsInstaller } = await createInitFixture()
     const paths = cachePaths({ homeDir })
 
     const oldManifest = await initRepo({
@@ -769,6 +775,7 @@ Keep this outro.
       repoRoot,
       selected: { skills: ['demo'], rules: ['demo-rule'] },
       mode: 'copy',
+      skillsInstaller,
     })
     const oldSkill = await readFile(
       join(repoRoot, '.agents/skills/demo/SKILL.md'),
@@ -792,6 +799,7 @@ Keep this outro.
           selected: { skills: ['demo'], rules: ['demo-rule'] },
           mode: 'copy',
           force: true,
+          skillsInstaller,
         }),
       { code: 'ENOENT' },
     )
@@ -867,7 +875,42 @@ async function createInitFixture() {
 
   await updateCache({ homeDir, sourceRoot, cliVersion: '0.1.0' })
 
-  return { homeDir, repoRoot, sourceRoot }
+  return {
+    homeDir,
+    repoRoot,
+    sourceRoot,
+    skillsInstaller: createFakeSkillsInstaller(homeDir),
+  }
+}
+
+function createFakeSkillsInstaller(homeDir) {
+  const assetsRoot = cachePaths({ homeDir }).assetsRoot
+
+  return async ({ cwd, skills, tools, scope, mode }) => {
+    const root = scope === 'global' ? homeDir : cwd
+
+    await Promise.all(
+      tools.flatMap((tool) =>
+        skills.map(async (skill) => {
+          const source = join(assetsRoot, 'skills', skill)
+          const destination = join(
+            root,
+            tool === 'claude' ? '.claude/skills' : '.agents/skills',
+            skill,
+          )
+
+          await rm(destination, { recursive: true, force: true })
+          await mkdir(join(destination, '..'), { recursive: true })
+
+          if (mode === 'copy') {
+            await cp(source, destination, { recursive: true })
+          } else {
+            await symlink(await realpath(source), destination)
+          }
+        }),
+      ),
+    )
+  }
 }
 
 async function captureLog(callback) {

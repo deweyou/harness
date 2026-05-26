@@ -246,8 +246,8 @@ Add CLI tests for:
 - A `CLAUDE.md -> AGENTS.md` symlink is preserved.
 - Global Codex install updates a test-home `~/.codex/AGENTS.md`.
 - Global Claude install updates a test-home `~/.claude/CLAUDE.md`.
-- Global skill installs symlink selected skills into test-home
-  `~/.codex/skills/` and `~/.claude/skills/`.
+- Global skill installs delegate to the skills CLI and materialize selected
+  skills into test-home `~/.agents/skills/` and `~/.claude/skills/`.
 - Interactive prompts collect scope, tools, assets, wiring, selected rules, and
   final confirmation.
 - Dry-run lists planned files without writing.
