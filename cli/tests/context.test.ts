@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -82,6 +82,7 @@ describe('resolveContext', () => {
       repoRoot,
       selected: { skills: ['demo'], rules: ['demo-rule'], design: 'dewey-interface' },
       mode: 'copy',
+      skillsInstaller: createFakeSkillsInstaller(homeDir),
     })
     await updateCache({
       homeDir,
@@ -172,9 +173,31 @@ async function createContextFixture({ mode = 'pointer' } = {}) {
     repoRoot,
     selected: { skills: ['demo'], rules: ['demo-rule'], design: 'dewey-interface' },
     mode,
+    skillsInstaller: createFakeSkillsInstaller(homeDir),
   })
 
   return { homeDir, repoRoot }
+}
+
+function createFakeSkillsInstaller(homeDir) {
+  const assetsRoot = join(homeDir, '.deweyou/agents/assets')
+
+  return async ({ cwd, skills, mode }) => {
+    await Promise.all(
+      skills.map(async (skill) => {
+        const source = join(assetsRoot, 'skills', skill)
+        const destination = join(cwd, '.agents/skills', skill)
+
+        await rm(destination, { recursive: true, force: true })
+        await mkdir(join(destination, '..'), { recursive: true })
+        if (mode === 'copy') {
+          await cp(source, destination, { recursive: true })
+        } else {
+          await symlink(await realpath(source), destination)
+        }
+      }),
+    )
+  }
 }
 
 async function createAssetHub(options = {}) {

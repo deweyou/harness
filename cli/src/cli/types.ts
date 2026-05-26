@@ -1,3 +1,5 @@
+import type { SkillsInstaller } from './skill-install.ts'
+
 export type AssetKind = 'skill' | 'rule' | 'design'
 export type InstallMode = 'link' | 'copy' | 'pointer'
 export type InstallScope = 'project' | 'global'
@@ -100,6 +102,7 @@ export interface InitRepoOptions {
   selected?: SelectedAssets
   force?: boolean
   dryRun?: boolean
+  skillsInstaller?: SkillsInstaller
 }
 
 export interface InitFlags extends InitRepoOptions {

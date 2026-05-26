@@ -111,7 +111,7 @@ describe('promptForInit', () => {
     })
     assert.match(calls.note.at(-1)[0], /~\/\.codex\/AGENTS\.md/)
     assert.match(calls.note.at(-1)[0], /~\/\.claude\/CLAUDE\.md/)
-    assert.match(calls.note.at(-1)[0], /~\/\.codex\/skills\/<skill>/)
+    assert.match(calls.note.at(-1)[0], /~\/\.agents\/skills\/<skill>/)
     assert.match(calls.note.at(-1)[0], /~\/\.claude\/skills\/<skill>/)
     assert.match(calls.note.at(-1)[0], /~\/\.deweyou\/agents\/global-manifest\.json/)
   })
@@ -137,7 +137,7 @@ describe('promptForInit', () => {
       selected: { skills: ['demo'], rules: [] },
     })
     assert.doesNotMatch(calls.note.at(-1)[0], /~\/\.codex\/AGENTS\.md/)
-    assert.match(calls.note.at(-1)[0], /~\/\.codex\/skills\/<skill>/)
+    assert.match(calls.note.at(-1)[0], /~\/\.agents\/skills\/<skill>/)
     assert.doesNotMatch(calls.note.at(-1)[0], /~\/\.claude\/skills\/<skill>/)
   })
 

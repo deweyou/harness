@@ -15,6 +15,8 @@ import { cachePaths } from './cache.ts'
 import { readJson, writeJson } from './manifest.ts'
 import { upsertAgentsSection } from './agents-md.ts'
 import { applyRuleInstall, planRuleInstall } from './rule-install.ts'
+import { runSkillsInstall } from './skill-install.ts'
+import type { SkillsInstaller } from './skill-install.ts'
 import type {
   AssetKind,
   AssetMetadata,
@@ -56,6 +58,7 @@ export async function initRepo(options: InitRepoOptions = {}): Promise<InitResul
     selected,
     force = false,
     dryRun = false,
+    skillsInstaller = runSkillsInstall,
   } = options
   if (!selected) {
     throw new Error('selected assets are required')
@@ -86,6 +89,7 @@ export async function initRepo(options: InitRepoOptions = {}): Promise<InitResul
       ruleWiring,
       force,
       dryRun,
+      skillsInstaller,
     })
   }
 
@@ -97,10 +101,28 @@ export async function initRepo(options: InitRepoOptions = {}): Promise<InitResul
     assets,
     mode,
   })
+  const skillFiles = mode === 'pointer'
+    ? []
+    : projectSkillFiles({ repoRoot, assets, tools })
+  const skillPlan = mode === 'pointer'
+    ? { assets: [], files: [] }
+    : await buildSkillSafetyPlan({
+        assetsRoot: paths.assetsRoot,
+        registry,
+        skills: assets.skills,
+        destinations: skillFiles,
+        mode,
+      })
+  if (mode !== 'pointer') {
+    await validateSelectedSkillSources(paths.assetsRoot, registry, assets.skills)
+  }
 
   if (mode !== 'pointer') {
     await validateDestinationSafety({
-      plan,
+      plan: {
+        assets: [...skillPlan.assets, ...plan.assets],
+        files: [...skillPlan.files, ...plan.files],
+      },
       manifestPath: join(agentsRoot, 'manifest.json'),
       assetsRoot: paths.assetsRoot,
       force,
@@ -142,13 +164,23 @@ export async function initRepo(options: InitRepoOptions = {}): Promise<InitResul
     return {
       ...manifest,
       dryRun: true,
-      files: uniqueFiles([...plan.files, ...rulePlan.files]),
+      files: uniqueFiles([...skillFiles, ...plan.files, ...rulePlan.files]),
     }
   }
 
   await mkdir(agentsRoot, { recursive: true })
 
   if (mode !== 'pointer') {
+    if (assets.skills.length > 0) {
+      await skillsInstaller({
+        cwd: repoRoot,
+        source: cacheManifest.source.root,
+        skills: assets.skills,
+        tools,
+        scope: 'project',
+        mode,
+      })
+    }
     await installAssets(plan.assets)
   }
 
@@ -170,6 +202,7 @@ async function initGlobal({
   ruleWiring,
   force,
   dryRun,
+  skillsInstaller,
 }: {
   homeDir: string
   repoRoot: string
@@ -181,17 +214,20 @@ async function initGlobal({
   ruleWiring: RuleWiring
   force: boolean
   dryRun: boolean
+  skillsInstaller: SkillsInstaller
 }): Promise<InitResult> {
   if (assets.design) {
     throw new Error('Global installs currently do not support design contracts')
   }
 
-  const skillPlan = await buildGlobalSkillPlan({
-    homeDir,
+  await validateSelectedSkillSources(paths.assetsRoot, registry, assets.skills)
+  const skillFiles = globalSkillFiles({ homeDir, assets, tools })
+  const skillPlan = await buildSkillSafetyPlan({
     assetsRoot: paths.assetsRoot,
     registry,
-    assets,
-    tools,
+    skills: assets.skills,
+    destinations: skillFiles,
+    mode: 'link',
   })
   const rulePlan = await planRuleInstall({
     repoRoot,
@@ -211,7 +247,6 @@ async function initGlobal({
     tools,
     force,
   })
-
   const manifest: GlobalManifest = {
     scope: 'global',
     source: cacheManifest.source,
@@ -228,14 +263,23 @@ async function initGlobal({
       ...manifest,
       dryRun: true,
       files: uniqueFiles([
-        ...skillPlan.files,
+        ...skillFiles,
         ...rulePlan.files,
         join(homeDir, '.deweyou/agents/global-manifest.json'),
       ]),
     }
   }
 
-  await installAssets(skillPlan.assets)
+  if (assets.skills.length > 0) {
+    await skillsInstaller({
+      cwd: repoRoot,
+      source: cacheManifest.source.root,
+      skills: assets.skills,
+      tools,
+      scope: 'global',
+      mode: 'link',
+    })
+  }
   await applyRuleInstall(rulePlan)
   await writeJson(join(homeDir, '.deweyou/agents/global-manifest.json'), manifest)
   return manifest
@@ -327,6 +371,7 @@ export async function runInit(
     force: flags.force ?? false,
     dryRun: flags.dryRun ?? false,
     homeDir,
+    skillsInstaller: flags.skillsInstaller,
   })
 
   if (flags.dryRun) {
@@ -566,46 +611,100 @@ function ruleDescriptionMap(
   )
 }
 
-async function buildGlobalSkillPlan({
+function projectRulePathMap(
+  repoRoot: string,
+  assetsRoot: string,
+  registry: AssetRegistry,
+  assets: SelectedAssets,
+  mode: InstallMode,
+  ruleWiring: RuleWiring,
+): Map<string, string> {
+  if (mode === 'pointer' || ruleWiring === 'inline') {
+    return rulePathMap(assetsRoot, registry, assets.rules)
+  }
+  return new Map(
+    assets.rules.map((rule) => [
+      rule,
+      join(repoRoot, '.agents', 'rules', `${rule}.md`),
+    ]),
+  )
+}
+
+async function validateSelectedSkillSources(
+  assetsRoot: string,
+  registry: AssetRegistry,
+  skills: string[],
+): Promise<void> {
+  await Promise.all(
+    skills.map((skill) =>
+      realpath(join(assetsRoot, registry.assets.skills[skill].path)),
+    ),
+  )
+}
+
+function projectSkillFiles({
+  repoRoot,
+  assets,
+  tools,
+}: {
+  repoRoot: string
+  assets: SelectedAssets
+  tools: InstallTool[]
+}): string[] {
+  return tools.flatMap((tool) =>
+    assets.skills.map((skill) => join(repoRoot, skillDirectory(tool), skill)),
+  )
+}
+
+function globalSkillFiles({
   homeDir,
-  assetsRoot,
-  registry,
   assets,
   tools,
 }: {
   homeDir: string
-  assetsRoot: string
-  registry: AssetRegistry
   assets: SelectedAssets
   tools: InstallTool[]
-}): Promise<InitPlan> {
-  const destinations = tools.flatMap((tool) =>
-    assets.skills.map((id) => ({
-      id,
-      destination: join(homeDir, toolSkillDirectory(tool), id),
-    })),
+}): string[] {
+  return tools.flatMap((tool) =>
+    assets.skills.map((skill) => join(homeDir, skillDirectory(tool), skill)),
   )
-  const assetPlans = await Promise.all(
-    destinations.map(({ id, destination }) =>
-      buildAssetPlan({
+}
+
+function skillDirectory(tool: InstallTool): string {
+  if (tool === 'claude') return '.claude/skills'
+  return '.agents/skills'
+}
+
+async function buildSkillSafetyPlan({
+  assetsRoot,
+  registry,
+  skills,
+  destinations,
+  mode,
+}: {
+  assetsRoot: string
+  registry: AssetRegistry
+  skills: string[]
+  destinations: string[]
+  mode: Exclude<InstallMode, 'pointer'>
+}): Promise<InitPlan> {
+  const assets = await Promise.all(
+    destinations.map((destination) => {
+      const id = basename(destination)
+      return buildAssetPlan({
         kind: 'skill',
         id,
         source: join(assetsRoot, registry.assets.skills[id].path),
         destination,
-        mode: 'link',
-      }),
-    ),
+        mode,
+      })
+    }),
   )
 
   return {
-    assets: assetPlans,
-    files: assetPlans.map((asset) => asset.destination),
+    assets: skills.length > 0 ? assets : [],
+    files: destinations,
   }
-}
-
-function toolSkillDirectory(tool: InstallTool): string {
-  if (tool === 'codex') return '.codex/skills'
-  return '.claude/skills'
 }
 
 async function validateGlobalSkillDestinationSafety({
@@ -649,27 +748,8 @@ function globalSkillDestinations(
 
   return manifestTools.flatMap((tool) =>
     (manifest.assets.skills ?? []).map((id) =>
-      join(homeDir, toolSkillDirectory(tool), id),
+      join(homeDir, skillDirectory(tool), id),
     ),
-  )
-}
-
-function projectRulePathMap(
-  repoRoot: string,
-  assetsRoot: string,
-  registry: AssetRegistry,
-  assets: SelectedAssets,
-  mode: InstallMode,
-  ruleWiring: RuleWiring,
-): Map<string, string> {
-  if (mode === 'pointer' || ruleWiring === 'inline') {
-    return rulePathMap(assetsRoot, registry, assets.rules)
-  }
-  return new Map(
-    assets.rules.map((rule) => [
-      rule,
-      join(repoRoot, '.agents', 'rules', `${rule}.md`),
-    ]),
   )
 }
 
@@ -692,15 +772,6 @@ async function buildInitPlan({
     mode === 'pointer'
       ? []
       : await Promise.all([
-          ...assets.skills.map((id) =>
-            buildAssetPlan({
-              kind: 'skill',
-              id,
-              source: join(assetsRoot, registry.assets.skills[id].path),
-              destination: join(agentsRoot, 'skills', id),
-              mode,
-            }),
-          ),
           ...assets.rules.map((id) =>
             buildAssetPlan({
               kind: 'rule',
@@ -785,10 +856,16 @@ async function validateDestinationSafety({
 
 function manifestDestinations(agentsRoot: string, manifest: RepoManifest | null): string[] {
   if (!manifest?.assets) return []
+  const repoRoot = dirname(agentsRoot)
+  const tools: InstallTool[] = manifest.tools?.length
+    ? manifest.tools
+    : ['codex', 'claude']
 
   return [
-    ...(manifest.assets.skills ?? []).map((id) =>
-      join(agentsRoot, 'skills', id),
+    ...tools.flatMap((tool) =>
+      (manifest.assets.skills ?? []).map((id) =>
+        join(repoRoot, skillDirectory(tool), id),
+      ),
     ),
     ...(manifest.assets.rules ?? []).map((id) =>
       join(agentsRoot, 'rules', `${id}.md`),

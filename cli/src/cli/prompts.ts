@@ -310,7 +310,7 @@ function plannedFiles({
       files.push('~/.claude/CLAUDE.md')
     }
     if (selected.skills.length > 0 && tools.includes('codex')) {
-      files.push('~/.codex/skills/<skill>')
+      files.push('~/.agents/skills/<skill>')
     }
     if (selected.skills.length > 0 && tools.includes('claude')) {
       files.push('~/.claude/skills/<skill>')

@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -181,9 +181,27 @@ async function createDoctorFixture({ mode } = {}) {
     repoRoot,
     selected: { skills: ['demo'], rules: ['demo-rule'] },
     mode,
+    skillsInstaller: createFakeSkillsInstaller(homeDir),
   })
 
   return { homeDir, repoRoot }
+}
+
+function createFakeSkillsInstaller(homeDir) {
+  const assetsRoot = join(homeDir, '.deweyou/agents/assets')
+
+  return async ({ cwd, skills }) => {
+    await Promise.all(
+      skills.map(async (skill) => {
+        const source = join(assetsRoot, 'skills', skill)
+        const destination = join(cwd, '.agents/skills', skill)
+
+        await rm(destination, { recursive: true, force: true })
+        await mkdir(join(destination, '..'), { recursive: true })
+        await symlink(await realpath(source), destination)
+      }),
+    )
+  }
 }
 
 async function createAssetHub() {
