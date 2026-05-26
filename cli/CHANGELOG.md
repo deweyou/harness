@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 - 2026-05-26
+
+### Fixed
+
+- init: avoid agents file for skills-only installs
 ## 1.0.0 - 2026-05-26
 
 ### Breaking Changes
