@@ -97,6 +97,12 @@ Dewey asset cache under `~/.deweyou/agents/assets/skills/<skill>/SKILL.md`.
 Keep those module skills independently installable for users who want standalone
 native skill access, but do not make them required project-level DDev assets.
 
+DDev also treats `code-style` and `engineering-principles` as mandatory,
+operation-scoped rule dependencies. It reads them directly from
+`~/.deweyou/agents/assets/rules/` before applicable coding or architecture work.
+Users do not need to install those rules globally or per repository for DDev to
+use them, but `deweyou-cli agent update` must keep the asset cache available.
+
 For skills specifically, also check `README.md`, `README_ZH.md`, `SKILL.md`,
 `evals/`, and `references/` before handoff. Skill README requirements live in
 [`docs/skill-readmes.md`](./skill-readmes.md):

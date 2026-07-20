@@ -1,6 +1,6 @@
 # DDev 操作手册
 
-*Last updated: 2026-07-20 | Reason: Documented manual activation, project opt-in, upgrade, and uninstall flow.*
+*Last updated: 2026-07-20 | Reason: Documented mandatory cached rule dependencies alongside manual activation and project opt-in.*
 
 这份手册面向日常跨仓库开发使用。技术方案见
 [`docs/ddev-framework.zh.md`](./ddev-framework.zh.md)。
@@ -12,6 +12,7 @@ flowchart TD
     User["用户任务"] --> DDev["ddev skill"]
     DDev --> State["~/.deweyou/dev/repos/<repo-id> branch-session state"]
     DDev --> GlobalModules["global module skills"]
+    DDev --> MandatoryRules["按操作强依赖的 rules"]
     GlobalModules --> Product["product-design"]
     GlobalModules --> UI["ui-design"]
     GlobalModules --> Coding["spec-driven-coding"]
@@ -19,6 +20,7 @@ flowchart TD
     GlobalModules --> Memory["repo-memory"]
     CLI["deweyou-cli dev"] --> Runtime["~/.deweyou/dev manual runtime"]
     Cache["~/.deweyou/agents/assets/skills"] --> GlobalModules
+    RuleCache["~/.deweyou/agents/assets/rules"] --> MandatoryRules
     Runtime --> State
 ```
 
@@ -28,6 +30,8 @@ flowchart TD
 - `~/.deweyou/dev/` 是项目源码外的本地临时状态，不是项目文档。
 - 其他 skills 是全局能力模块，放在 `~/.deweyou/agents/assets/skills/`
   下，完成领域工作后回到 `ddev`。
+- DDev 在写、改、审代码前读取 `code-style`，在有架构影响的操作前读取
+  `engineering-principles`；两者都直接来自 `~/.deweyou/agents/assets/rules/`。
 - `product-notes` 和 `skill-eval` 保持独立，只在明确请求时使用。
 - DDev 默认是用户主动触发，不安装全局被动 hooks。
 
@@ -50,6 +54,11 @@ deweyou-cli dev doctor
 `product-design` 等模块 skills 由 `deweyou-cli agent update` 放在全局 Dewey
 asset cache，DDev 需要时按绝对路径加载。用户仍然可以为了单独使用某个模块
 skill，把它显式安装到某个 harness 或仓库里。
+
+用户不需要为了 DDev 全局或按仓库安装 `code-style` 与
+`engineering-principles`。`deweyou-cli agent update` 会把它们放进全局 asset
+cache，DDev 在对应操作前直接读取适用的 rule。若刷新缓存后强依赖文件仍不存在，
+DDev 会阻塞该操作并报告缺失项。
 
 `deweyou-cli dev install` 会准备 `~/.deweyou/dev`，把全局模块 registry 写入
 `~/.deweyou/dev/config.json`，并把当前仓库状态创建在

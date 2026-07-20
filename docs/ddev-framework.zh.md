@@ -13,6 +13,7 @@ Agent 入口：      ddev / $DDev，或项目 AGENTS.md 显式 opt-in
 CLI 命名空间：    deweyou-cli dev ...
 全局运行时：      ~/.deweyou/dev/
 模块 skills：    ~/.deweyou/agents/assets/skills/<skill>/SKILL.md
+强依赖 rules：   ~/.deweyou/agents/assets/rules/{code-style,engineering-principles}.md
 按仓库状态：      ~/.deweyou/dev/repos/<repo-id>/
 ```
 
@@ -50,7 +51,11 @@ flowchart TD
     Runtime --> State["~/.deweyou/dev/repos/<repo-id>/sessions/<branch>"]
     DDev --> State
     Cache["~/.deweyou/agents/assets/skills"] --> Modules["global module skills"]
+    RuleCache["~/.deweyou/agents/assets/rules"] --> Rules["按操作强依赖的 rules"]
     DDev --> Modules
+    DDev --> Rules
+    Rules --> CodeStyle["code-style"]
+    Rules --> Engineering["engineering-principles"]
     Modules --> Coding["spec-driven-coding"]
     Modules --> UI["ui-design"]
     Modules --> Framing["problem-framing"]
@@ -113,6 +118,13 @@ Orient
 | 持久仓库知识 | `repo-memory/SKILL.md` |
 
 `product-notes` 和 `skill-eval` 保持独立，只在明确请求时使用。
+
+DDev 还拥有两个按操作生效的强依赖 rules。写、改、审代码前，必须读取
+`~/.deweyou/agents/assets/rules/code-style.md`；进行模块设计、边界重构、依赖变更
+或有架构影响的行为变更前，必须读取
+`~/.deweyou/agents/assets/rules/engineering-principles.md`。即使用户没有把这两个
+rules 全局安装或安装进仓库，DDev 也会直接从 asset cache 读取。若执行
+`deweyou-cli agent update` 后对应文件仍缺失，则阻塞相关操作。
 
 ## 本地状态契约
 
@@ -260,6 +272,9 @@ deweyou-cli agent init \
 deweyou-cli dev install
 deweyou-cli dev doctor
 ```
+
+`code-style` 和 `engineering-principles` 是否全局或按项目安装，不影响 DDev；
+DDev 会在对应操作发生时直接读取缓存中的 rule 文件。
 
 ## 所有权边界
 
