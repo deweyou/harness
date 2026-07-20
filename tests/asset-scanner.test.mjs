@@ -11,7 +11,9 @@ describe('asset scanner', () => {
     const scanned = await scanAssets(new URL('..', import.meta.url).pathname)
 
     assert.deepEqual(Object.keys(scanned.skills).sort(), [
+      'ddev',
       'git-delivery',
+      'problem-framing',
       'product-design',
       'product-notes',
       'repo-memory',
@@ -22,7 +24,10 @@ describe('asset scanner', () => {
     assert.deepEqual(Object.keys(scanned.rules).sort(), [
       'code-style',
       'collaboration-defaults',
+      'ddev-local-state',
       'engineering-principles',
+      'loop-boundaries',
+      'verification-evidence',
     ])
     assert.deepEqual(Object.keys(scanned.designs).sort(), [
       'dewey-interface',

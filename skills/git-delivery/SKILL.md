@@ -15,6 +15,21 @@ When invoked, make the safety and delivery decisions explicit. Reviewers need to
 see the branch choice, dirty-work protection, intended staging boundary, PR
 creation or blocker, base-branch conflict/rebase status, and CI repair decision.
 
+## DDev Ship Interface
+
+When invoked by `ddev` for `$DDev ship` or an equivalent delivery request, treat
+DDev as the lifecycle caller and keep this skill focused on delivery.
+
+- DDev state normally lives outside the repository under `~/.deweyou/dev/`.
+  If legacy project-local `.deweyou/dev/` appears, do not stage it unless the
+  user explicitly asks to version a specific example or fixture.
+- Preserve unrelated dirty work and report it.
+- Run or account for `repo-memory` before committing when durable knowledge may
+  have changed.
+- Return the delivery boundary to DDev: verification, staging, commit, base
+  check, push, PR, CI follow-up, and exact blockers.
+- Do not reinterpret DDev temporary session notes as durable documentation.
+
 ## When To Use
 
 Use this skill when the user is starting, continuing, or finishing code or asset

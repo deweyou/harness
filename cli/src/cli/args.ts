@@ -1,6 +1,13 @@
 import type { ParsedArgs, UsageError } from './types.ts'
 
-const BOOLEAN_FLAGS = new Set(['all', 'global', 'yes', 'dry-run', 'force'])
+const BOOLEAN_FLAGS = new Set([
+  'all',
+  'global',
+  'yes',
+  'dry-run',
+  'force',
+  'no-server',
+])
 const VALUE_FLAGS = new Set([
   'mode',
   'skills',
@@ -10,25 +17,38 @@ const VALUE_FLAGS = new Set([
   'scope',
   'tools',
   'rule-wiring',
+  'branch',
+  'host',
+  'port',
 ])
-const FLAGS_BY_COMMAND: Record<string, Set<string>> = {
-  init: new Set([
-    'all',
-    'skills',
-    'rules',
-    'design',
-    'mode',
-    'global',
-    'scope',
-    'tools',
-    'rule-wiring',
-    'yes',
-    'dry-run',
-    'force',
-  ]),
-  context: new Set(['format']),
-  update: new Set(),
-  doctor: new Set(),
+const FLAGS_BY_TOPIC_COMMAND: Record<string, Record<string, Set<string>>> = {
+  agent: {
+    init: new Set([
+      'all',
+      'skills',
+      'rules',
+      'design',
+      'mode',
+      'global',
+      'scope',
+      'tools',
+      'rule-wiring',
+      'yes',
+      'dry-run',
+      'force',
+    ]),
+    context: new Set(['format']),
+    update: new Set(),
+    doctor: new Set(),
+  },
+  dev: {
+    install: new Set(['dry-run']),
+    status: new Set(),
+    doctor: new Set(),
+    clean: new Set(['all', 'branch', 'dry-run']),
+    demo: new Set(['branch', 'host', 'port', 'no-server', 'dry-run']),
+    uninstall: new Set(['dry-run']),
+  },
 }
 
 export function usageError(message: string, { silent = false } = {}): UsageError {
@@ -48,8 +68,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
     const name = token.slice(2)
     if (!isKnownFlag(name)) throw usageError(`Unknown flag: --${name}`)
-    if (!isAllowedForCommand(command, name)) {
-      throw usageError(`Flag --${name} is not valid for agent ${command}`)
+    if (!isAllowedForCommand(topic, command, name)) {
+      throw usageError(`Flag --${name} is not valid for ${topic} ${command}`)
     }
 
     if (BOOLEAN_FLAGS.has(name)) {
@@ -77,9 +97,13 @@ function isKnownFlag(name: string): boolean {
   return BOOLEAN_FLAGS.has(name) || VALUE_FLAGS.has(name)
 }
 
-function isAllowedForCommand(command: string | undefined, name: string): boolean {
-  if (!command) return false
-  return FLAGS_BY_COMMAND[command]?.has(name) ?? false
+function isAllowedForCommand(
+  topic: string | undefined,
+  command: string | undefined,
+  name: string,
+): boolean {
+  if (!topic || !command) return false
+  return FLAGS_BY_TOPIC_COMMAND[topic]?.[command]?.has(name) ?? false
 }
 
 function parseValue(name: string, value: string): string | string[] {

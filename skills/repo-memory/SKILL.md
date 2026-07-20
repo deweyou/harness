@@ -42,6 +42,20 @@ quality rule, design-memory decision, and skill-drift decision in the response.
 - Keep the user's main development flow moving. Spawn or propose separate work for
   non-blocking improvements.
 
+## DDev Session Boundary
+
+When invoked by `ddev`, treat `~/.deweyou/dev/` as temporary session state
+outside project source.
+
+- Inspect DDev `retrospective.md`, `evidence.md`, or `decisions.md` only as
+  candidate inputs.
+- Persist only durable repository knowledge: invariants, workflows, commands,
+  traps, architecture decisions, or recurring constraints.
+- Do not copy DDev session files wholesale into docs.
+- Do not stage or commit legacy project-local `.deweyou/dev/` if it appears.
+- Return a concise memory decision to DDev: no-op, docs updated, TODO recorded,
+  or blocked.
+
 ## When To Run
 
 Run this skill when any of these are true:

@@ -12,6 +12,10 @@
   "license": "MIT",
   "scripts": {
     "lint:assets": "node scripts/lint-agent-assets.mjs",
+    "site:sync": "node scripts/sync-site-content.mjs",
+    "site:dev": "node scripts/sync-site-content.mjs && vitepress dev site --host 127.0.0.1",
+    "site:build": "node scripts/sync-site-content.mjs && vitepress build site",
+    "site:preview": "vitepress preview site --host 127.0.0.1",
     "test": "node --test tests/*.test.mjs",
     "coverage": "node --test --experimental-test-coverage --test-coverage-include='scripts/asset-scanner.mjs' --test-coverage-lines=90 --test-coverage-branches=90 --test-coverage-functions=90 tests/*.test.mjs",
     "test:cli": "npm --prefix cli test",
@@ -29,14 +33,12 @@
     "@types/node": "^25.5.0",
     "@typescript/native-preview": "7.0.0-dev.20260328.1",
     "bumpp": "^11.0.1",
+    "mermaid": "^11.16.0",
     "simple-git-hooks": "^2.13.0",
     "typescript": "^6.0.2",
-    "vite-plus": "latest"
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "npm:@voidzero-dev/vite-plus-core@latest"
-    }
+    "vite": "^8.0.7",
+    "vite-plus": "latest",
+    "vitepress": "^1.6.4"
   },
   "packageManager": "pnpm@10.33.0"
 }

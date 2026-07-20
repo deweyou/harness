@@ -4,7 +4,8 @@
 
 ## 它是做什么的
 
-`ui-design` 将 UX 和界面质量要求转成可执行工作流。它覆盖模式调研、流程与状态设计、视觉风格、项目 `DESIGN.md` 契约、平台实现、评审，以及 Sleek 或其他 AI 设计 prompt，同时把可用性和视觉品味分层处理。
+`ui-design` 将实际 UX/UI 诉求转成可执行工作流。它覆盖 UX 模式调研、流程与交互设计、界面质量、项目 `DESIGN.md` 契约、生产实现、评审，以及 Sleek 或其他 AI 设计 prompt。这个 skill 会先把通用可用性、平台质量和视觉风格分层，再只应用当前任务需要的部分。
+当 DDev 在 UI 需求设计阶段调用它时，它会在实现前产出最小可用原型，并把证据交还给 DDev。
 
 ```mermaid
 flowchart TD
@@ -20,6 +21,17 @@ flowchart TD
     Build --> Verify["渲染并验证"]
     Review --> Output
 ```
+
+## 什么时候触发
+
+- “这个交互别人怎么做”、“有没有 UX 参考”、“这个流程顺不顺”、“审一下体验”。
+- “帮我设计这个交互”、“帮我设计”、“优化 UI”、“审一下界面”。
+- “我的风格”、“个人设计风格”、“专属于我风格”。
+- Web、dashboard、组件库、landing page、H5、移动端 UI 工作。
+- iOS/Android、HarmonyOS、小程序或 macOS 界面工作。
+- Sleek prompts 或其他 AI design-generation prompts。
+- 需要覆盖流程、状态、可访问性、视觉系统或实现质量的 UX/UI review。
+- DDev UI 需求设计，需要在实现前看到原型。
 
 ## 安装
 
@@ -41,6 +53,7 @@ deweyou-cli agent init --skills ui-design
 - 当视觉风格、个人品味、组件一致性或 design-system 持久化相关时，应用项目 `DESIGN.md`。
 - 在相关场景覆盖 empty、loading、error、success、disabled、selected、focus、hover、press、permission、login 和 destructive confirmation 状态。
 - 对重要 UI 实现使用渲染或浏览器验证。
+- 被 DDev 调用时，优先产出低保真结构、原型图 prompt、分支 HTML demo 或组件级原型说明中最小但有用的一种。
 
 ## SOP
 
@@ -52,6 +65,7 @@ deweyou-cli agent init --skills ui-design
 6. 实现时直接编辑相关文件，并运行合适的本地渲染或浏览器验证。
 7. 评审时按严重程度先给具体 findings，并在可用时引用文件。
 8. 当界面无法渲染或检查时，说明验证缺口。
+9. 被 DDev 调用时，把原型路径、demo URL、截图、响应式检查或状态覆盖证据交还给 DDev。
 
 ## Source
 

@@ -15,7 +15,7 @@ flowchart TD
     Global --> GlobalRules["user-level instruction rule sections"]
 ```
 
-*Last updated: 2026-05-21 | Reason: Added the skill README maintenance contract.*
+*Last updated: 2026-07-20 | Reason: Documented DDev asset maintenance and skill README contract.*
 
 ## Repository Conventions
 
@@ -71,6 +71,31 @@ plain for registry and CLI consumption.
 Public README descriptions should explain what each skill or rule does. Avoid
 leading with ownership language such as a person's name when the functionality
 can be described directly.
+
+## Maintaining DDev Assets
+
+DDev is the personal cross-repository development harness in this repository.
+When changing DDev behavior, update the assets that define the full operating
+contract rather than only one file:
+
+- `skills/ddev/SKILL.md` for the lifecycle workflow.
+- `skills/ddev/evals/evals.json` for routing and behavior coverage.
+- DDev-related rules under `rules/` when a passive preference or boundary
+  changes.
+- `docs/ddev-framework.md` and `docs/ddev-framework.zh.md` for architecture.
+- `docs/ddev-operations.md` and `docs/ddev-operations.zh.md` for daily usage.
+- README skill and rule tables when public descriptions change.
+
+DDev must keep `product-notes` and `skill-eval` independent. Do not couple them
+into the default DDev lifecycle; use them only when the user explicitly asks for
+product note capture or skill evaluation work.
+
+DDev repository setup should install only the `ddev` entry skill. Capability
+modules such as `problem-framing`, `ui-design`, `spec-driven-coding`,
+`git-delivery`, `repo-memory`, and `product-design` are resolved from the global
+Dewey asset cache under `~/.deweyou/agents/assets/skills/<skill>/SKILL.md`.
+Keep those module skills independently installable for users who want standalone
+native skill access, but do not make them required project-level DDev assets.
 
 For skills specifically, also check `README.md`, `README_ZH.md`, `SKILL.md`,
 `evals/`, and `references/` before handoff. Skill README requirements live in

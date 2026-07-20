@@ -69,6 +69,19 @@
         "A new root DESIGN.md is created only when no existing design contract or design-related knowledge doc exists",
         "AGENTS.md is checked and updated to reference DESIGN.md when a root DESIGN.md exists or is created"
       ]
+    },
+    {
+      "id": 6,
+      "prompt": "$DDev retrospect recorded a build command and a recurring trap from this task. Help decide which parts belong in repo memory.",
+      "expected_output": "The run should recognize a DDev-invoked repo-memory scenario, treat ~/.deweyou/dev retrospective, evidence, and decisions as candidate inputs only, persist only durable repository knowledge such as build commands, recurring traps, or constraints, avoid copying the entire DDev session into docs, and avoid staging or committing legacy project-local .deweyou/dev if it appears.",
+      "files": [],
+      "expectations": [
+        "The run treats DDev session notes as candidate inputs rather than durable docs",
+        "The run persists only durable repository knowledge",
+        "The run avoids copying the entire ~/.deweyou/dev session into docs",
+        "The run does not stage or commit legacy project-local .deweyou/dev",
+        "The run returns a concise memory decision to DDev"
+      ]
     }
   ]
 }
