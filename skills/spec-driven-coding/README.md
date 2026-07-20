@@ -16,8 +16,11 @@ flowchart TD
     Classify --> Feature["Feature alignment flow"]
     Classify --> Bugfix["Lightweight bugfix flow"]
     Classify --> Debug["Debugging flow"]
-    Feature --> Criteria["Capture acceptance criteria"]
-    Criteria --> Plan["Plan when risk or scope needs it"]
+    Feature --> Criteria["Draft concise spec and acceptance criteria"]
+    Criteria --> Gate{"Material product decisions resolved?"}
+    Gate -->|"Explicitly confirmed"| Plan["Plan implementation"]
+    Gate -->|"Already defined or delegated low risk"| Plan
+    Gate -->|"No"| Wait["Show spec and wait"]
     Bugfix --> Debug["Reproduce and understand failure"]
     Debug --> Regression["Add regression test when practical"]
     Plan --> Code["Implement with tests"]
@@ -52,6 +55,10 @@ deweyou-cli agent init --skills spec-driven-coding
   coding flow.
 - Captures goals, non-goals, affected behavior, acceptance criteria, likely
   files, and verification before implementation.
+- Treats implementation intent as permission to start the workflow, not as
+  approval of agent-inferred requirements.
+- Requires an underspecified new feature to present a concise spec and wait for
+  explicit confirmation before product-source edits.
 - Uses concise plans for broad or high-risk work without requiring an external
   workflow backend.
 - Keeps simple bugfixes focused on reproduction, regression tests, the smallest
@@ -63,17 +70,19 @@ deweyou-cli agent init --skills spec-driven-coding
 ## SOP
 
 1. Classify the task before editing.
-2. For feature alignment, capture the behavior boundary and acceptance criteria
-   before implementation.
-3. For lightweight bugfixes, reproduce the issue and add a regression test when
+2. For feature alignment, capture the behavior boundary and acceptance criteria,
+   then classify whether confirmation is required.
+3. When material product behavior is inferred, show a concise spec and wait for
+   explicit user confirmation before product-source edits.
+4. For lightweight bugfixes, reproduce the issue and add a regression test when
    practical.
-4. Implement with TDD or focused verification where tests cannot cover the risk.
-5. Keep edits scoped to the accepted requirement, assumptions, and verification
+5. Implement with TDD or focused verification where tests cannot cover the risk.
+6. Keep edits scoped to the accepted requirement, assumptions, and verification
    map.
-6. Update task context or ask for alignment when requirements change during
+7. Update task context or ask for alignment when requirements change during
    implementation.
-7. Run relevant project checks and capture verification evidence.
-8. Run `repo-memory` or `git-delivery` only when durable memory or delivery is
+8. Run relevant project checks and capture verification evidence.
+9. Run `repo-memory` or `git-delivery` only when durable memory or delivery is
    needed.
 
 ## Source

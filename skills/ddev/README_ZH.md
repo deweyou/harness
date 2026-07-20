@@ -16,13 +16,21 @@ DDev 默认手动激活：用户显式输入 `$DDev` / `ddev`，或项目指令�
 `engineering-principles`。DDev 直接从全局 Dewey asset cache 读取它们，不要求
 用户全局安装或逐仓库安装。
 
+对于新功能或模糊行为，DDev 会在编辑产品源码前加载 `spec-driven-coding`。
+“请实现”只代表允许启动开发流程，不代表批准 Agent 推断出的需求；关键产品决策必须
+先形成简短 spec，并等待用户明确确认。
+
 ```mermaid
 flowchart TD
     Request["DDev 任务"] --> Orient["摸底并判断操作类型"]
     Orient --> Rules["按操作读取强依赖 rules"]
-    Rules --> Modules["按需加载能力 modules"]
-    Modules --> Loop["实现与验证循环"]
-    Loop --> Evidence["证据与交付判断"]
+    Rules --> Spec["行为不完整时生成简短 spec"]
+    Spec --> Prototype["涉及 UI 时生成原型"]
+    Prototype --> Gate{"需求已对齐？"}
+    Gate -->|"用户明确确认"| Execute["编辑产品源码"]
+    Gate -->|"已有定义或明确委托低风险选择"| Execute
+    Gate -->|"仍有关键决策"| Wait["展示 spec 并等待"]
+    Execute --> Evidence["收集证据"]
 ```
 
 ## 安装
@@ -50,6 +58,11 @@ deweyou-cli dev doctor
 - 一个 owner 管理 framing、UI、编码、证据、交付和记忆的完整生命周期。
 - 分支级、人可读的临时工作状态放在项目源码之外。
 - 按操作强制读取缓存中的 `code-style` 和 `engineering-principles`。
+- 新功能、用户可见行为变化和模糊产品请求在源码编辑前进入
+  `spec-driven-coding`。
+- 区分“允许实现”和“确认 Agent 推断出的需求”；关键产品决策必须明确确认。
+- 机械修改、已有预期的窄 bugfix，以及用户明确委托的低风险可逆选择不会被无意义地
+  阻塞。
 - UI 任务需要时执行原型和现场证据门禁。
 - 只有用户明确要求时才交付，不静默 commit、push、开 PR 或安装被动 hooks。
 
@@ -58,8 +71,11 @@ deweyou-cli dev doctor
 1. 显式触发 DDev 或通过项目指令启用，并运行 `deweyou-cli dev doctor`。
 2. 分类请求、捕获必要状态并识别项目 harness。
 3. 在对应编码或架构操作前读取强依赖 rules；文件缺失时刷新 cache，仍缺失则停止。
-4. 按需加载能力 modules，执行有边界的实现和验证循环并记录证据。
-5. 仅在任务需要时路由交付或长期记忆。
+4. 新功能或模糊产品工作提前加载 `spec-driven-coding`，只询问会改变结果的关键问题，
+   并形成简短 spec。
+5. Agent 推断了关键行为时等待用户明确确认；否则记录不需要等待的原因。
+6. 按需加载其他能力 modules，执行有边界的实现和验证循环并记录证据。
+7. 仅在任务需要时路由交付或长期记忆。
 
 ## Source
 

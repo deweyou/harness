@@ -33,7 +33,8 @@ When uncertain, choose feature alignment flow and keep it thin.
 ## Feature Alignment Flow
 
 Do not write implementation code until the behavior boundary is clear enough to
-test or verify.
+test or verify. A request to implement authorizes the development workflow; it
+does not approve product requirements inferred by the agent.
 
 Before implementation, capture:
 
@@ -45,11 +46,33 @@ Before implementation, capture:
 - open questions that would change behavior, data, security, migration, or UX
 
 Ask the user only for unresolved questions that materially affect direction or
-risk. Otherwise state assumptions and proceed.
+risk. Treat multiple reasonable user-visible behaviors, new pages or flows,
+destructive semantics, permissions, persistence, migrations, security, and
+public API behavior as material decisions.
 
-For high-risk or broad work, write a concise plan and wait for user alignment
-when the user has not already authorized implementation. For small work, the
-acceptance criteria and verification map are enough.
+For an underspecified new feature:
+
+1. Ask the smallest set of material questions.
+2. Produce a concise spec with goal, non-goals, behavior, acceptance criteria,
+   and verification.
+3. Show the spec to the user and wait for explicit confirmation before editing
+   product source.
+
+Do not treat an agent-authored spec, `task.md`, plan, acceptance list, or
+prototype as user confirmation. If the user explicitly delegates reversible,
+low-risk choices, state the chosen behavior and proceed without an additional
+pause. Do not use delegated discretion to bypass confirmation for high-risk or
+hard-to-reverse decisions.
+
+When the behavior is fully defined by the user's words or an existing
+authoritative contract, record `confirmation_not_required` with the source and
+a short reason, then proceed. Mechanical edits and narrow bugfixes with
+established expected behavior do not need a feature-spec pause.
+
+For high-risk or broad work, write a concise plan and wait whenever material
+requirements or user choices remain unresolved, even if implementation was
+already authorized. For small work, the acceptance criteria and verification
+map are enough only when no material product decision remains unresolved.
 
 ## Optional Compatibility
 
@@ -111,6 +134,8 @@ Before claiming the work is done:
 Report:
 
 - which flow was used
+- alignment status, acceptance source, and unresolved decisions or the reason
+  confirmation was not required
 - acceptance criteria, plan, or assumptions used
 - tests added or skipped with reason
 - verification commands and results

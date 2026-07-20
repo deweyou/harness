@@ -95,7 +95,9 @@ DDev 被动 hooks；它不会新增 `SessionStart`、`UserPromptSubmit`、`Stop`
 ```text
 Orient
   -> Problem framing, when exploration or Grilling is needed
+  -> Early spec-driven-coding alignment for new or ambiguous behavior
   -> UI prototype gate, when requirement design touches UI
+  -> Requirement alignment gate before product-source edits
   -> Capture task/context/graph/verification
   -> Harness map
   -> HTML demo, when visibility helps
@@ -113,7 +115,7 @@ Orient
 | Grilling、brainstorming、批判、推荐 | `problem-framing/SKILL.md` |
 | 产品范围和取舍 | `product-design/SKILL.md` |
 | UI 需求原型、交互、视觉证据 | `ui-design/SKILL.md` |
-| 编码、调试、TDD、验证 | `spec-driven-coding/SKILL.md` |
+| 需求对齐、编码、调试、TDD、验证 | `spec-driven-coding/SKILL.md` |
 | Commit、push、PR、CI | `git-delivery/SKILL.md` |
 | 持久仓库知识 | `repo-memory/SKILL.md` |
 
@@ -153,7 +155,7 @@ rules 全局安装或安装进仓库，DDev 也会直接从 asset cache 读取�
 
 文件职责：
 
-- `task.md`：目标、范围、非目标、验收标准、当前状态。
+- `task.md`：目标、范围、非目标、验收标准、验收来源、对齐状态、未解决决策和当前状态。
 - `brainstorm.md`：问题 frame、发散选项、批判、取舍和推荐方向。
 - `context.md`：相关文件、命令、文档、约束和事实。
 - `graph.md`：轻量依赖图或步骤清单。
@@ -234,6 +236,21 @@ Grilling 和 brainstorming 由全局 `problem-framing` skill 承载。DDev 把�
 当收敛后的需求包含 UI，DDev 会从全局 cache 加载 `ui-design` 做原型，再进入实现。
 原型可以是页面/状态结构、原型图 prompt、组件级草图；如果交互或响应式需要被看见，
 就用本地 HTML demo。
+
+## MVP 里的需求对齐
+
+新功能、用户可见行为变化和模糊产品请求必须在编辑产品源码前加载
+`spec-driven-coding`。“请实现”只代表启动开发流程，不代表批准 Agent 推断出的需求。
+
+DDev 记录三种对齐状态之一：
+
+- `alignment_required`：关键行为缺失或由 Agent 推断；展示简短 spec，等待用户明确确认。
+- `confirmed`：用户明确批准了相关需求、spec 或原型。
+- `confirmation_not_required`：行为已经由用户或权威合同定义，或者用户明确委托了可逆、
+  低风险的选择。
+
+内部 notes 和原型只能证明 Agent 做过工作，不能证明用户已经确认。机械修改和已有明确
+预期的窄 bugfix 可以继续，不需要无意义地等待确认。
 
 ## MVP 里的 HTML Demo
 

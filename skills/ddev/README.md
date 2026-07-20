@@ -31,6 +31,24 @@ changes, or architecturally significant behavior changes. Both come directly
 from the global Dewey asset cache, so users do not need to install the rules
 globally or in each repository.
 
+For new features or ambiguous behavior, DDev loads `spec-driven-coding` before
+product-source edits. An implementation request starts the workflow but does not
+approve agent-inferred requirements; material product decisions require a
+concise spec and explicit user confirmation.
+
+```mermaid
+flowchart TD
+    Request["Development request"] --> Rules["Load mandatory rules for the operation"]
+    Rules --> Classify["Classify requirement"]
+    Classify --> Spec["Create a concise spec when behavior is incomplete"]
+    Spec --> Prototype["Create a UI prototype when relevant"]
+    Prototype --> Gate{"Requirements aligned?"}
+    Gate -->|"Explicitly confirmed"| Execute["Edit product source"]
+    Gate -->|"Already defined or delegated low risk"| Execute
+    Gate -->|"Material decisions remain"| Wait["Show spec and wait"]
+    Execute --> Evidence["Collect evidence"]
+```
+
 ## When it triggers
 
 - The user invokes `$DDev`, `DDev`, or `ddev`.
@@ -80,6 +98,12 @@ optional for DDev.
 - Human-readable, branch-scoped working state outside project source.
 - Mandatory cached `code-style` and `engineering-principles` rules for their
   matching operations, independent of global or project rule installation.
+- New features and ambiguous behavior route through `spec-driven-coding` before
+  product-source edits.
+- Implementation intent is distinct from approval of inferred requirements;
+  material product decisions require explicit confirmation.
+- Mechanical edits, established bugfixes, and explicitly delegated low-risk
+  choices proceed without an unnecessary pause.
 - UI prototype and live-evidence gates when interface work requires them.
 - Explicit delivery only; no silent commit, push, PR, or passive global hooks.
 
@@ -92,9 +116,13 @@ optional for DDev.
 3. Before applicable coding or architecture operations, read the mandatory rule
    files from `~/.deweyou/agents/assets/rules/`; refresh the cache or stop if a
    required file is missing.
-4. Load capability modules as needed, run bounded implementation and
+4. Load `spec-driven-coding` early for new features or ambiguous product work,
+   ask only material questions, and produce a concise spec.
+5. Wait for explicit confirmation when material behavior was inferred; otherwise
+   record why confirmation is not required.
+6. Load other capability modules as needed, run bounded implementation and
    verification loops, and record evidence.
-5. Route delivery or durable memory only when the task requires it.
+7. Route delivery or durable memory only when the task requires it.
 
 ## Source
 
