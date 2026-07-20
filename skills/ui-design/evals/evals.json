@@ -198,6 +198,35 @@
         "Planned to assess flow, hierarchy, states, or interaction quality",
         "Included mobile adaptation concerns such as safe areas, touch targets, responsive layout, or viewport behavior"
       ]
+    },
+    {
+      "id": 16,
+      "prompt": "$DDev is calling the UI module: implement a mobile settings page and return screenshots plus mobile acceptance results to DDev.",
+      "expected_output": "The agent should trigger ui-design as a DDev module, classify the task as mobile UI implementation, use or confirm a prototype before implementation when requirement design is still involved, define UI evidence gates such as browser screenshot or rendered-output inspection, include mobile checks, and return control to ddev instead of taking over delivery or memory.",
+      "files": [],
+      "expectations": [
+        "Triggered the ui-design skill",
+        "Treated ui-design as a DDev capability module",
+        "Classified the task as mobile UI implementation",
+        "Used or confirmed a prototype before implementation when the UI requirement is still being designed",
+        "Planned screenshot or rendered-output evidence",
+        "Included mobile checks such as safe areas, touch targets, responsive layout, or viewport behavior",
+        "Returned control to DDev for final evidence, delivery, or memory routing"
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "$DDev is calling the UI module during requirement design: prototype a dashboard settings flow before any coding.",
+      "expected_output": "The agent should trigger ui-design as a DDev module, classify this as UI requirement prototyping, produce the smallest useful prototype artifact before coding, name key screens, states, interactions, style or platform checks, and hand prototype evidence back to DDev.",
+      "files": [],
+      "expectations": [
+        "Triggered the ui-design skill",
+        "Treated ui-design as a DDev capability module",
+        "Classified the request as UI requirement prototyping before coding",
+        "Produced or planned the smallest useful prototype artifact such as screen/state structure, prototype image prompt, component sketch, or local HTML demo",
+        "Named key screens, states, interaction model, and style or platform checks",
+        "Returned prototype evidence or explicit gaps to DDev instead of taking over delivery"
+      ]
     }
   ]
 }

@@ -18,7 +18,9 @@ or wired into other repositories consistently.
 | Tests | [`tests/`](./tests/) | Asset registry and scanning tests. |
 
 `AGENTS.md` is the navigation page for agents. Repository workflow details live
-in [`docs/asset-workflow.md`](./docs/asset-workflow.md).
+in [`docs/asset-workflow.md`](./docs/asset-workflow.md). DDev technical and
+daily-operations docs live in [`docs/ddev-framework.md`](./docs/ddev-framework.md)
+and [`docs/ddev-operations.md`](./docs/ddev-operations.md).
 
 ## deweyou-cli
 
@@ -47,16 +49,23 @@ Initialize another repository:
 
 ```bash
 cd /path/to/your/repo
-deweyou-cli agent init
+deweyou-cli agent init \
+  --skills ddev \
+  --rules ddev-local-state,verification-evidence,loop-boundaries \
+  --mode link \
+  --yes
 deweyou-cli agent doctor
 deweyou-cli agent context --format markdown
+deweyou-cli dev install
+deweyou-cli dev status
+deweyou-cli dev doctor
 ```
 
 For scripted setup:
 
 ```bash
 deweyou-cli agent init --all --mode link --yes
-deweyou-cli agent init --skills repo-memory,spec-driven-coding,git-delivery --rules code-style
+deweyou-cli agent init --skills ddev --rules ddev-local-state,verification-evidence,loop-boundaries --mode link --yes
 deweyou-cli agent init --skills ui-design --design dewey-interface
 deweyou-cli agent init --global --tools codex --skills repo-memory,git-delivery --yes
 deweyou-cli agent init --dry-run
@@ -71,6 +80,12 @@ deweyou-cli agent init --dry-run
 | `deweyou-cli agent context --format markdown` | Print the active agent instructions for the current repository. |
 | `deweyou-cli agent context --format json` | Print structured context for tooling. |
 | `deweyou-cli agent doctor` | Check cache, manifest, symlinks, selected assets, and hash consistency. |
+| `deweyou-cli dev install` | Initialize manual DDev runtime, global per-repository state under `~/.deweyou/dev/`, global module registry, and remove old DDev passive hooks. |
+| `deweyou-cli dev status` | Print DDev runtime, repo state, and branch session status. |
+| `deweyou-cli dev doctor` | Diagnose DDev runtime, global per-repo session files, legacy repo-local state, and passive-hook absence. |
+| `deweyou-cli dev clean` | Remove DDev-owned global per-repository state by branch or for the whole repo. |
+| `deweyou-cli dev demo` | Create and serve the branch-session static HTML demo workspace. |
+| `deweyou-cli dev uninstall` | Remove current repo DDev state, legacy local state and excludes, old DDev passive hooks, and the runtime only when no other repo state remains. |
 
 ### Install Modes
 
@@ -84,16 +99,20 @@ deweyou-cli agent init --dry-run
 
 Skills are active workflows. They live in `skills/<name>/SKILL.md` and may also
 include human-facing `README.md` and `README_ZH.md` files, references, scripts,
-assets, previews, or eval cases.
+assets, previews, or eval cases. For DDev projects, install only the `ddev`
+entry skill in the target repository; DDev loads module skills from the global
+cache at `~/.deweyou/agents/assets/skills/<skill>/SKILL.md`.
 
 | Skill | Description | Source |
 |-------|-------------|--------|
+| `ddev` | DDev personal cross-repository development harness workflow. It owns task lifecycle, global `~/.deweyou/dev/` per-repo state, UI prototype gates, HTML demos, harness mapping, bounded loops, evidence, delivery routing, and memory routing. | [`skills/ddev/`](./skills/ddev/) |
+| `problem-framing` | Grilling, brainstorming, tradeoff critique, and recommendation workflow for clarifying fuzzy requests before implementation. | [`skills/problem-framing/`](./skills/problem-framing/) |
 | `repo-memory` | Durable repository memory workflow. It initializes and refreshes repo context, runs pre-commit memory checks, updates docs and UI design memory when work changes important knowledge, and checks local skill drift. | [`skills/repo-memory/`](./skills/repo-memory/) |
 | `git-delivery` | Branch-aware git delivery workflow for start-of-work checks, intentional staging, commits, base-branch conflict checks, safe rebases, pushes, PR creation, CI follow-up, and automatic low-risk CI repair. | [`skills/git-delivery/`](./skills/git-delivery/) |
-| `spec-driven-coding` | Spec-driven coding workflow for features, behavior changes, and multi-step implementation. It keeps Superpowers specs, plans, subagent-driven execution, TDD, verification, and requirement updates aligned before and during coding. | [`skills/spec-driven-coding/`](./skills/spec-driven-coding/) |
+| `spec-driven-coding` | DDev-native coding workflow for features, behavior changes, debugging, TDD, verification, and requirement alignment before and during coding. | [`skills/spec-driven-coding/`](./skills/spec-driven-coding/) |
 | `skill-eval` | Repository-local evaluation workflow for skills. It generates eval cases, runs routing or execution tests through an agent CLI, grades transcripts, and summarizes trigger accuracy. | [`skills/skill-eval/`](./skills/skill-eval/) |
 | `product-notes` | Living product note workflow for classifying and capturing product ideas, positioning changes, iteration specs, decisions, insights, and reviews. | [`skills/product-notes/`](./skills/product-notes/) |
-| `ui-design` | UX/UI design workflow for pattern research, flow design, visual style, implementation, review, and AI design prompts across web, mobile, HarmonyOS, mini programs, macOS, dashboards, and tools. | [`skills/ui-design/`](./skills/ui-design/) |
+| `ui-design` | UX/UI design and prototype workflow for pattern research, flow design, visual style, implementation, review, and AI design prompts across web, mobile, HarmonyOS, mini programs, macOS, dashboards, and tools. | [`skills/ui-design/`](./skills/ui-design/) |
 | `product-design` | Product design workflow for personal products. It researches existing products when needed, avoids enterprise process theater, and recommends right-sized directions, versions, or validation steps. | [`skills/product-design/`](./skills/product-design/) |
 
 ### Installing Skills Directly
@@ -107,6 +126,8 @@ npx skills add deweyou/agents --skill repo-memory
 Replace the skill name as needed:
 
 ```bash
+npx skills add deweyou/agents --skill ddev
+npx skills add deweyou/agents --skill problem-framing
 npx skills add deweyou/agents --skill git-delivery
 npx skills add deweyou/agents --skill spec-driven-coding
 npx skills add deweyou/agents --skill skill-eval
@@ -115,8 +136,10 @@ npx skills add deweyou/agents --skill ui-design
 npx skills add deweyou/agents --skill product-design
 ```
 
-For repository-wide setup, prefer `deweyou-cli agent init` so the chosen skills,
-rules, and design contract are recorded together in `.agents/manifest.json`.
+For DDev repository-wide setup, prefer
+`deweyou-cli agent init --skills ddev --mode link --yes` so the repository has a
+single DDev entry point. Install other skills directly only when you want to use
+them standalone outside DDev.
 
 ## Rules
 
@@ -128,6 +151,9 @@ and are selected per repository through `deweyou-cli`.
 | `collaboration-defaults` | Default agent collaboration behavior for language, ambiguity, context, task order, parallel work, evidence, safety, and handoff. | [`rules/collaboration-defaults.md`](./rules/collaboration-defaults.md) |
 | `code-style` | Code expression preferences for naming, functions, comments, errors, and tests. | [`rules/code-style.md`](./rules/code-style.md) |
 | `engineering-principles` | Design preferences for module boundaries, abstraction, dependencies, state, and easy-to-delete code. | [`rules/engineering-principles.md`](./rules/engineering-principles.md) |
+| `ddev-local-state` | Ownership, visibility, cleanup, and commit boundaries for global DDev local state under `~/.deweyou/dev`. | [`rules/ddev-local-state.md`](./rules/ddev-local-state.md) |
+| `verification-evidence` | Evidence expectations for completion claims, skipped checks, live UI/runtime proof, and verification gaps. | [`rules/verification-evidence.md`](./rules/verification-evidence.md) |
+| `loop-boundaries` | Bound implementation, debugging, verification, and CI repair loops so agents know when to continue, stop, or ask. | [`rules/loop-boundaries.md`](./rules/loop-boundaries.md) |
 
 ## Design
 

@@ -805,6 +805,14 @@ describe('coverage gaps', () => {
     vi.doMock('../src/cli/doctor.ts', () => ({
       runDoctor: async (flags) => calls.push(['doctor', flags]),
     }))
+    vi.doMock('../src/cli/dev.ts', () => ({
+      runDevInstall: async (flags) => calls.push(['dev-install', flags]),
+      runDevStatus: async (flags) => calls.push(['dev-status', flags]),
+      runDevDoctor: async (flags) => calls.push(['dev-doctor', flags]),
+      runDevClean: async (flags) => calls.push(['dev-clean', flags]),
+      runDevDemo: async (flags) => calls.push(['dev-demo', flags]),
+      runDevUninstall: async (flags) => calls.push(['dev-uninstall', flags]),
+    }))
 
     vi.resetModules()
     const { main } = await import('../src/cli/main.ts')
@@ -813,18 +821,35 @@ describe('coverage gaps', () => {
     await main(['agent', 'update'])
     await main(['agent', 'context'])
     await main(['agent', 'doctor'])
+    await main(['dev', 'install', '--dry-run'])
+    await main(['dev', 'status'])
+    await main(['dev', 'doctor'])
+    await main(['dev', 'clean', '--branch', 'feature/demo'])
+    await main(['dev', 'demo', '--port', '0', '--no-server'])
+    await main(['dev', 'uninstall', '--dry-run'])
+    await assert.rejects(() => main(['dev', 'unknown']), {
+      exitCode: 2,
+      silent: true,
+    })
 
     assert.deepEqual(calls, [
       ['init', { all: true }],
       ['update', {}],
       ['context', { format: 'markdown' }],
       ['doctor', {}],
+      ['dev-install', { dryRun: true }],
+      ['dev-status', {}],
+      ['dev-doctor', {}],
+      ['dev-clean', { branch: 'feature/demo' }],
+      ['dev-demo', { port: '0', noServer: true }],
+      ['dev-uninstall', { dryRun: true }],
     ])
 
     vi.doUnmock('../src/cli/init.ts')
     vi.doUnmock('../src/cli/cache.ts')
     vi.doUnmock('../src/cli/context.ts')
     vi.doUnmock('../src/cli/doctor.ts')
+    vi.doUnmock('../src/cli/dev.ts')
   })
 
   it('validates generated registry frontmatter shapes', async () => {

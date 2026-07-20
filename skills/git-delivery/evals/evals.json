@@ -182,6 +182,19 @@
         "The run checks dirty work and protects unrelated files",
         "The run checks or fetches the primary branch baseline"
       ]
+    },
+    {
+      "id": 15,
+      "prompt": "$DDev ship this change, and make sure .deweyou/dev is not committed.",
+      "expected_output": "The run should recognize a DDev-invoked delivery flow, run the full finish-work delivery path, keep global DDev state outside staging, explicitly leave legacy project-local .deweyou/dev unstaged if it appears, protect unrelated dirty files, run or account for repo-memory and verification, execute commit, base check, push, PR, and CI follow-up through git-delivery, and return results or blockers to DDev.",
+      "files": [],
+      "expectations": [
+        "The run treats DDev ship as a delivery request handled by git-delivery",
+        "The run keeps global DDev state out of staging and leaves legacy project-local .deweyou/dev unstaged by default",
+        "The run protects unrelated dirty files",
+        "The run invokes or accounts for repo-memory and verification before committing",
+        "The run reports delivery results or blockers back to DDev"
+      ]
     }
   ]
 }

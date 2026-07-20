@@ -1,8 +1,11 @@
 import { parseArgs, usageError } from './args.ts'
+import type { DevFlags } from './types.ts'
 import packageJson from '../../package.json' with { type: 'json' }
 
-const COMMANDS = ['init', 'update', 'context', 'doctor'] as const
-type AgentCommand = (typeof COMMANDS)[number]
+const AGENT_COMMANDS = ['init', 'update', 'context', 'doctor'] as const
+const DEV_COMMANDS = ['install', 'status', 'doctor', 'clean', 'demo', 'uninstall'] as const
+type AgentCommand = (typeof AGENT_COMMANDS)[number]
+type DevCommand = (typeof DEV_COMMANDS)[number]
 
 export async function main(argv: string[]): Promise<void> {
   const help = helpFor(argv)
@@ -18,7 +21,47 @@ export async function main(argv: string[]): Promise<void> {
 
   const parsed = parseArgs(argv)
 
-  if (parsed.topic !== 'agent') {
+  if (parsed.topic !== 'agent' && parsed.topic !== 'dev') {
+    printUsageAndThrow()
+  }
+
+  if (parsed.topic === 'dev') {
+    if (parsed.command === 'install') {
+      const { runDevInstall } = await import('./dev.ts')
+      await runDevInstall(parsed.flags as DevFlags)
+      return
+    }
+
+    if (parsed.command === 'status') {
+      const { runDevStatus } = await import('./dev.ts')
+      await runDevStatus(parsed.flags as DevFlags)
+      return
+    }
+
+    if (parsed.command === 'doctor') {
+      const { runDevDoctor } = await import('./dev.ts')
+      await runDevDoctor(parsed.flags as DevFlags)
+      return
+    }
+
+    if (parsed.command === 'clean') {
+      const { runDevClean } = await import('./dev.ts')
+      await runDevClean(parsed.flags as DevFlags)
+      return
+    }
+
+    if (parsed.command === 'uninstall') {
+      const { runDevUninstall } = await import('./dev.ts')
+      await runDevUninstall(parsed.flags as DevFlags)
+      return
+    }
+
+    if (parsed.command === 'demo') {
+      const { runDevDemo } = await import('./dev.ts')
+      await runDevDemo(parsed.flags as DevFlags)
+      return
+    }
+
     printUsageAndThrow()
   }
 
@@ -56,12 +99,19 @@ function usage(): string {
 function rootUsage(): string {
   return `Usage:
   deweyou-cli agent <command> [options]
+  deweyou-cli dev <command> [options]
 
 Commands:
   agent init      Initialize the current repository with Dewey assets.
   agent update    Refresh the local Dewey asset cache.
   agent context   Print the active Dewey agent context.
   agent doctor    Check whether the repository and cache are healthy.
+  dev install     Initialize manual DDev runtime and global per-repo state.
+  dev status      Print DDev runtime and branch-session status.
+  dev doctor      Diagnose local DDev runtime and repo state.
+  dev clean       Remove DDev-owned global per-repo state.
+  dev demo        Create and serve the branch-session HTML demo workspace.
+  dev uninstall   Remove repo state, legacy state, old hooks, and unused runtime.
 
 Options:
   -h, --help      Show help.
@@ -76,6 +126,18 @@ function agentUsage(): string {
   deweyou-cli agent doctor
 
 Run \`deweyou-cli agent <command> -h\` for command-specific help.`
+}
+
+function devUsage(): string {
+  return `Usage:
+  deweyou-cli dev install [--dry-run]
+  deweyou-cli dev status
+  deweyou-cli dev doctor
+  deweyou-cli dev clean [--branch name|--all] [--dry-run]
+  deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+  deweyou-cli dev uninstall [--dry-run]
+
+Run \`deweyou-cli dev <command> -h\` for command-specific help.`
 }
 
 function commandUsage(command: AgentCommand): string {
@@ -124,6 +186,64 @@ Options:
   -h, --help   Show help.`
 }
 
+function devCommandUsage(command: DevCommand): string {
+  if (command === 'install') {
+    return `Usage:
+  deweyou-cli dev install [--dry-run]
+
+Options:
+  --dry-run   Print planned DDev writes without changing files.
+  -h, --help  Show help.`
+  }
+
+  if (command === 'clean') {
+    return `Usage:
+  deweyou-cli dev clean [--branch name|--all] [--dry-run]
+
+Options:
+  --branch name  Clean one branch session.
+  --all          Clean all DDev state for the current repository.
+  --dry-run      Print the target without removing files.
+  -h, --help     Show help.`
+  }
+
+  if (command === 'status') {
+    return `Usage:
+  deweyou-cli dev status
+
+Options:
+  -h, --help   Show help.`
+  }
+
+  if (command === 'demo') {
+    return `Usage:
+  deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+
+Options:
+  --branch name  Use a specific branch session.
+  --host host    Host to bind. Defaults to 127.0.0.1.
+  --port port    Port to bind. Defaults to 4173. Use 0 for any free port.
+  --no-server    Create the demo files without starting a server.
+  --dry-run      Print the demo target without changing files.
+  -h, --help     Show help.`
+  }
+
+  if (command === 'uninstall') {
+    return `Usage:
+  deweyou-cli dev uninstall [--dry-run]
+
+Options:
+  --dry-run   Print planned removals without changing files.
+  -h, --help  Show help.`
+  }
+
+  return `Usage:
+  deweyou-cli dev doctor
+
+Options:
+  -h, --help   Show help.`
+}
+
 function printUsageAndThrow(): never {
   console.log(usage())
   throw usageError('', { silent: true })
@@ -132,12 +252,17 @@ function printUsageAndThrow(): never {
 function helpFor(argv: string[]): string | null {
   if (!argv.some(isHelpFlag)) return null
   if (isHelpFlag(argv[0])) return rootUsage()
-  if (argv[0] !== 'agent') return rootUsage()
+  if (argv[0] !== 'agent' && argv[0] !== 'dev') return rootUsage()
 
   const command = argv[1]
+  if (argv[0] === 'dev') {
+    if (!command || isHelpFlag(command)) return devUsage()
+    if (isDevCommand(command)) return devCommandUsage(command)
+    return devUsage()
+  }
+
   if (!command || isHelpFlag(command)) return agentUsage()
   if (isAgentCommand(command)) return commandUsage(command)
-
   return agentUsage()
 }
 
@@ -150,5 +275,9 @@ function isHelpFlag(value: string | undefined): boolean {
 }
 
 function isAgentCommand(value: string): value is AgentCommand {
-  return COMMANDS.includes(value as AgentCommand)
+  return AGENT_COMMANDS.includes(value as AgentCommand)
+}
+
+function isDevCommand(value: string): value is DevCommand {
+  return DEV_COMMANDS.includes(value as DevCommand)
 }

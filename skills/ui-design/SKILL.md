@@ -1,8 +1,9 @@
 ---
 name: ui-design
 description: >
-  UX/UI design workflow for research, flow design, visual style, implementation,
-  review, and AI design prompts. Use for web, mobile/H5, native apps, HarmonyOS,
+  UX/UI design and prototype workflow for research, flow design, visual style,
+  implementation, review, and AI design prompts. Use for DDev UI requirement
+  design that needs a prototype, and for web, mobile/H5, native apps, HarmonyOS,
   mini programs, macOS, dashboards, tools, component libraries, onboarding,
   settings, empty states, UX references, or explicit UI/UX/style requests.
 ---
@@ -27,6 +28,9 @@ Use this skill when the user asks to research, design, implement, refine, or
 review UX/UI. Relevant surfaces include web pages, component libraries,
 H5/mobile web, iOS/Android, HarmonyOS, WeChat or Alipay mini programs, macOS
 apps, dashboards, tools, landing pages, and AI design prompts.
+
+Also use it when DDev detects requirement design that affects a user interface
+and needs a prototype before implementation.
 
 Common trigger contexts include:
 
@@ -195,6 +199,26 @@ Guidelines source" so the review dependency is visible.
 9. If implementing, verify in the browser or relevant renderer whenever
    possible.
 
+When invoked by DDev, treat this skill as the UI capability module. If DDev is
+in requirement design and the requirement affects screens, flows, components,
+visual hierarchy, interaction states, responsive behavior, generated UI prompts,
+or visual acceptance, design a prototype before coding.
+
+Choose the smallest useful prototype artifact:
+
+- low-fidelity screen/state structure when the decision is mostly workflow
+- prototype image prompt when a visual direction needs to be seen quickly
+- branch-session HTML demo when interaction, layout, or responsive behavior needs
+  live inspection
+- component-level prototype notes when the host design system already defines
+  the visual surface
+
+Return control to `ddev` after the UI-specific plan, prototype, implementation,
+review, or evidence is complete. Make UI evidence gates explicit so DDev can
+record them: prototype path or prompt, local demo URL, browser screenshots,
+rendered output inspection, responsive viewports, visual state coverage, or
+platform-specific simulator/device checks when practical.
+
 For ambiguous requests, make a conservative assumption and proceed. Ask only
 when the target product, platform, or output artifact is genuinely unclear.
 
@@ -235,6 +259,18 @@ Component map
 Token and style decisions
 Responsive and state checks
 Implementation notes
+```
+
+For DDev UI requirement prototypes:
+
+```text
+Surface and requirement
+Prototype artifact
+Key screens and states
+Interaction model
+Style and platform checks
+Evidence DDev should record
+Handback to DDev
 ```
 
 For reviews:

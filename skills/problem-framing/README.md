@@ -1,0 +1,28 @@
+# problem-framing
+
+> Grilling, brainstorming, tradeoff critique, and recommendation workflow.
+
+## What it does
+
+`problem-framing` helps agents clarify fuzzy requests, generate meaningfully
+different options, critique tradeoffs, and converge on a practical next move. It
+can run standalone or as a module inside DDev, product, UI, or coding workflows.
+
+## When it triggers
+
+- The user asks to brainstorm, explore options, compare directions, or think
+  before building.
+- The user asks for sharper requirements, product framing, UX directions, naming,
+  architecture options, or critique.
+- A workflow needs Grilling before implementation because ambiguity changes
+  risk, acceptance, or cost.
+
+## Installation
+
+```bash
+npx skills add https://github.com/deweyou/agents --skill problem-framing
+```
+
+## Source
+
+This skill is maintained in `deweyou/agents` and indexed by `deweyou-cli agent update`.

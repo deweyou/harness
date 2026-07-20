@@ -191,6 +191,75 @@ export interface DoctorResult {
   checks: DoctorCheck[]
 }
 
+export interface DevFlags {
+  repoRoot?: string
+  homeDir?: string
+  branch?: string
+  host?: string
+  port?: string | number
+  all?: boolean
+  noServer?: boolean
+  once?: boolean
+  dryRun?: boolean
+}
+
+export interface DevStatusResult {
+  runtimeRoot: string
+  repoStateRoot: string
+  branch: string
+  sessionPath: string
+  runtimeExists: boolean
+  repoStateExists: boolean
+  sessionExists: boolean
+}
+
+export interface DevDoctorCheck {
+  status: 'pass' | 'warn' | 'fail'
+  message: string
+}
+
+export interface DevDoctorResult {
+  ok: boolean
+  checks: DevDoctorCheck[]
+}
+
+export interface DevInstallResult {
+  runtimeRoot: string
+  repoStateRoot: string
+  configPath: string
+  sessionPath: string
+  codexHooksPath: string
+  moduleSkills: Record<string, string>
+  dryRun: boolean
+  exclude: string
+  hooks: string
+  codexHooks: string
+}
+
+export interface DevCleanResult {
+  target: string
+  removed: boolean
+  dryRun: boolean
+}
+
+export interface DevUninstallResult {
+  runtimeRoot: string
+  repoStateRoot: string
+  dryRun: boolean
+  runtimeRemoved: boolean
+  repoStateRemoved: boolean
+  exclude: string
+  codexHooks: string
+}
+
+export interface DevDemoResult {
+  demoRoot: string
+  indexPath: string
+  url: string | null
+  served: boolean
+  dryRun: boolean
+}
+
 export interface ParsedArgs {
   topic?: string
   command?: string

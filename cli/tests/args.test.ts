@@ -111,6 +111,77 @@ describe('parseArgs', () => {
     )
   })
 
+  it('parses dev command flags', () => {
+    assert.deepEqual(
+      parseArgs(['dev', 'install', '--dry-run']),
+      {
+        topic: 'dev',
+        command: 'install',
+        flags: {
+          dryRun: true,
+        },
+      },
+    )
+
+    assert.deepEqual(
+      parseArgs(['dev', 'clean', '--branch', 'feature/demo']),
+      {
+        topic: 'dev',
+        command: 'clean',
+        flags: {
+          branch: 'feature/demo',
+        },
+      },
+    )
+
+    assert.deepEqual(
+      parseArgs(['dev', 'clean', '--all', '--dry-run']),
+      {
+        topic: 'dev',
+        command: 'clean',
+        flags: {
+          all: true,
+          dryRun: true,
+        },
+      },
+    )
+
+    assert.deepEqual(
+      parseArgs([
+        'dev',
+        'demo',
+        '--branch',
+        'feature/demo',
+        '--host',
+        '0.0.0.0',
+        '--port',
+        '0',
+        '--no-server',
+      ]),
+      {
+        topic: 'dev',
+        command: 'demo',
+        flags: {
+          branch: 'feature/demo',
+          host: '0.0.0.0',
+          port: '0',
+          noServer: true,
+        },
+      },
+    )
+
+    assert.deepEqual(
+      parseArgs(['dev', 'uninstall', '--dry-run']),
+      {
+        topic: 'dev',
+        command: 'uninstall',
+        flags: {
+          dryRun: true,
+        },
+      },
+    )
+  })
+
   it('rejects context flags that belong to init', () => {
     assert.throws(
       () => parseArgs(['agent', 'context', '--all']),
@@ -120,6 +191,23 @@ describe('parseArgs', () => {
     assert.throws(
       () => parseArgs(['agent', 'context', '--scope', 'global']),
       /Flag --scope is not valid for agent context/,
+    )
+  })
+
+  it('rejects dev flags on the wrong dev commands', () => {
+    assert.throws(
+      () => parseArgs(['dev', 'status', '--dry-run']),
+      /Flag --dry-run is not valid for dev status/,
+    )
+
+    assert.throws(
+      () => parseArgs(['dev', 'doctor', '--branch', 'main']),
+      /Flag --branch is not valid for dev doctor/,
+    )
+
+    assert.throws(
+      () => parseArgs(['dev', 'clean', '--legacy']),
+      /Unknown flag: --legacy/,
     )
   })
 
@@ -202,6 +290,7 @@ describe('main', () => {
 
     assert.match(shortOutput, /Usage:/)
     assert.match(shortOutput, /deweyou-cli agent <command>/)
+    assert.match(shortOutput, /deweyou-cli dev <command>/)
     assert.equal(longOutput, shortOutput)
   })
 
@@ -237,6 +326,31 @@ describe('main', () => {
     assert.match(contextOutput, /deweyou-cli agent context \[--format markdown\|json\]/)
     assert.match(updateOutput, /deweyou-cli agent update/)
     assert.match(doctorOutput, /deweyou-cli agent doctor/)
+  })
+
+  it('prints dev help and command help', async () => {
+    const devOutput = await captureLog(() => main(['dev', '-h']))
+    const installOutput = await captureLog(() => main(['dev', 'install', '-h']))
+    const cleanOutput = await captureLog(() => main(['dev', 'clean', '-h']))
+    const statusOutput = await captureLog(() => main(['dev', 'status', '-h']))
+    const doctorOutput = await captureLog(() => main(['dev', 'doctor', '-h']))
+    const demoOutput = await captureLog(() => main(['dev', 'demo', '-h']))
+    const uninstallOutput = await captureLog(() => main(['dev', 'uninstall', '-h']))
+    const unknownOutput = await captureLog(() => main(['dev', 'unknown', '-h']))
+
+    assert.match(devOutput, /deweyou-cli dev install \[--dry-run\]/)
+    assert.match(devOutput, /deweyou-cli dev clean/)
+    assert.match(devOutput, /deweyou-cli dev demo/)
+    assert.match(devOutput, /deweyou-cli dev uninstall/)
+    assert.match(installOutput, /deweyou-cli dev install \[--dry-run\]/)
+    assert.match(cleanOutput, /--branch name/)
+    assert.doesNotMatch(cleanOutput, /--legacy/)
+    assert.match(statusOutput, /deweyou-cli dev status/)
+    assert.match(doctorOutput, /deweyou-cli dev doctor/)
+    assert.match(demoOutput, /--no-server/)
+    assert.match(demoOutput, /--port port/)
+    assert.match(uninstallOutput, /deweyou-cli dev uninstall \[--dry-run\]/)
+    assert.match(unknownOutput, /deweyou-cli dev <command> -h/)
   })
 
   it('prints scoped help for unknown nested help targets', async () => {

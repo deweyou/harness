@@ -5,11 +5,14 @@
 
 ## What it does
 
-`ui-design` turns UX and interface-quality expectations into an executable
-workflow. It covers pattern research, flow and state design, visual styling,
-project `DESIGN.md` contracts, platform-specific implementation, reviews, and
-Sleek or other AI design prompts while keeping usability separate from visual
-taste.
+`ui-design` turns practical UX/UI expectations into an executable workflow. It
+covers UX pattern research, flow and interaction design, practical interface
+quality, project design contracts such as `DESIGN.md`, production
+implementation, reviews, and Sleek or other AI design prompts. The skill
+separates general usability and platform quality from visual style, then applies
+only the layers needed for the task.
+When DDev invokes it for UI requirement design, it produces the smallest useful
+prototype artifact before implementation and hands evidence back to DDev.
 
 ```mermaid
 flowchart TD
@@ -25,6 +28,17 @@ flowchart TD
     Build --> Verify["Render and verify"]
     Review --> Output
 ```
+
+## When it triggers
+
+- "这个交互别人怎么做", "有没有 UX 参考", "这个流程顺不顺", "审一下体验"
+- "帮我设计这个交互", "帮我设计", "优化 UI", "审一下界面"
+- "我的风格", "个人设计风格", "专属于我风格"
+- Web, dashboard, component-library, landing page, H5, or mobile UI work
+- iOS/Android, HarmonyOS, WeChat/Alipay mini program, or macOS interface work
+- Sleek prompts or other AI design-generation prompts
+- UX/UI review requests that need flow, state, accessibility, visual system, or implementation checks
+- DDev UI requirement design that needs a prototype before implementation
 
 ## Installation
 

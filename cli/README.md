@@ -12,6 +12,8 @@ The v0 scope is intentionally small:
   `DESIGN.md`
 - render the active agent context for the current repository
 - diagnose whether the current repository is wired correctly
+- initialize, inspect, diagnose, clean, uninstall, and serve global DDev
+  per-repository state under `~/.deweyou/dev/`
 
 ## Install
 
@@ -36,17 +38,26 @@ instead.
 
 ```bash
 cd /path/to/your/repo
-deweyou-cli agent init
+deweyou-cli agent update
+deweyou-cli agent init \
+  --skills ddev \
+  --rules ddev-local-state,verification-evidence,loop-boundaries \
+  --mode link \
+  --yes
 deweyou-cli agent doctor
 deweyou-cli agent context --format markdown
+deweyou-cli dev install
+deweyou-cli dev status
+deweyou-cli dev doctor
 deweyou-cli agent -h
 deweyou-cli -v
 ```
 
-For a non-interactive setup that selects everything:
+For standalone or non-DDev asset setup, select the skills and rules you want:
 
 ```bash
-deweyou-cli agent init --all --mode link --yes
+deweyou-cli agent init --skills ui-design --design dewey-interface --mode link
+deweyou-cli agent init --global --tools codex --skills repo-memory,git-delivery --yes
 ```
 
 ## Mental Model
@@ -61,6 +72,12 @@ assets are active.
 Each repository chooses its own asset set. A coding repo can select coding
 skills and rules; a writing or design repo can select different ones and install
 a design contract as root `DESIGN.md`.
+
+For DDev, keep the repository asset set intentionally small: install only the
+`ddev` entry skill. The product, UI, coding, delivery, and memory modules stay in
+the global Dewey asset cache at
+`~/.deweyou/agents/assets/skills/<skill>/SKILL.md`, and DDev loads them by
+absolute path when needed.
 
 ## Commands
 
@@ -121,7 +138,7 @@ Scripted examples:
 
 ```bash
 deweyou-cli agent init --all --mode link --yes
-deweyou-cli agent init --skills repo-memory,spec-driven-coding,git-delivery --rules code-style
+deweyou-cli agent init --skills ddev --rules ddev-local-state,verification-evidence,loop-boundaries --mode link --yes
 deweyou-cli agent init --skills ui-design --design dewey-interface --mode link
 deweyou-cli agent init --global --tools codex --skills repo-memory,git-delivery --yes
 deweyou-cli agent init --scope project --tools codex,claude --rules code-style --mode link
@@ -190,6 +207,115 @@ It verifies:
 - symlinks are valid when using `link` mode
 
 The command exits with a non-zero status when a check fails.
+
+### `deweyou-cli dev install`
+
+Initializes manually activated DDev runtime state and global per-repository
+DDev state.
+
+```bash
+deweyou-cli dev install
+deweyou-cli dev install --dry-run
+```
+
+It creates:
+
+```text
+~/.deweyou/dev/config.json
+~/.deweyou/dev/repos/<repo-id>/config.json
+~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/
+```
+
+The global runtime config records the absolute module skill registry under
+`~/.deweyou/agents/assets/skills`. It does not install module skills into the
+repository. Run `deweyou-cli agent update` to refresh that global cache.
+
+The install command does not write DDev state into the project repository and
+does not add a new git exclude rule. It removes old DDev passive Codex hooks
+from earlier versions, but it does not install new hooks.
+
+DDev starts only when the user invokes `$DDev`/`ddev` or when a repository's
+`AGENTS.md` explicitly opts into DDev as the default workflow for non-trivial
+development tasks. If DDev is missing on a machine, tell the user to run
+`npm install -g deweyou-cli`, `deweyou-cli agent update`, and
+`deweyou-cli agent init --skills ddev --mode link --yes`, then
+`deweyou-cli dev install`; do not install it silently during unrelated work.
+
+### `deweyou-cli dev status`
+
+Prints the current DDev runtime, repo state, branch, and branch-session status.
+
+```bash
+deweyou-cli dev status
+```
+
+### `deweyou-cli dev doctor`
+
+Diagnoses local DDev setup.
+
+```bash
+deweyou-cli dev doctor
+```
+
+It reports whether the runtime root exists, whether the global DDev module skill
+cache exists, whether global per-repository state exists, whether the current
+branch session files exist, whether legacy repo-local DDev state or legacy git
+exclude wiring is present, and whether DDev passive Codex hooks are absent.
+Missing runtime state or missing global module skills fail; missing session
+state is reported as a warning. DDev does not diagnose or manage other harness
+agents.
+
+### `deweyou-cli dev clean`
+
+Removes DDev-owned global per-repository state.
+
+```bash
+deweyou-cli dev clean
+deweyou-cli dev clean --branch feature/demo
+deweyou-cli dev clean --all
+deweyou-cli dev clean --all --dry-run
+```
+
+Without `--all`, this cleans the current branch session, or the branch provided
+with `--branch`. With `--all`, it removes the current repository's whole global
+DDev state tree under `~/.deweyou/dev/repos/<repo-id>/`.
+
+### `deweyou-cli dev uninstall`
+
+Removes DDev-owned global state for the current repository and cleans the global
+runtime only when no other repository state remains.
+
+```bash
+deweyou-cli dev uninstall
+deweyou-cli dev uninstall --dry-run
+```
+
+It removes the current repository's global state under
+`~/.deweyou/dev/repos/<repo-id>/`, legacy `<repo>/.deweyou/dev/` state if it
+exists, the exact legacy `.deweyou/dev/` line from local git exclude, and old
+DDev passive Codex hooks from earlier versions. It removes `~/.deweyou/dev/`
+only when no other repository state remains. It does not diagnose or manage
+other harness agents.
+
+### `deweyou-cli dev demo`
+
+Creates and serves a branch-session static HTML demo workspace.
+
+```bash
+deweyou-cli dev demo --no-server
+deweyou-cli dev demo --port 4173
+deweyou-cli dev demo --branch feature/demo --port 0
+```
+
+It creates:
+
+```text
+~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/demo/index.html
+```
+
+With `--no-server`, it only creates the demo files. Without `--no-server`, it
+starts a local static server and prints the URL. The demo is local working state
+and should stay out of git unless explicitly promoted into product source.
 
 ## Install Modes
 
