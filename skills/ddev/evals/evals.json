@@ -253,6 +253,48 @@
         "Did not require global rule installation",
         "Did not load engineering-principles without an architecture-impacting operation"
       ]
+    },
+    {
+      "id": 18,
+      "prompt": "$DDev help me implement a todo list.",
+      "expected_output": "The run should trigger ddev, recognize an underspecified new user-facing feature, and load spec-driven-coding for feature alignment before editing product source. It should ask only material questions such as scope, persistence, completion or deletion behavior, and placement; produce a concise spec with acceptance criteria; mark the acceptance source as inferred and alignment as required when material choices remain; show the spec to the user; and wait for explicit confirmation without editing product source.",
+      "files": [],
+      "expectations": [
+        "Triggered the ddev skill",
+        "Classified the todo list as an underspecified new feature rather than a mechanical implementation task",
+        "Loaded or planned to load spec-driven-coding before product-source edits",
+        "Asked only material product questions and produced or planned a concise spec with acceptance criteria",
+        "Did not treat the request to implement as approval of agent-inferred requirements",
+        "Marked or planned alignment_required with inferred acceptance and unresolved decisions",
+        "Waited for explicit user confirmation and did not edit product source"
+      ]
+    },
+    {
+      "id": 19,
+      "prompt": "$DDev change the existing Add button label to New. Do not change its behavior.",
+      "expected_output": "The run should trigger ddev, recognize a fully specified mechanical UI text edit, record that confirmation is not required because the behavior and boundary come directly from the user, and proceed through the focused implementation and verification path without inventing a feature spec or asking for unnecessary approval.",
+      "files": [],
+      "expectations": [
+        "Triggered the ddev skill",
+        "Classified the request as a mechanical edit with no unresolved product behavior",
+        "Recorded or planned confirmation_not_required with the user request as the acceptance source",
+        "Did not block on a new feature spec or unnecessary user confirmation",
+        "Kept the implementation limited to the label change and verification"
+      ]
+    },
+    {
+      "id": 20,
+      "prompt": "$DDev implement a todo list. You can choose reversible interaction details, but ask me before deciding persistence, permissions, or destructive behavior.",
+      "expected_output": "The run should trigger ddev and use spec-driven-coding before product-source edits. It may choose and state reversible low-risk interaction details because the user delegated them, but it must identify persistence, permissions, and destructive behavior as unresolved material decisions, present the partial concise spec, mark alignment as required, ask the user, and wait before editing product source.",
+      "files": [],
+      "expectations": [
+        "Triggered the ddev skill",
+        "Loaded or planned to load spec-driven-coding before product-source edits",
+        "Distinguished delegated reversible interaction details from material persistence, permission, and destructive decisions",
+        "Produced or planned a concise spec that exposes both chosen details and unresolved decisions",
+        "Marked or planned alignment_required and waited for explicit confirmation",
+        "Did not edit product source while material decisions remained unresolved"
+      ]
     }
   ]
 }

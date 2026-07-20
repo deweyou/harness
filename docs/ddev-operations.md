@@ -135,15 +135,20 @@ $DDev clean-context
 $DDev uninstall
 ```
 
-`$DDev <task>` runs the normal lifecycle: orient, grill, capture acceptance,
-map the harness, execute bounded loops, collect evidence, and hand off only when
-delivery or memory is needed.
+`$DDev <task>` runs the normal lifecycle: orient, grill, classify requirement
+alignment, capture acceptance, map the harness, execute bounded loops, collect
+evidence, and hand off only when delivery or memory is needed. New features and
+ambiguous user-visible behavior load `spec-driven-coding` before product-source
+edits. An implementation request starts the workflow but does not approve
+agent-inferred requirements.
 
 When requirement design affects UI, DDev proactively loads the `ui-design`
 module from the global cache to create the smallest useful prototype before
 implementation. Use a screen/state
 structure, prototype image prompt, component sketch, or local HTML demo depending
-on what makes the decision visible.
+on what makes the decision visible. When the prototype contains material product
+choices inferred by the agent, show it with a concise spec and wait for explicit
+user confirmation before converting it into product source.
 
 `$DDev brainstorm <topic>` loads `problem-framing` from the global cache to
 frame the problem, generate meaningfully different options, critique tradeoffs,

@@ -29,6 +29,11 @@ the Dewey asset cache when needed.
 - Prefer lightweight context over heavyweight process.
 - Ask concise Grilling questions only when ambiguity changes direction, risk, or
   expected behavior.
+- Treat a request to implement as authorization to start the development
+  workflow, not as approval of requirements inferred by the agent.
+- For a new feature with underspecified user-visible behavior, load
+  `spec-driven-coding` before editing product source, produce a concise spec, and
+  wait for explicit user confirmation of material product decisions.
 - Create `~/.deweyou/dev/` state only for real implementation sessions, not for
   simple read-only answers.
 - Treat DDev state as local, temporary working memory outside project source.
@@ -144,7 +149,8 @@ For non-trivial implementation sessions, use:
 
 Keep these files short and human-readable:
 
-- `task.md`: goal, scope, non-goals, acceptance criteria, current status.
+- `task.md`: goal, scope, non-goals, acceptance criteria, acceptance source,
+  alignment status, unresolved decisions, and current status.
 - `brainstorm.md`: frame, divergent options, critiques, tradeoffs, and recommendation.
 - `context.md`: relevant files, commands, docs, constraints, and facts.
 - `graph.md`: lightweight step or dependency graph; use checkboxes or edges.
@@ -210,6 +216,11 @@ Classify the request:
 For read-only `inspect`, avoid creating session state unless the user asks
 for a durable investigation trail.
 
+For a `task`, classify the requirement before product-source edits. New
+features, user-visible behavior changes, and ambiguous product requests must
+enter the `spec-driven-coding` feature alignment flow early. Do not wait until
+the Execute Loop to load the coding module for requirement alignment.
+
 ### 2. Problem Framing
 
 Before implementation or demo work, load `problem-framing` from the global
@@ -247,12 +258,46 @@ in `demo.md` and `evidence.md` when local state exists. Do not trigger this gate
 for backend, CLI, data, or infra work that merely mentions a UI label unless the
 actual interface behavior or visual state changes.
 
+### 2.75. Requirement Alignment Gate
+
+Before editing product source, classify requirement alignment with
+`spec-driven-coding`:
+
+- `alignment_required`: material product behavior is missing or inferred by the
+  agent. Ask only the questions that change the result, present a concise spec
+  with acceptance criteria, and wait for explicit user confirmation.
+- `confirmed`: the user explicitly approved the relevant requirement, spec, or
+  prototype.
+- `confirmation_not_required`: the requested behavior is already fully defined
+  by the user's words or an existing authoritative contract, or the remaining
+  choice is a reversible low-risk implementation detail that the user explicitly
+  delegated. Record the source and a short reason before proceeding.
+
+Treat new pages, new flows, multiple reasonable product behaviors, destructive
+semantics, permissions, data persistence, migrations, security, and public API
+behavior as material decisions. A request such as "implement a todo list"
+authorizes the workflow but does not approve agent-selected behavior for those
+decisions. Writing acceptance criteria into `task.md` or another internal note
+never counts as user confirmation.
+
+When local session state exists, record the current alignment status,
+acceptance source, and unresolved decisions in `task.md` before pausing.
+
+The gate does not require a pause for mechanical edits, narrow bugfixes with
+established expected behavior, or work whose acceptance criteria are already
+complete. A prototype may be created before confirmation to make a UI decision
+visible, but do not convert it into product source until the gate permits it.
+
 ### 3. Capture Context And Acceptance
 
 For implementation sessions, create or update the local session. Keep the files
 thin:
 
 - summarize the task in `task.md`
+- record `acceptance_source` as `user`, `existing_contract`, or `inferred`
+- record `alignment_status` as `alignment_required`, `confirmed`, or
+  `confirmation_not_required`, including unresolved decisions or the no-pause
+  reason
 - add inspected facts to `context.md`
 - add the next steps or dependencies to `graph.md`
 - add verification intent to `verification.md`
@@ -274,6 +319,9 @@ Identify the available harness before editing:
 Do not invent expensive checks when a smaller one proves the current claim.
 
 ### 5. Execute Loop
+
+Enter this loop only after the Requirement Alignment Gate is `confirmed` or
+`confirmation_not_required`.
 
 Run a bounded loop:
 
@@ -384,6 +432,8 @@ Keep user-facing output concise and concrete:
   or uninstall
 - `state`: not created, read, created, updated, cleaned, or blocked
 - `acceptance`: criteria used or blocker
+- `alignment`: alignment status, acceptance source, and unresolved decisions or
+  the reason confirmation was not required
 - `skills`: module skills or absolute module paths used and why
 - `rules`: mandatory cached rules read for the operations performed, or not applicable
 - `evidence`: checks run, skipped, or blocked

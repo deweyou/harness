@@ -129,12 +129,15 @@ $DDev clean-context
 $DDev uninstall
 ```
 
-`$DDev <task>` 跑正常生命周期：摸底、Grilling、验收、harness map、
-有边界实现循环、收集证据，并且只在需要时交给交付或 memory。
+`$DDev <task>` 跑正常生命周期：摸底、Grilling、判断需求对齐状态、验收、
+harness map、有边界实现循环、收集证据，并且只在需要时交给交付或 memory。
+新功能和模糊的用户可见行为必须在编辑产品源码前加载 `spec-driven-coding`。
+“请实现”只代表允许启动开发流程，不代表批准 Agent 推断出的需求。
 
 当需求设计影响 UI 时，DDev 会从全局 cache 加载 `ui-design`，先做最小可用原型，
 再进入实现。根据问题需要，原型可以是页面/状态结构、原型图 prompt、组件草图或
-本地 HTML demo。
+本地 HTML demo。如果原型包含 Agent 推断出的关键产品选择，必须连同简短 spec
+展示给用户，并在用户明确确认后才能转成产品源码。
 
 `$DDev brainstorm <topic>` 会从全局 cache 加载 `problem-framing` 来 frame 问题、
 发散不同方向、批判 tradeoff、收敛到推荐方案，并判断 HTML demo 是否比继续写文字

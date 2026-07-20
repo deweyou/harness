@@ -4,12 +4,13 @@
     {
       "id": 0,
       "prompt": "I want to add a team invitation feature with email invites, expiration times, and invitation revocation.",
-      "expected_output": "The run should classify this as a new feature and multi-step behavior change, choose feature alignment flow, identify goals, non-goals, affected surfaces, acceptance criteria, and verification, ask only questions that affect behavior or risk, and avoid implementation until the behavior boundary is clear enough.",
+      "expected_output": "The run should classify this as a new feature and multi-step behavior change, choose feature alignment flow, identify goals, non-goals, affected surfaces, acceptance criteria, and verification, ask only questions that affect behavior or risk, produce a concise spec, and wait for explicit user confirmation before product-source edits when material invitation behavior remains inferred.",
       "files": [],
       "expectations": [
         "The run selects feature alignment flow for a multi-step feature",
         "The run identifies goals, non-goals, affected behavior, acceptance criteria, and verification before implementation",
-        "The run asks only material questions or states assumptions before coding",
+        "The run asks only material questions and produces a concise spec before coding",
+        "The run waits for explicit confirmation when material invitation behavior remains inferred",
         "The run does not require an external workflow backend before implementation"
       ]
     },
@@ -38,11 +39,12 @@
     {
       "id": 3,
       "prompt": "This is simple, just change it directly: add an export data button to the user settings page.",
-      "expected_output": "The run should still recognize this as a user-visible feature, use a thin feature alignment flow, clarify button behavior, data scope, permissions, and verification, and not skip acceptance criteria just because the user called it simple.",
+      "expected_output": "The run should still recognize this as a user-visible feature, use a thin feature alignment flow, clarify button behavior, data scope, permissions, and verification, produce a concise spec, and wait for explicit confirmation before product-source edits because material export behavior remains unresolved. It should not skip alignment just because the user called it simple.",
       "files": [],
       "expectations": [
         "The run does not skip behavior alignment merely because the user calls a feature simple",
-        "The run asks for or produces concise requirement alignment before coding"
+        "The run asks material questions and produces a concise spec before coding",
+        "The run waits for explicit user confirmation and does not edit product source while export behavior remains unresolved"
       ]
     },
     {
@@ -56,6 +58,42 @@
         "The run records tests or evidence before completion",
         "The run returns lifecycle control to ddev after coding evidence",
         "The run does not independently commit, push, or write durable memory unless requested"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Change the existing Add button label to New and keep its behavior exactly the same.",
+      "expected_output": "The run should classify this as a fully specified mechanical edit rather than an underspecified feature, record confirmation_not_required with the user's request as the acceptance source, make only the label change, and run focused verification without inventing a spec approval pause.",
+      "files": [],
+      "expectations": [
+        "The run classifies the request as a mechanical edit with no unresolved material product behavior",
+        "The run records or plans confirmation_not_required with the user request as the acceptance source",
+        "The run does not ask for unnecessary feature approval",
+        "The run limits implementation and verification to the label change"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Implement a browser-only todo list in the existing Tools page. Store items in localStorage, support add, complete, and delete, and choose the reversible interaction details yourself.",
+      "expected_output": "The run should choose feature alignment flow, recognize that the user defined the material scope and explicitly delegated only reversible low-risk interaction details, state a concise spec and chosen assumptions, record confirmation_not_required with the user request as the primary acceptance source, and proceed without another approval pause while preserving the stated boundaries.",
+      "files": [],
+      "expectations": [
+        "The run selects feature alignment flow and states a concise spec",
+        "The run recognizes that placement, persistence, and supported actions are already defined by the user",
+        "The run treats only reversible low-risk interaction details as delegated",
+        "The run records or plans confirmation_not_required with a clear source and reason",
+        "The run proceeds without an unnecessary confirmation pause and stays within the stated behavior"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Review the todo list implementation plan and point out missing requirements. Do not edit any files.",
+      "expected_output": "The run should select no coding flow, review the plan and missing requirements, and avoid source edits or an implementation workflow because the user explicitly requested read-only analysis.",
+      "files": [],
+      "expectations": [
+        "The run selects no coding flow",
+        "The run identifies missing requirements without implementing them",
+        "The run does not edit files"
       ]
     }
   ]

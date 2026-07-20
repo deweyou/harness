@@ -104,7 +104,9 @@ agents. A repository can still opt into DDev as its default workflow through
 ```text
 Orient
   -> Problem framing, when exploration or Grilling is needed
+  -> Early spec-driven-coding alignment for new or ambiguous behavior
   -> UI prototype gate, when requirement design touches UI
+  -> Requirement alignment gate before product-source edits
   -> Capture task/context/graph/verification
   -> Harness map
   -> HTML demo, when visibility helps
@@ -122,7 +124,7 @@ return control to `ddev` after their domain work:
 | Grilling, brainstorming, critique, recommendation | `problem-framing/SKILL.md` |
 | Product scope and tradeoffs | `product-design/SKILL.md` |
 | UI requirement prototypes, interaction, visual evidence | `ui-design/SKILL.md` |
-| Coding, debugging, TDD, verification | `spec-driven-coding/SKILL.md` |
+| Requirement alignment, coding, debugging, TDD, verification | `spec-driven-coding/SKILL.md` |
 | Commit, push, PR, CI | `git-delivery/SKILL.md` |
 | Durable repo knowledge | `repo-memory/SKILL.md` |
 
@@ -165,7 +167,8 @@ in the repository. If an applicable file remains missing after
 
 File roles:
 
-- `task.md`: goal, scope, non-goals, acceptance criteria, current status.
+- `task.md`: goal, scope, non-goals, acceptance criteria, acceptance source,
+  alignment status, unresolved decisions, and current status.
 - `brainstorm.md`: frame, divergent options, critiques, tradeoffs, recommendation.
 - `context.md`: files, commands, docs, constraints, and relevant facts.
 - `graph.md`: lightweight dependency graph or step checklist.
@@ -250,6 +253,26 @@ When the converged requirement includes UI, DDev loads `ui-design` from the
 global cache for a prototype before implementation. The prototype can be a
 screen/state structure, a prototype image prompt, a component-level sketch, or a
 local HTML demo when seeing the interaction would reduce uncertainty.
+
+## Requirement Alignment In MVP
+
+New features, user-visible behavior changes, and ambiguous product requests load
+`spec-driven-coding` before product-source edits. A request to implement starts
+the workflow; it does not approve requirements inferred by the agent.
+
+DDev records one of three alignment states:
+
+- `alignment_required`: material behavior is missing or inferred; show a concise
+  spec and wait for explicit user confirmation.
+- `confirmed`: the user explicitly approved the relevant requirement, spec, or
+  prototype.
+- `confirmation_not_required`: behavior is already defined by the user or an
+  authoritative contract, or the user explicitly delegated a reversible,
+  low-risk choice.
+
+Internal notes and prototypes are evidence of work, not evidence of user
+approval. Mechanical edits and narrow bugfixes with established expected
+behavior can proceed without an unnecessary confirmation pause.
 
 ## HTML Demo In MVP
 
