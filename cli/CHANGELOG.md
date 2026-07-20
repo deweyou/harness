@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0 - 2026-07-20
+
+### Added
+
+- ddev: add personal harness workflow
 ## 1.0.1 - 2026-05-26
 
 ### Fixed
