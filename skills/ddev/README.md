@@ -24,6 +24,13 @@ for Grilling, brainstorming, critique, and recommendation, then uses
 seeing the idea would help. When requirement design includes UI, DDev
 proactively loads `ui-design` to produce a prototype before implementation.
 
+For coding and architecture work, DDev has two mandatory rule dependencies. It
+reads `code-style` before writing, editing, or reviewing code, and reads
+`engineering-principles` before module design, boundary refactoring, dependency
+changes, or architecturally significant behavior changes. Both come directly
+from the global Dewey asset cache, so users do not need to install the rules
+globally or in each repository.
+
 ## When it triggers
 
 - The user invokes `$DDev`, `DDev`, or `ddev`.
@@ -62,6 +69,32 @@ DDev loads them by absolute path when needed. Users may still install module
 skills directly for standalone use. If DDev is missing on a machine, tell the
 user to install or initialize it instead of silently wiring it during an
 unrelated task.
+
+Mandatory rules stay in `~/.deweyou/agents/assets/rules/`. Refreshing the asset
+cache with `deweyou-cli agent update` is sufficient; rule installation is
+optional for DDev.
+
+## Features
+
+- One lifecycle owner across framing, UI, coding, evidence, delivery, and memory.
+- Human-readable, branch-scoped working state outside project source.
+- Mandatory cached `code-style` and `engineering-principles` rules for their
+  matching operations, independent of global or project rule installation.
+- UI prototype and live-evidence gates when interface work requires them.
+- Explicit delivery only; no silent commit, push, PR, or passive global hooks.
+
+## SOP
+
+1. Activate DDev explicitly or through repository instructions and verify the
+   runtime with `deweyou-cli dev doctor`.
+2. Classify the request, capture only the state needed, and map the available
+   project harness.
+3. Before applicable coding or architecture operations, read the mandatory rule
+   files from `~/.deweyou/agents/assets/rules/`; refresh the cache or stop if a
+   required file is missing.
+4. Load capability modules as needed, run bounded implementation and
+   verification loops, and record evidence.
+5. Route delivery or durable memory only when the task requires it.
 
 ## Source
 

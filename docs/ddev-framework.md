@@ -14,6 +14,7 @@ Agent entry:      ddev / $DDev, or explicit project AGENTS.md opt-in
 CLI namespace:    deweyou-cli dev ...
 Global runtime:   ~/.deweyou/dev/
 Module skills:    ~/.deweyou/agents/assets/skills/<skill>/SKILL.md
+Mandatory rules:  ~/.deweyou/agents/assets/rules/{code-style,engineering-principles}.md
 Per-repo state:   ~/.deweyou/dev/repos/<repo-id>/
 ```
 
@@ -54,7 +55,11 @@ flowchart TD
     Runtime --> State["~/.deweyou/dev/repos/<repo-id>/sessions/<branch>"]
     DDev --> State
     Cache["~/.deweyou/agents/assets/skills"] --> Modules["global module skills"]
+    RuleCache["~/.deweyou/agents/assets/rules"] --> Rules["mandatory operation-scoped rules"]
     DDev --> Modules
+    DDev --> Rules
+    Rules --> CodeStyle["code-style"]
+    Rules --> Engineering["engineering-principles"]
     Modules --> Coding["spec-driven-coding"]
     Modules --> UI["ui-design"]
     Modules --> Framing["problem-framing"]
@@ -122,6 +127,16 @@ return control to `ddev` after their domain work:
 | Durable repo knowledge | `repo-memory/SKILL.md` |
 
 `product-notes` and `skill-eval` stay independent and explicit.
+
+DDev also owns two mandatory, operation-scoped rule dependencies. Before
+writing, editing, or reviewing code, it reads
+`~/.deweyou/agents/assets/rules/code-style.md`. Before module design, boundary
+refactoring, dependency changes, or architecturally significant behavior
+changes, it reads
+`~/.deweyou/agents/assets/rules/engineering-principles.md`. These files are read
+from the asset cache even when the user has not installed the rules globally or
+in the repository. If an applicable file remains missing after
+`deweyou-cli agent update`, the affected operation stops as blocked.
 
 ## Local State Contract
 
@@ -275,6 +290,10 @@ deweyou-cli agent init \
 deweyou-cli dev install
 deweyou-cli dev doctor
 ```
+
+Global or project installation of `code-style` and `engineering-principles` is
+optional for DDev. DDev reads the cached rule files directly when their
+operation scope applies.
 
 ## Ownership Boundary
 

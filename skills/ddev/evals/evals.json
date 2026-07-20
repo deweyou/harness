@@ -224,6 +224,35 @@
         "Explained that module skills are resolved by absolute path from the global Dewey asset cache",
         "Kept direct module skill installation optional for standalone use"
       ]
+    },
+    {
+      "id": 16,
+      "prompt": "$DDev refactor this service boundary and add a new storage dependency. I have not installed code-style or engineering-principles globally.",
+      "expected_output": "The run should trigger ddev and treat both rules as mandatory operation-scoped dependencies. Before editing code it should read ~/.deweyou/agents/assets/rules/code-style.md, and before changing the service boundary or dependency it should read ~/.deweyou/agents/assets/rules/engineering-principles.md. It should do this directly from the Dewey asset cache without requiring global or repository rule installation, while still following more specific project instructions.",
+      "files": [],
+      "expectations": [
+        "Triggered the ddev skill",
+        "Read the cached code-style rule before writing or editing code",
+        "Read the cached engineering-principles rule before boundary refactoring or adding the dependency",
+        "Resolved both rules from ~/.deweyou/agents/assets/rules even though they were not installed globally",
+        "Did not ask the user to install either rule globally or in the repository",
+        "Kept more specific project instructions authoritative"
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "$DDev review this small function for naming and error handling. The cached code-style rule file is missing after I removed the global rule installation.",
+      "expected_output": "The run should trigger ddev and recognize code review as an operation that requires the cached code-style rule. It should run or ask for deweyou-cli agent update, re-check ~/.deweyou/agents/assets/rules/code-style.md, and stop the code review as blocked if the file remains missing. It should not require global rule installation and should not continue silently without the mandatory rule. Engineering-principles is not required unless the review expands into architecture-impacting work.",
+      "files": [],
+      "expectations": [
+        "Triggered the ddev skill",
+        "Recognized code review as requiring the cached code-style rule",
+        "Ran or requested deweyou-cli agent update before treating the missing cache file as final",
+        "Re-checked the exact cached rule path after refresh",
+        "Stopped the affected review if code-style remained missing",
+        "Did not require global rule installation",
+        "Did not load engineering-principles without an architecture-impacting operation"
+      ]
     }
   ]
 }

@@ -101,11 +101,12 @@ Skills are active workflows. They live in `skills/<name>/SKILL.md` and may also
 include human-facing `README.md` and `README_ZH.md` files, references, scripts,
 assets, previews, or eval cases. For DDev projects, install only the `ddev`
 entry skill in the target repository; DDev loads module skills from the global
-cache at `~/.deweyou/agents/assets/skills/<skill>/SKILL.md`.
+cache at `~/.deweyou/agents/assets/skills/<skill>/SKILL.md` and reads mandatory
+operation-scoped rules from `~/.deweyou/agents/assets/rules/`.
 
 | Skill | Description | Source |
 |-------|-------------|--------|
-| `ddev` | DDev personal cross-repository development harness workflow. It owns task lifecycle, global `~/.deweyou/dev/` per-repo state, UI prototype gates, HTML demos, harness mapping, bounded loops, evidence, delivery routing, and memory routing. | [`skills/ddev/`](./skills/ddev/) |
+| `ddev` | DDev personal cross-repository development harness workflow. It owns task lifecycle, mandatory cached coding and engineering rules, global `~/.deweyou/dev/` per-repo state, UI prototype gates, HTML demos, harness mapping, bounded loops, evidence, delivery routing, and memory routing. | [`skills/ddev/`](./skills/ddev/) |
 | `problem-framing` | Grilling, brainstorming, tradeoff critique, and recommendation workflow for clarifying fuzzy requests before implementation. | [`skills/problem-framing/`](./skills/problem-framing/) |
 | `repo-memory` | Durable repository memory workflow. It initializes and refreshes repo context, runs pre-commit memory checks, updates docs and UI design memory when work changes important knowledge, and checks local skill drift. | [`skills/repo-memory/`](./skills/repo-memory/) |
 | `git-delivery` | Branch-aware git delivery workflow for start-of-work checks, intentional staging, commits, base-branch conflict checks, safe rebases, pushes, PR creation, CI follow-up, and automatic low-risk CI repair. | [`skills/git-delivery/`](./skills/git-delivery/) |
@@ -144,7 +145,9 @@ them standalone outside DDev.
 ## Rules
 
 Rules are passive preferences and constraints. They live in `rules/<name>.md`
-and are selected per repository through `deweyou-cli`.
+and are selected per repository through `deweyou-cli`. DDev additionally reads
+`code-style` and `engineering-principles` directly from the global asset cache
+before matching operations, so installing those two rules is optional for DDev.
 
 | Rule | Description | Source |
 |------|-------------|--------|

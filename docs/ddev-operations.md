@@ -1,6 +1,6 @@
 # DDev Operations Manual
 
-*Last updated: 2026-07-20 | Reason: Documented manual activation, project opt-in, upgrade, and uninstall flow.*
+*Last updated: 2026-07-20 | Reason: Documented mandatory cached rule dependencies alongside manual activation and project opt-in.*
 
 This manual covers day-to-day DDev usage. See
 [`docs/ddev-framework.md`](./ddev-framework.md) for the technical plan.
@@ -12,6 +12,7 @@ flowchart TD
     User["User task"] --> DDev["ddev skill"]
     DDev --> State["~/.deweyou/dev/repos/<repo-id> branch-session state"]
     DDev --> GlobalModules["global module skills"]
+    DDev --> MandatoryRules["mandatory operation-scoped rules"]
     GlobalModules --> Product["product-design"]
     GlobalModules --> UI["ui-design"]
     GlobalModules --> Coding["spec-driven-coding"]
@@ -19,6 +20,7 @@ flowchart TD
     GlobalModules --> Memory["repo-memory"]
     CLI["deweyou-cli dev"] --> Runtime["~/.deweyou/dev manual runtime"]
     Cache["~/.deweyou/agents/assets/skills"] --> GlobalModules
+    RuleCache["~/.deweyou/agents/assets/rules"] --> MandatoryRules
     Runtime --> State
 ```
 
@@ -29,6 +31,9 @@ flowchart TD
   documentation.
 - Other skills are global capability modules under
   `~/.deweyou/agents/assets/skills/` and return control to `ddev`.
+- DDev reads `code-style` before code writing, editing, or review, and reads
+  `engineering-principles` before architecture-impacting operations, directly
+  from `~/.deweyou/agents/assets/rules/`.
 - `product-notes` and `skill-eval` stay independent and explicit.
 - DDev is manually triggered by default and does not install passive global
   hooks.
@@ -52,6 +57,12 @@ such as `problem-framing`, `ui-design`, `spec-driven-coding`, `git-delivery`,
 `repo-memory`, and `product-design` stay in the global Dewey asset cache after
 `deweyou-cli agent update`. DDev loads them by absolute path when needed.
 Users may still install any module skill explicitly for standalone use.
+
+Users do not need to install `code-style` or `engineering-principles` globally
+or per repository for DDev. `deweyou-cli agent update` places both rule files in
+the global asset cache, and DDev reads the applicable file before the matching
+operation. If a required file is still absent after a cache refresh, DDev stops
+that operation and reports the blocker.
 
 `deweyou-cli dev install` prepares `~/.deweyou/dev`, writes the global module
 registry into `~/.deweyou/dev/config.json`, creates the current repository's

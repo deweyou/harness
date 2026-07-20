@@ -33,6 +33,9 @@ the Dewey asset cache when needed.
   simple read-only answers.
 - Treat DDev state as local, temporary working memory outside project source.
   Do not commit legacy project-local `.deweyou/dev/` if it appears.
+- Load the mandatory `code-style` and `engineering-principles` rules from the
+  global Dewey asset cache before operations to which they apply, even when the
+  user has not installed those rules globally or in the repository.
 - When requirement design touches UI, proactively load the `ui-design` module to
   produce a prototype before implementation.
 - Verify claims with the smallest meaningful evidence. State gaps plainly.
@@ -83,6 +86,34 @@ deweyou-cli agent init --skills ddev --mode link --yes
 Users may still install module skills directly into a specific harness or
 repository. That is optional compatibility, not the default DDev dependency
 model.
+
+## Mandatory Rule Dependencies
+
+DDev has two mandatory rule dependencies in the global Dewey asset cache:
+
+| Operation | Required rule path |
+| --- | --- |
+| Writing, editing, or reviewing code | `~/.deweyou/agents/assets/rules/code-style.md` |
+| Designing modules, refactoring boundaries, adding dependencies, or changing behavior with architectural impact | `~/.deweyou/agents/assets/rules/engineering-principles.md` |
+
+Read each applicable rule in full before the affected operation. This is a DDev
+workflow dependency, not a requirement for the user to install the rules into
+global agent instructions or the repository manifest. Project-specific
+instructions still take precedence where the rule itself allows them to.
+
+Do not load these rules for unrelated DDev modes merely because DDev is active.
+For example, a read-only runtime inspection or product brainstorm does not need
+coding rules unless it turns into code review or an architectural decision.
+
+If an applicable rule file is missing, run or ask the user to run:
+
+```bash
+deweyou-cli agent update
+```
+
+Re-check the exact rule path after the refresh. If it is still missing, stop the
+affected coding or architecture operation and report the missing rule as a
+blocker. Do not silently continue without a mandatory rule.
 
 ## Local Session Contract
 
@@ -136,7 +167,8 @@ complex recovery state machine in the MVP. For complex tasks, use `graph.md` and
 ### 1. Orient
 
 Read repository instructions, active rules, current git state, and any existing
-DDev session for the branch.
+DDev session for the branch. Identify whether the upcoming work requires either
+mandatory DDev rule and resolve its cache path before the affected operation.
 
 If project instructions say DDev is the default workflow for non-trivial
 development tasks, treat that as repository-level opt-in. Otherwise use DDev
@@ -234,6 +266,7 @@ Identify the available harness before editing:
 - repository test, lint, typecheck, build, and smoke commands
 - live preview or browser/app verification path
 - product, UI, coding, delivery, and memory module paths that apply
+- mandatory `code-style` or `engineering-principles` rule paths that apply
 - branch-session HTML demo path and preview URL when concept work needs a visual
 - UI prototype artifact or gap when requirement design includes interface work
 - files or generated artifacts that must stay out of commits
@@ -256,6 +289,12 @@ Use `graph.md` to keep step state visible when the task has dependencies. Use
 For coding work, load `spec-driven-coding` as the DDev-native coding module. For
 UI requirement design, prototypes, implementation, or visual evidence, load
 `ui-design`. For product-scope choices, load `product-design`.
+
+Before code is written, edited, or reviewed, read the cached `code-style` rule.
+Before module design, boundary refactoring, dependency changes, or
+architecturally significant behavior changes, also read the cached
+`engineering-principles` rule. Apply both when both operation classes are
+present.
 
 ### 5.5. HTML Demo Loop
 
@@ -346,6 +385,7 @@ Keep user-facing output concise and concrete:
 - `state`: not created, read, created, updated, cleaned, or blocked
 - `acceptance`: criteria used or blocker
 - `skills`: module skills or absolute module paths used and why
+- `rules`: mandatory cached rules read for the operations performed, or not applicable
 - `evidence`: checks run, skipped, or blocked
 - `delivery`: not requested, handed to git-delivery, or blocked
 - `memory`: not needed, routed to repo-memory, or blocked
