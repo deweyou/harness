@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/product-notes/SKILL.md
+source-digest: sha256:bd700156f98e739d598caac9c7e6f7e3059d1f62b3f57b77ef215a6242192bf6
+translation-status: current
+description: 将讨论和研究整理为可持续维护的产品笔记。
+-->
+
 # product-notes
 
 > 将产品想法、定位、迭代、决策、洞察和复盘写成可延续的产品笔记。

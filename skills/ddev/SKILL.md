@@ -144,6 +144,7 @@ For non-trivial implementation sessions, use:
             index.html
           retrospective.md
           events.jsonl
+          summary.md
           stop-issues.txt
 ```
 
@@ -160,13 +161,43 @@ Keep these files short and human-readable:
 - `demo.md`: demo path, local URL, visual checks, and demo evidence.
 - `demo/index.html`: branch-session static HTML demo for sketches and prototypes.
 - `retrospective.md`: candidates for repo-memory or DDev improvement.
-- `events.jsonl`: append-only CLI/manual runtime events.
+- `events.jsonl`: append-only validated protocol events.
+- `summary.md`: generated single-session view of requirements, nodes, claims,
+  failures, reviews, recovery, delivery, and open issues.
 - `stop-issues.txt`: optional diagnostics from earlier or explicit checks;
   there is no passive Stop hook in the MVP.
 
 Do not create machine `state.json`, a node scheduler, subagent bindings, or a
 complex recovery state machine in the MVP. For complex tasks, use `graph.md` and
-`evidence.md` to make dependencies and proof visible to humans.
+`evidence.md` as the human recovery surface, and use validated protocol events
+only to link nodes, evidence, failures, review verdicts, and restart hints.
+
+### Structured Session Protocol
+
+For non-trivial implementation sessions, record lifecycle facts with:
+
+```bash
+deweyou-cli dev record --kind <kind> --data '<json-object>'
+deweyou-cli dev summary --format markdown
+```
+
+Supported kinds are `requirement`, `node`, `evidence`, `failure`, `review`,
+`recovery`, and `delivery`. Each command appends one schema-versioned event to
+`events.jsonl`; `summary` validates the full log and regenerates `summary.md`.
+
+Use the protocol when a task has dependencies, multiple evidence claims, a
+review verdict, a failure that may restart from a smaller boundary, or a delivery
+handoff. Do not add event ceremony to a mechanical edit when `task.md` and one
+verification result are clearer.
+
+The protocol records decisions; it does not execute nodes. `restart_from` is a
+reviewable recovery hint, not permission for an automatic retry. Keep the
+human-readable session files authoritative for task intent and use event ids,
+claim ids, and evidence ids to make proof traceable.
+
+Do not put secrets, access tokens, full chat transcripts, or large raw logs in
+event payloads. Record a redacted summary and an artifact path or external
+evidence reference instead.
 
 ## Workflow
 
@@ -301,6 +332,8 @@ thin:
 - add inspected facts to `context.md`
 - add the next steps or dependencies to `graph.md`
 - add verification intent to `verification.md`
+- for non-trivial sessions, record the requirement event after alignment is
+  resolved so later evidence has a stable acceptance source
 
 This is working memory, not project documentation.
 
@@ -327,8 +360,10 @@ Run a bounded loop:
 
 1. Make the smallest coherent change.
 2. Run the nearest useful check.
-3. Record evidence or the blocker.
-4. Repair only when the next step is clear.
+3. Record evidence or the blocker; use a validated `node`, `evidence`, or
+   `failure` event when the task uses the structured protocol.
+4. Repair only when the next step is clear. Record a `review` or `recovery`
+   event before using `restart_from` on an affected boundary.
 5. Stop when repeated failures indicate missing context or a user decision.
 
 Use `graph.md` to keep step state visible when the task has dependencies. Use
@@ -371,7 +406,9 @@ Before claiming completion, report:
 - remaining risks or unverified assumptions
 
 Record the same claims and proof in `evidence.md` when the session has local
-state.
+state. When structured events were used, run `deweyou-cli dev summary` and check
+that `summary.md` does not leave failed nodes, unverified claims, blocked reviews,
+or planned recovery unexplained.
 
 ### 7. Delivery
 

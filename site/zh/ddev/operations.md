@@ -7,8 +7,6 @@ description: DDev 日常使用、安装、仓库接入、demo 和升级说明。
 
 # DDev 操作手册
 
-*Last updated: 2026-07-20 | Reason: Documented manual activation, project opt-in, upgrade, and uninstall flow.*
-
 这份手册面向日常跨仓库开发使用。技术方案见
 [`docs/ddev-framework.zh.md`](/zh/ddev/framework)。
 
@@ -19,6 +17,7 @@ flowchart TD
     User["用户任务"] --> DDev["ddev skill"]
     DDev --> State["~/.deweyou/dev/repos/<repo-id> branch-session state"]
     DDev --> GlobalModules["global module skills"]
+    DDev --> MandatoryRules["按操作强依赖的 rules"]
     GlobalModules --> Product["product-design"]
     GlobalModules --> UI["ui-design"]
     GlobalModules --> Coding["spec-driven-coding"]
@@ -26,6 +25,7 @@ flowchart TD
     GlobalModules --> Memory["repo-memory"]
     CLI["deweyou-cli dev"] --> Runtime["~/.deweyou/dev manual runtime"]
     Cache["~/.deweyou/agents/assets/skills"] --> GlobalModules
+    RuleCache["~/.deweyou/agents/assets/rules"] --> MandatoryRules
     Runtime --> State
 ```
 
@@ -35,6 +35,8 @@ flowchart TD
 - `~/.deweyou/dev/` 是项目源码外的本地临时状态，不是项目文档。
 - 其他 skills 是全局能力模块，放在 `~/.deweyou/agents/assets/skills/`
   下，完成领域工作后回到 `ddev`。
+- DDev 在写、改、审代码前读取 `code-style`，在有架构影响的操作前读取
+  `engineering-principles`；两者都直接来自 `~/.deweyou/agents/assets/rules/`。
 - `product-notes` 和 `skill-eval` 保持独立，只在明确请求时使用。
 - DDev 默认是用户主动触发，不安装全局被动 hooks。
 
@@ -57,6 +59,11 @@ deweyou-cli dev doctor
 `product-design` 等模块 skills 由 `deweyou-cli agent update` 放在全局 Dewey
 asset cache，DDev 需要时按绝对路径加载。用户仍然可以为了单独使用某个模块
 skill，把它显式安装到某个 harness 或仓库里。
+
+用户不需要为了 DDev 全局或按仓库安装 `code-style` 与
+`engineering-principles`。`deweyou-cli agent update` 会把它们放进全局 asset
+cache，DDev 在对应操作前直接读取适用的 rule。若刷新缓存后强依赖文件仍不存在，
+DDev 会阻塞该操作并报告缺失项。
 
 `deweyou-cli dev install` 会准备 `~/.deweyou/dev`，把全局模块 registry 写入
 `~/.deweyou/dev/config.json`，并把当前仓库状态创建在
@@ -105,6 +112,8 @@ deweyou-cli dev clean --branch <branch>
 deweyou-cli dev clean --all --dry-run
 deweyou-cli dev demo --no-server
 deweyou-cli dev demo --port 4173
+deweyou-cli dev record --kind node --data '{"node_id":"verify","node_type":"verification","status":"completed"}'
+deweyou-cli dev summary --format markdown
 deweyou-cli dev uninstall
 ```
 
@@ -127,12 +136,15 @@ $DDev clean-context
 $DDev uninstall
 ```
 
-`$DDev <task>` 跑正常生命周期：摸底、Grilling、验收、harness map、
-有边界实现循环、收集证据，并且只在需要时交给交付或 memory。
+`$DDev <task>` 跑正常生命周期：摸底、Grilling、判断需求对齐状态、验收、
+harness map、有边界实现循环、收集证据，并且只在需要时交给交付或 memory。
+新功能和模糊的用户可见行为必须在编辑产品源码前加载 `spec-driven-coding`。
+“请实现”只代表允许启动开发流程，不代表批准 Agent 推断出的需求。
 
 当需求设计影响 UI 时，DDev 会从全局 cache 加载 `ui-design`，先做最小可用原型，
 再进入实现。根据问题需要，原型可以是页面/状态结构、原型图 prompt、组件草图或
-本地 HTML demo。
+本地 HTML demo。如果原型包含 Agent 推断出的关键产品选择，必须连同简短 spec
+展示给用户，并在用户明确确认后才能转成产品源码。
 
 `$DDev brainstorm <topic>` 会从全局 cache 加载 `problem-framing` 来 frame 问题、
 发散不同方向、批判 tradeoff、收敛到推荐方案，并判断 HTML demo 是否比继续写文字
@@ -183,6 +195,7 @@ dirty files，并报告 commit、push、PR、CI 或 blocker。
             index.html
           retrospective.md
           events.jsonl
+          summary.md
           stop-issues.txt
 ```
 
@@ -197,6 +210,10 @@ dirty files，并报告 commit、push、PR、CI 或 blocker。
 - `brainstorm.md` 记录方向 frame、批判和推荐。
 - `graph.md` 记录轻量步骤或依赖关系。
 - `evidence.md` 记录 claim、artifact、命令、截图、live check、跳过的检查和缺口。
+- 只有 requirement、node、evidence、failure、review、recovery 或 delivery 的结构化
+  事实确实提升可追溯性时，才使用 `events.jsonl`。
+- 使用 `deweyou-cli dev summary` 重新生成 `summary.md`；它是视图，不是调度器，也不
+  代表用户已经批准需求。
 - `demo/index.html` 用于进入产品代码前的本地 HTML demo。
 - 持久知识进 `repo-memory`，不留在 DDev 本地状态里。
 
@@ -209,6 +226,8 @@ DDev 声称完成前至少回答：
 - 已运行哪些命令或 live checks？
 - 哪些验证没跑，原因是什么？
 - 如果是 UI/浏览器/运行时行为，有没有截图、渲染或 live runtime 证据？
+- 如果使用了结构化事件，`summary.md` 是否最新，失败节点、未验证 claim、阻塞 Review
+  和 planned recovery 是否都有解释？
 
 常见证据层级：
 
@@ -290,3 +309,6 @@ pnpm run test:cli
 pnpm run coverage:cli
 cd cli && npm pack --dry-run
 ```
+
+---
+*Last updated: 2026-07-21 | Reason: Added structured DDev protocol recording and single-session summary operations.*

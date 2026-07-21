@@ -1,7 +1,5 @@
 # DDev 操作手册
 
-*Last updated: 2026-07-20 | Reason: Documented mandatory cached rule dependencies alongside manual activation and project opt-in.*
-
 这份手册面向日常跨仓库开发使用。技术方案见
 [`docs/ddev-framework.zh.md`](./ddev-framework.zh.md)。
 
@@ -107,6 +105,8 @@ deweyou-cli dev clean --branch <branch>
 deweyou-cli dev clean --all --dry-run
 deweyou-cli dev demo --no-server
 deweyou-cli dev demo --port 4173
+deweyou-cli dev record --kind node --data '{"node_id":"verify","node_type":"verification","status":"completed"}'
+deweyou-cli dev summary --format markdown
 deweyou-cli dev uninstall
 ```
 
@@ -188,6 +188,7 @@ dirty files，并报告 commit、push、PR、CI 或 blocker。
             index.html
           retrospective.md
           events.jsonl
+          summary.md
           stop-issues.txt
 ```
 
@@ -202,6 +203,10 @@ dirty files，并报告 commit、push、PR、CI 或 blocker。
 - `brainstorm.md` 记录方向 frame、批判和推荐。
 - `graph.md` 记录轻量步骤或依赖关系。
 - `evidence.md` 记录 claim、artifact、命令、截图、live check、跳过的检查和缺口。
+- 只有 requirement、node、evidence、failure、review、recovery 或 delivery 的结构化
+  事实确实提升可追溯性时，才使用 `events.jsonl`。
+- 使用 `deweyou-cli dev summary` 重新生成 `summary.md`；它是视图，不是调度器，也不
+  代表用户已经批准需求。
 - `demo/index.html` 用于进入产品代码前的本地 HTML demo。
 - 持久知识进 `repo-memory`，不留在 DDev 本地状态里。
 
@@ -214,6 +219,8 @@ DDev 声称完成前至少回答：
 - 已运行哪些命令或 live checks？
 - 哪些验证没跑，原因是什么？
 - 如果是 UI/浏览器/运行时行为，有没有截图、渲染或 live runtime 证据？
+- 如果使用了结构化事件，`summary.md` 是否最新，失败节点、未验证 claim、阻塞 Review
+  和 planned recovery 是否都有解释？
 
 常见证据层级：
 
@@ -295,3 +302,6 @@ pnpm run test:cli
 pnpm run coverage:cli
 cd cli && npm pack --dry-run
 ```
+
+---
+*Last updated: 2026-07-21 | Reason: Added structured DDev protocol recording and single-session summary operations.*

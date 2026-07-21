@@ -1,7 +1,5 @@
 # DDev Operations Manual
 
-*Last updated: 2026-07-20 | Reason: Documented mandatory cached rule dependencies alongside manual activation and project opt-in.*
-
 This manual covers day-to-day DDev usage. See
 [`docs/ddev-framework.md`](./ddev-framework.md) for the technical plan.
 
@@ -112,6 +110,8 @@ deweyou-cli dev clean --branch <branch>
 deweyou-cli dev clean --all --dry-run
 deweyou-cli dev demo --no-server
 deweyou-cli dev demo --port 4173
+deweyou-cli dev record --kind node --data '{"node_id":"verify","node_type":"verification","status":"completed"}'
+deweyou-cli dev summary --format markdown
 deweyou-cli dev uninstall
 ```
 
@@ -200,6 +200,7 @@ preserves unrelated harness hooks.
             index.html
           retrospective.md
           events.jsonl
+          summary.md
           stop-issues.txt
 ```
 
@@ -215,6 +216,10 @@ Rules:
 - Use `graph.md` for lightweight step or dependency tracking.
 - Use `evidence.md` for claims, artifacts, commands, screenshots, live checks,
   skipped checks, and unresolved gaps.
+- Use `events.jsonl` only when structured requirement, node, evidence, failure,
+  review, recovery, or delivery facts improve traceability.
+- Regenerate `summary.md` with `deweyou-cli dev summary`; it is a view, not a
+  scheduler or a source of user approval.
 - Use `demo/index.html` for throwaway local HTML demos before product code.
 - Route durable knowledge to `repo-memory`, not to DDev state.
 
@@ -227,6 +232,8 @@ Before DDev claims completion, answer:
 - Which commands or live checks ran?
 - Which checks were skipped and why?
 - Does UI/runtime work have screenshot, render, app, or browser evidence?
+- If structured events were used, is `summary.md` current and are failed nodes,
+  unverified claims, blocked reviews, and planned recovery explained?
 
 Common evidence levels:
 
@@ -312,3 +319,6 @@ pnpm run test:cli
 pnpm run coverage:cli
 cd cli && npm pack --dry-run
 ```
+
+---
+*Last updated: 2026-07-21 | Reason: Added structured DDev protocol recording and single-session summary operations.*

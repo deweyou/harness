@@ -11,4 +11,4 @@ Reusable interface design contracts for AI-assisted UI work.
 
 | Asset | Description | Source |
 | --- | --- | --- |
-| `dewey-interface` | Restrained, typographic, component-driven interface style for Dewey's personal products. | [Source](https://github.com/deweyou/agents/blob/main/design/dewey-interface.md) |
+| [dewey-interface](./dewey-interface.md) | Restrained, typographic, component-driven interface style for Dewey's personal products. | [Source](https://github.com/deweyou/agents/blob/main/design/dewey-interface.md) |

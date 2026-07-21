@@ -14,6 +14,11 @@ Every skill directory owns public `README.md` and `README_ZH.md` files beside
 `SKILL.md`. These READMEs are the human-facing summaries of the workflow, while
 `SKILL.md` remains the executable agent instruction.
 
+`README_ZH.md` starts with a `Chinese reading companion` metadata comment. Its
+`source-digest` is the SHA-256 digest of the exact `SKILL.md` bytes. This lets
+`pnpm run lint:assets` reject a missing or stale Chinese guide without turning
+the guide into a second executable behavior source.
+
 ## Required Sections
 
 - `README.md` uses English headings. `README_ZH.md` uses Chinese headings while
@@ -97,6 +102,13 @@ This skill is maintained in `deweyou/agents` and indexed by
 ### Chinese
 
 ````markdown
+<!-- Chinese reading companion
+source: skills/<skill-name>/SKILL.md
+source-digest: sha256:<digest>
+translation-status: current
+description: <中文简介>
+-->
+
 # <skill-name>
 
 > <一句话说明这个 skill 帮 agent 做什么。>

@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/product-design/SKILL.md
+source-digest: sha256:c9ecc1e7a5d65a50ea227a9bf1201e7bfdddb9c3f43b13814d6034357205d0d2
+translation-status: current
+description: 面向个人软件的产品范围、版本规划和产品判断工作流。
+-->
+
 # product-design
 
 > 面向个人产品的产品设计搭档，把想法沉淀为合适大小、可落地的产品决策。

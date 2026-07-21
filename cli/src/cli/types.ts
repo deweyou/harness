@@ -201,6 +201,90 @@ export interface DevFlags {
   noServer?: boolean
   once?: boolean
   dryRun?: boolean
+  kind?: string
+  data?: string
+  format?: OutputFormat
+}
+
+export type DevEventKind =
+  | 'requirement'
+  | 'node'
+  | 'evidence'
+  | 'failure'
+  | 'review'
+  | 'recovery'
+  | 'delivery'
+
+export interface DevEvent {
+  schema_version: 1
+  event_id: string
+  occurred_at: string
+  kind: DevEventKind
+  branch: string
+  payload: Record<string, unknown>
+}
+
+export interface DevSessionSummary {
+  schema_version: 1
+  branch: string
+  generated_at: string
+  event_count: number
+  counts: Record<string, number>
+  requirement: null | {
+    status: string
+    acceptance_source: string
+    unresolved_decisions: string[]
+    event_id: string
+  }
+  nodes: Array<{
+    node_id: string
+    node_type: string
+    status: string
+    depends_on: string[]
+    evidence_ids: string[]
+    event_id: string
+  }>
+  claims: Array<{
+    claim_id: string
+    status: string
+    evidence_ids: string[]
+    summaries: string[]
+  }>
+  failures: Array<{
+    failure_id: string
+    node_id: string
+    failure_class: string
+    summary: string
+    evidence_ids: string[]
+    restart_from: string | null
+    retryable: boolean | null
+    event_id: string
+  }>
+  reviews: Array<{
+    review_id: string
+    scope: string
+    verdict: string
+    findings: string[]
+    evidence_ids: string[]
+    restart_from: string | null
+    event_id: string
+  }>
+  recoveries: Array<{
+    recovery_id: string
+    source_event_id: string
+    restart_from: string
+    reason: string
+    status: string
+    event_id: string
+  }>
+  deliveries: Array<{
+    delivery_id: string
+    status: string
+    summary: string
+    evidence_ids: string[]
+    event_id: string
+  }>
+  open_issues: string[]
 }
 
 export interface DevStatusResult {
@@ -258,6 +342,20 @@ export interface DevDemoResult {
   url: string | null
   served: boolean
   dryRun: boolean
+}
+
+export interface DevRecordResult {
+  sessionPath: string
+  eventsPath: string
+  event: DevEvent
+}
+
+export interface DevSummaryResult {
+  sessionPath: string
+  eventsPath: string
+  summaryPath: string
+  summary: DevSessionSummary
+  markdown: string
 }
 
 export interface ParsedArgs {

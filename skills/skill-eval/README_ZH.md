@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/skill-eval/SKILL.md
+source-digest: sha256:157afd3694094b9aa2577293c7d2093cd98bfc35d6726c2cdec20463d0769fea
+translation-status: current
+description: 通过可评分用例评估 Skill 的触发和工作流行为。
+-->
+
 # skill-eval
 
 > 用于生成 skill eval cases、运行 agent CLI 测试、给 transcript 打分并汇总路由准确率的评测工作流。

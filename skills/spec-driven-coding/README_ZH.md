@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/spec-driven-coding/SKILL.md
+source-digest: sha256:7f8e721dca1d019e08cdfb82a30a512e3c22cc3610fff8de8142cb342c67c1cb
+translation-status: current
+description: DDev 原生的需求对齐、实现和验证编码工作流。
+-->
+
 # spec-driven-coding
 
 > DDev-native coding workflow，用于行为对齐、调试、TDD 和验证。

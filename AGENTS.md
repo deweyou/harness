@@ -9,6 +9,9 @@ rules, and the `deweyou-cli` package that installs them into other repos.
   [docs/asset-workflow.md](./docs/asset-workflow.md).
 - Repository knowledge lives under [docs/](./docs/). Do not create a separate
   `knowledge/` directory for this repo.
+- Before evolving DDev beyond its manual structured-session protocol, read
+  [docs/ddev-evolution.md](./docs/ddev-evolution.md) for adoption triggers and
+  boundaries.
 - `CLAUDE.md` should remain a symlink to this file.
 
 ## Asset Map
@@ -31,6 +34,9 @@ rules, and the `deweyou-cli` package that installs them into other repos.
 - Implement skills, rules, MCP assets, and plugin assets in English, including
   frontmatter, instructions, examples, prompts, script help text, and user-facing
   runtime messages.
+- Keep English executable assets as the single source of truth. Maintain Chinese
+  human-reading companions in `skills/<name>/README_ZH.md` and
+  `docs/zh/assets/{rules,design}/`; do not install these companions as assets.
 - Every new or modified skill must include updated `skill-eval` cases in
   `skills/<name>/evals/evals.json`; only run LLM-backed evals when the user
   explicitly asks for execution.

@@ -180,6 +180,40 @@ describe('parseArgs', () => {
         },
       },
     )
+
+    assert.deepEqual(
+      parseArgs([
+        'dev',
+        'record',
+        '--branch',
+        'feature/demo',
+        '--kind',
+        'node',
+        '--data',
+        '{"node_id":"implement","node_type":"implementation","status":"completed"}',
+      ]),
+      {
+        topic: 'dev',
+        command: 'record',
+        flags: {
+          branch: 'feature/demo',
+          kind: 'node',
+          data: '{"node_id":"implement","node_type":"implementation","status":"completed"}',
+        },
+      },
+    )
+
+    assert.deepEqual(
+      parseArgs(['dev', 'summary', '--branch', 'feature/demo', '--format', 'json']),
+      {
+        topic: 'dev',
+        command: 'summary',
+        flags: {
+          branch: 'feature/demo',
+          format: 'json',
+        },
+      },
+    )
   })
 
   it('rejects context flags that belong to init', () => {
@@ -208,6 +242,11 @@ describe('parseArgs', () => {
     assert.throws(
       () => parseArgs(['dev', 'clean', '--legacy']),
       /Unknown flag: --legacy/,
+    )
+
+    assert.throws(
+      () => parseArgs(['dev', 'record', '--format', 'json']),
+      /Flag --format is not valid for dev record/,
     )
   })
 

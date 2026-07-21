@@ -80,6 +80,10 @@ The CLI owns deterministic local infrastructure:
 - `clean`: remove DDev-owned state.
 - `demo`: create the branch-session `demo/index.html` file and optionally serve
   it over a local static HTTP server.
+- `record`: validate and append one requirement, node, evidence, failure,
+  review, recovery, or delivery event.
+- `summary`: validate `events.jsonl`, regenerate `summary.md`, and print a
+  Markdown or JSON single-session view.
 - `uninstall`: remove the current repository's global state, legacy repo-local
   state and exact legacy git exclude lines, old DDev passive hooks from earlier
   versions, and the runtime only when no other repository state remains.
@@ -162,6 +166,7 @@ in the repository. If an applicable file remains missing after
             index.html
           retrospective.md
           events.jsonl
+          summary.md
           stop-issues.txt
 ```
 
@@ -178,7 +183,9 @@ File roles:
 - `demo.md`: demo path, local URL, visual checks, and demo evidence.
 - `demo/index.html`: branch-session static HTML demo workspace.
 - `retrospective.md`: candidates for repo-memory or DDev improvement.
-- `events.jsonl`: runtime events appended by CLI or future explicit integrations.
+- `events.jsonl`: append-only schema-versioned protocol events.
+- `summary.md`: generated single-session view of latest nodes, claims, failures,
+  reviews, recovery hints, delivery, and open issues.
 - `stop-issues.txt`: findings from earlier or explicit diagnostics; the MVP does
   not install a passive Stop hook.
 
@@ -209,6 +216,21 @@ Use `evidence.md` like this:
 - `pnpm --filter deweyou-cli test -- dev.test.ts args.test.ts` passed.
 - `deweyou-cli dev doctor` reported DDev passive hooks absent.
 ```
+
+For non-trivial sessions, the CLI adds a small machine-readable protocol without
+replacing the human-readable files:
+
+```bash
+deweyou-cli dev record --kind node --data \
+  '{"node_id":"implement","node_type":"implementation","status":"completed"}'
+deweyou-cli dev record --kind evidence --data \
+  '{"evidence_id":"test-1","claim_id":"tests-pass","evidence_type":"command","status":"verified","summary":"Targeted tests passed."}'
+deweyou-cli dev summary --format markdown
+```
+
+`record` validates before appending. `summary` rejects malformed persisted
+events instead of silently dropping evidence. A failure or review event may
+carry `restart_from`; it is a recovery hint, not an automatic retry.
 
 ## Lightweight DAG In MVP
 
@@ -298,6 +320,8 @@ deweyou-cli dev status
 deweyou-cli dev doctor
 deweyou-cli dev clean [--branch name|--all] [--dry-run]
 deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+deweyou-cli dev record [--branch name] --kind kind --data json
+deweyou-cli dev summary [--branch name] [--format markdown|json]
 deweyou-cli dev uninstall [--dry-run]
 ```
 
@@ -335,14 +359,17 @@ agents.
 
 These are intentionally outside MVP:
 
-- machine-readable RequirementContext
-- machine Artifact / Claim / Evidence schema
 - DAG/node scheduler
-- Review Node
+- executable Review Node
 - subagent binding
 - complex recovery state machine
 - report generation over many sessions
+- automatic cross-session analysis and skill mutation
 - optional compatibility backend for Superpowers-style workflows
 
-Only add them when the lightweight session model is no longer enough for real
-recurring work.
+Adoption triggers and boundaries live in
+[`docs/ddev-evolution.md`](./ddev-evolution.md). Only add these capabilities
+when repeated session evidence shows the lightweight protocol is insufficient.
+
+---
+*Last updated: 2026-07-21 | Reason: Added validated session events, summaries, and evidence-based future capability triggers.*

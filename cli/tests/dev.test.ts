@@ -11,6 +11,8 @@ import {
   runDevClean,
   runDevDemo,
   runDevDoctor,
+  runDevRecord,
+  runDevSummary,
   runDevInstall,
   runDevUninstall,
   runDevStatus,
@@ -61,7 +63,7 @@ describe('dev commands', () => {
     assert.equal(result.repoStateRoot, expectedRepoStateRoot(homeDir, repoRoot))
     const config = JSON.parse(await readFile(join(homeDir, '.deweyou/dev/config.json'), 'utf8'))
     const repoConfig = JSON.parse(await readFile(join(result.repoStateRoot, 'config.json'), 'utf8'))
-    assert.equal(config.version, '0.2.0')
+    assert.equal(config.version, '0.3.0')
     assert.equal(config.activation, 'manual')
     assert.equal(config.passiveHooks, false)
     assert.equal(config.stateLocation, 'global')
@@ -81,6 +83,7 @@ describe('dev commands', () => {
     await stat(join(result.repoStateRoot, 'sessions/unknown/context.md'))
     await stat(join(result.repoStateRoot, 'sessions/unknown/graph.md'))
     await stat(join(result.repoStateRoot, 'sessions/unknown/evidence.md'))
+    await stat(join(result.repoStateRoot, 'sessions/unknown/summary.md'))
     await assert.rejects(() => stat(join(repoRoot, '.deweyou/dev')), {
       code: 'ENOENT',
     })
@@ -159,7 +162,7 @@ describe('dev commands', () => {
     assert.equal(JSON.stringify(hooks).includes('.deweyou/dev/hooks/stop.mjs'), false)
     await stat(join(homeDir, '.codex/hooks.json.bak'))
     const upgraded = JSON.parse(await readFile(configPath, 'utf8'))
-    assert.equal(upgraded.version, '0.2.0')
+    assert.equal(upgraded.version, '0.3.0')
     assert.equal(upgraded.activation, 'manual')
     assert.equal(upgraded.passiveHooks, false)
     assert.equal('hooks' in upgraded, false)
@@ -395,6 +398,191 @@ describe('dev commands', () => {
 
     assert.equal(result.removed, false)
     assert.equal(result.dryRun, false)
+  })
+
+  it('records validated protocol events and summarizes the branch session', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ddev-events-'))
+    const homeDir = join(root, 'home')
+    const repoRoot = join(root, 'repo')
+    await mkdir(repoRoot, { recursive: true })
+
+    const baseFlags = { homeDir, repoRoot, branch: 'feature/protocol' }
+    await runDevRecord({
+      ...baseFlags,
+      kind: 'requirement',
+      data: JSON.stringify({
+        status: 'confirmed',
+        acceptance_source: 'user',
+        unresolved_decisions: [],
+      }),
+    })
+    const node = await runDevRecord({
+      ...baseFlags,
+      kind: 'node',
+      data: JSON.stringify({
+        node_id: 'implement',
+        node_type: 'implementation',
+        status: 'failed',
+        depends_on: ['design'],
+      }),
+    })
+    const evidence = await runDevRecord({
+      ...baseFlags,
+      kind: 'evidence',
+      data: JSON.stringify({
+        evidence_id: 'test-1',
+        claim_id: 'cli-records-events',
+        evidence_type: 'command',
+        status: 'failed',
+        summary: 'Targeted test failed.',
+        command: 'npm test',
+        exit_code: 1,
+      }),
+    })
+    await runDevRecord({
+      ...baseFlags,
+      kind: 'failure',
+      data: JSON.stringify({
+        failure_id: 'failure-1',
+        node_id: 'implement',
+        failure_class: 'implementation',
+        summary: 'The implementation violated the event contract.',
+        evidence_ids: ['test-1'],
+        restart_from: 'implement',
+        retryable: true,
+      }),
+    })
+    await runDevRecord({
+      ...baseFlags,
+      kind: 'delivery',
+      data: JSON.stringify({
+        delivery_id: 'delivery-1',
+        status: 'completed',
+        summary: 'Protocol evidence is ready for handoff.',
+        evidence_ids: ['test-1'],
+      }),
+    })
+    await runDevRecord({
+      ...baseFlags,
+      kind: 'review',
+      data: JSON.stringify({
+        review_id: 'review-1',
+        scope: 'implementation',
+        verdict: 'changes_requested',
+        findings: ['Fix the event contract.'],
+        evidence_ids: ['test-1'],
+        restart_from: 'implement',
+      }),
+    })
+    await runDevRecord({
+      ...baseFlags,
+      kind: 'recovery',
+      data: JSON.stringify({
+        recovery_id: 'recovery-1',
+        source_event_id: node.event.event_id,
+        restart_from: 'implement',
+        reason: 'The failure is isolated to implementation.',
+        status: 'planned',
+      }),
+    })
+
+    const result = await runDevSummary({ ...baseFlags, format: 'json' })
+    const events = (await readFile(result.eventsPath, 'utf8')).trim().split('\n').map(JSON.parse)
+    const summaryMarkdown = await readFile(result.summaryPath, 'utf8')
+
+    assert.equal(events.length, 7)
+    assert.equal(events[0].schema_version, 1)
+    assert.equal(events[0].branch, 'feature/protocol')
+    assert.equal(events.some((event) => event.event_id === evidence.event.event_id), true)
+    assert.equal(result.summary.event_count, 7)
+    assert.deepEqual(result.summary.counts, {
+      delivery: 1,
+      evidence: 1,
+      failure: 1,
+      node: 1,
+      recovery: 1,
+      requirement: 1,
+      review: 1,
+    })
+    assert.equal(result.summary.requirement?.status, 'confirmed')
+    assert.equal(result.summary.nodes[0].status, 'failed')
+    assert.equal(result.summary.claims[0].status, 'failed')
+    assert.equal(result.summary.failures[0].restart_from, 'implement')
+    assert.deepEqual(result.summary.failures[0].evidence_ids, ['test-1'])
+    assert.equal(result.summary.reviews[0].verdict, 'changes_requested')
+    assert.deepEqual(result.summary.reviews[0].findings, ['Fix the event contract.'])
+    assert.equal(result.summary.recoveries[0].status, 'planned')
+    assert.equal(result.summary.deliveries[0].status, 'completed')
+    assert.deepEqual(result.summary.deliveries[0].evidence_ids, ['test-1'])
+    assert.match(summaryMarkdown, /# DDev Session Summary/)
+    assert.match(summaryMarkdown, /Restart from `implement`/)
+    assert.match(summaryMarkdown, /Review `review-1` requests changes/)
+    assert.match(summaryMarkdown, /`delivery-1`: `completed`/)
+    assert.match(summaryMarkdown, /Finding: Fix the event contract/)
+    assert.match(summaryMarkdown, /Node `implement` is failed/)
+  })
+
+  it('rejects invalid event payloads without appending them', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ddev-events-invalid-'))
+    const homeDir = join(root, 'home')
+    const repoRoot = join(root, 'repo')
+    await mkdir(repoRoot, { recursive: true })
+
+    await assert.rejects(
+      () => runDevRecord({
+        homeDir,
+        repoRoot,
+        branch: 'main',
+        kind: 'node',
+        data: '{"node_id":"implement","status":"done"}',
+      }),
+      /node_type/,
+    )
+
+    await assert.rejects(
+      () => stat(join(expectedRepoStateRoot(homeDir, repoRoot), 'sessions/main')),
+      { code: 'ENOENT' },
+    )
+  })
+
+  it('reports malformed persisted events with their line number', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ddev-events-malformed-'))
+    const homeDir = join(root, 'home')
+    const repoRoot = join(root, 'repo')
+    await mkdir(repoRoot, { recursive: true })
+    const install = await runDevInstall({ homeDir, repoRoot })
+    await writeFile(join(install.sessionPath, 'events.jsonl'), '{not-json}\n')
+
+    await assert.rejects(
+      () => runDevSummary({ homeDir, repoRoot, format: 'markdown' }),
+      /Invalid DDev event at line 1/,
+    )
+  })
+
+  it('rejects events persisted under the wrong branch', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ddev-events-branch-'))
+    const homeDir = join(root, 'home')
+    const repoRoot = join(root, 'repo')
+    await mkdir(repoRoot, { recursive: true })
+    const recorded = await runDevRecord({
+      homeDir,
+      repoRoot,
+      branch: 'feature/right',
+      kind: 'node',
+      data: JSON.stringify({
+        node_id: 'verify',
+        node_type: 'verification',
+        status: 'completed',
+      }),
+    })
+    const wrongSession = join(expectedRepoStateRoot(homeDir, repoRoot), 'sessions/feature__wrong')
+    await mkdir(wrongSession, { recursive: true })
+    await writeFile(join(wrongSession, 'events.jsonl'), `${JSON.stringify(recorded.event)}\n`)
+
+    await assert.rejects(
+      () => runDevSummary({ homeDir, repoRoot, branch: 'feature/wrong' }),
+      /belongs to branch feature\/right, expected feature\/wrong/,
+    )
   })
 
   it('creates branch-session HTML demo files without starting a server', async () => {

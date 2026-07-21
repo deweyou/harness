@@ -20,6 +20,8 @@ const VALUE_FLAGS = new Set([
   'branch',
   'host',
   'port',
+  'kind',
+  'data',
 ])
 const FLAGS_BY_TOPIC_COMMAND: Record<string, Record<string, Set<string>>> = {
   agent: {
@@ -47,6 +49,8 @@ const FLAGS_BY_TOPIC_COMMAND: Record<string, Record<string, Set<string>>> = {
     doctor: new Set(),
     clean: new Set(['all', 'branch', 'dry-run']),
     demo: new Set(['branch', 'host', 'port', 'no-server', 'dry-run']),
+    record: new Set(['branch', 'kind', 'data']),
+    summary: new Set(['branch', 'format']),
     uninstall: new Set(['dry-run']),
   },
 }

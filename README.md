@@ -104,6 +104,12 @@ entry skill in the target repository; DDev loads module skills from the global
 cache at `~/.deweyou/agents/assets/skills/<skill>/SKILL.md` and reads mandatory
 operation-scoped rules from `~/.deweyou/agents/assets/rules/`.
 
+Executable Skills, Rules, and Design contracts stay English-only as the single
+behavior source. Every asset has a Chinese human-reading companion: Skill guides
+live in `skills/<name>/README_ZH.md`, while complete Rule and Design translations
+live under `docs/zh/assets/`. Source digests make `pnpm run lint:assets` report
+missing or stale translations.
+
 | Skill | Description | Source |
 |-------|-------------|--------|
 | `ddev` | DDev personal cross-repository development harness workflow. It owns task lifecycle, mandatory cached coding and engineering rules, global `~/.deweyou/dev/` per-repo state, UI prototype gates, HTML demos, harness mapping, bounded loops, evidence, delivery routing, and memory routing. | [`skills/ddev/`](./skills/ddev/) |

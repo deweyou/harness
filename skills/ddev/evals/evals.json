@@ -295,6 +295,21 @@
         "Marked or planned alignment_required and waited for explicit confirmation",
         "Did not edit product source while material decisions remained unresolved"
       ]
+    },
+    {
+      "id": 21,
+      "prompt": "$DDev this multi-step migration has a failed verification node and a changes-requested review. Record the evidence and resume only from the affected implementation boundary; do not build an automatic scheduler.",
+      "expected_output": "The run should trigger ddev, keep graph.md and evidence.md as the human recovery surface, use validated DDev protocol events for the node, evidence, failure, review, and recovery facts, include a reviewable restart_from hint for the affected implementation boundary, regenerate the single-session summary, and avoid implementing or pretending to use an automatic DAG scheduler or retry loop.",
+      "files": [],
+      "expectations": [
+        "Triggered the ddev skill",
+        "Kept human-readable graph.md and evidence.md as the task and proof surface",
+        "Used or planned deweyou-cli dev record for structured node, evidence, failure, review, and recovery events",
+        "Linked the failure and review to evidence and a smallest-affected restart_from hint",
+        "Used or planned deweyou-cli dev summary to regenerate the branch-session summary",
+        "Treated restart_from as a reviewable hint rather than an automatic retry",
+        "Did not introduce or claim an automatic DAG scheduler"
+      ]
     }
   ]
 }

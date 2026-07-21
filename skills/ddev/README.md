@@ -14,9 +14,10 @@ DDev is manually activated. It starts when the user invokes `$DDev`/`ddev`, or
 when project instructions explicitly opt into DDev as the default workflow for
 non-trivial development tasks. It does not rely on passive global hooks.
 
-The MVP stays human-readable: `task.md`, `context.md`, `graph.md`,
-`brainstorm.md`, `verification.md`, `evidence.md`, `demo.md`, and related notes
-under `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/`.
+The MVP keeps human-readable `task.md`, `context.md`, `graph.md`, `evidence.md`,
+and related notes under `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/`.
+For non-trivial tasks it can also append validated protocol events and generate
+`summary.md` without introducing an automatic scheduler.
 
 For concept work, DDev loads `problem-framing` from the global Dewey asset cache
 for Grilling, brainstorming, critique, and recommendation, then uses
@@ -105,6 +106,9 @@ optional for DDev.
 - Mechanical edits, established bugfixes, and explicitly delegated low-risk
   choices proceed without an unnecessary pause.
 - UI prototype and live-evidence gates when interface work requires them.
+- Versioned `requirement`, `node`, `evidence`, `failure`, `review`, `recovery`,
+  and `delivery` events with a generated single-session summary.
+- Reviewable `restart_from` hints without automatic retries or DAG execution.
 - Explicit delivery only; no silent commit, push, PR, or passive global hooks.
 
 ## SOP
@@ -121,8 +125,11 @@ optional for DDev.
 5. Wait for explicit confirmation when material behavior was inferred; otherwise
    record why confirmation is not required.
 6. Load other capability modules as needed, run bounded implementation and
-   verification loops, and record evidence.
-7. Route delivery or durable memory only when the task requires it.
+   verification loops, and record evidence. For non-trivial sessions, use
+   `deweyou-cli dev record` and regenerate the view with `deweyou-cli dev summary`.
+7. Treat failure classes, review verdicts, and `restart_from` as explicit facts,
+   not as an automatic scheduler.
+8. Route delivery or durable memory only when the task requires it.
 
 ## Source
 

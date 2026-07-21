@@ -65,6 +65,34 @@ Skills, rules, MCP assets, and plugin assets should be authored in English. This
 keeps reusable agent instructions portable across harnesses and avoids mixing
 repository policy with one user's local language preference.
 
+## Chinese Reading Companions
+
+English executable assets are the only behavior source. Every executable Skill,
+Rule, and Design asset also has a Chinese human-reading companion:
+
+```text
+skills/<name>/SKILL.md                  # executable source
+skills/<name>/README_ZH.md              # Chinese Skill guide
+rules/<name>.md                         # executable source
+docs/zh/assets/rules/<name>.md          # Chinese Rule translation
+design/<name>.md                        # executable source
+docs/zh/assets/design/<name>.md         # Chinese Design translation
+```
+
+Do not put translated Rule or Design files under `rules/` or `design/`; those
+directories are scanned as executable assets. Chinese companions are reading
+surfaces and are not installed by `deweyou-cli agent init`.
+
+Each companion starts with an invisible metadata comment containing `source`,
+`source-digest`, `translation-status`, and a Chinese `description`. The digest
+is SHA-256 over the exact executable source bytes. After changing an executable
+asset, update its Chinese companion and digest in the same change. Running
+`pnpm run lint:assets` reports missing or stale companions.
+
+The website publishes English executable content and Chinese companion content
+as separate detail pages. `scripts/sync-site-content.mjs` strips executable
+frontmatter and companion metadata from rendered page bodies.
+
 Do not rename rule files to `*.rules.md`; this repository keeps rule filenames
 plain for registry and CLI consumption.
 
@@ -183,6 +211,8 @@ After changing design contracts:
 ```bash
 pnpm run lint:assets
 ```
+
+Update `docs/zh/assets/design/<name>.md` and its source digest in the same change.
 
 Update the root README design section when the public design contract list or
 description changes. If `README_ZH.md` has matching prose, update it in the same
@@ -323,6 +353,9 @@ summary. If a rule becomes a task-specific step-by-step workflow, promote it to 
 skill.
 
 Rules must be authored in English, following the same language policy as skills.
+Maintain the full Chinese reading translation under
+`docs/zh/assets/rules/<name>.md` and refresh its source digest whenever the Rule
+changes.
 
 After changing rules:
 

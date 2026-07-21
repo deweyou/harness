@@ -1,0 +1,42 @@
+<!-- Chinese reading companion
+source: skills/problem-framing/SKILL.md
+source-digest: sha256:dda9939dd2d49bbf86217c734daf8724eb9302606791c4f2b1f89258c674d6f1
+translation-status: current
+description: 用于追问、发散、权衡批判和形成建议的问题定义工作流。
+-->
+
+# problem-framing
+
+> 用于追问、头脑风暴、权衡批判和形成建议的问题定义工作流。
+
+## 它是做什么的
+
+`problem-framing` 帮助 Agent 澄清模糊请求、生成真正不同的选项、批判各自取舍，
+并收敛到一个可执行的下一步。它既可以独立运行，也可以作为 DDev、产品设计、
+UI 设计或编码流程中的一个模块。
+
+## 什么时候触发
+
+- 用户希望头脑风暴、探索选项、比较方向，或在动手实现前先想清楚。
+- 用户希望细化需求、定义产品问题、探索 UX 或命名方向、比较架构选项，或获得批判意见。
+- 由于歧义会改变风险、验收标准或成本，其他工作流需要先进行有针对性的追问。
+
+## 工作方式
+
+```mermaid
+flowchart LR
+    Request["模糊问题"] --> Frame["明确目标、约束与非目标"]
+    Frame --> Options["生成有实质差异的选项"]
+    Options --> Critique["批判取舍与失败方式"]
+    Critique --> Recommend["给出建议和下一步"]
+```
+
+## 安装
+
+```bash
+npx skills add https://github.com/deweyou/agents --skill problem-framing
+```
+
+## Source
+
+This skill is maintained in `deweyou/agents` and indexed by `deweyou-cli agent update`.

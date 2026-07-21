@@ -21,6 +21,7 @@ Agent entry:      ddev / $DDev, or explicit project AGENTS.md opt-in
 CLI namespace:    deweyou-cli dev ...
 Global runtime:   ~/.deweyou/dev/
 Module skills:    ~/.deweyou/agents/assets/skills/<skill>/SKILL.md
+Mandatory rules:  ~/.deweyou/agents/assets/rules/{code-style,engineering-principles}.md
 Per-repo state:   ~/.deweyou/dev/repos/<repo-id>/
 ```
 
@@ -61,7 +62,11 @@ flowchart TD
     Runtime --> State["~/.deweyou/dev/repos/<repo-id>/sessions/<branch>"]
     DDev --> State
     Cache["~/.deweyou/agents/assets/skills"] --> Modules["global module skills"]
+    RuleCache["~/.deweyou/agents/assets/rules"] --> Rules["mandatory operation-scoped rules"]
     DDev --> Modules
+    DDev --> Rules
+    Rules --> CodeStyle["code-style"]
+    Rules --> Engineering["engineering-principles"]
     Modules --> Coding["spec-driven-coding"]
     Modules --> UI["ui-design"]
     Modules --> Framing["problem-framing"]
@@ -82,6 +87,10 @@ The CLI owns deterministic local infrastructure:
 - `clean`: remove DDev-owned state.
 - `demo`: create the branch-session `demo/index.html` file and optionally serve
   it over a local static HTTP server.
+- `record`: validate and append one requirement, node, evidence, failure,
+  review, recovery, or delivery event.
+- `summary`: validate `events.jsonl`, regenerate `summary.md`, and print a
+  Markdown or JSON single-session view.
 - `uninstall`: remove the current repository's global state, legacy repo-local
   state and exact legacy git exclude lines, old DDev passive hooks from earlier
   versions, and the runtime only when no other repository state remains.
@@ -106,7 +115,9 @@ agents. A repository can still opt into DDev as its default workflow through
 ```text
 Orient
   -> Problem framing, when exploration or Grilling is needed
+  -> Early spec-driven-coding alignment for new or ambiguous behavior
   -> UI prototype gate, when requirement design touches UI
+  -> Requirement alignment gate before product-source edits
   -> Capture task/context/graph/verification
   -> Harness map
   -> HTML demo, when visibility helps
@@ -124,11 +135,21 @@ return control to `ddev` after their domain work:
 | Grilling, brainstorming, critique, recommendation | `problem-framing/SKILL.md` |
 | Product scope and tradeoffs | `product-design/SKILL.md` |
 | UI requirement prototypes, interaction, visual evidence | `ui-design/SKILL.md` |
-| Coding, debugging, TDD, verification | `spec-driven-coding/SKILL.md` |
+| Requirement alignment, coding, debugging, TDD, verification | `spec-driven-coding/SKILL.md` |
 | Commit, push, PR, CI | `git-delivery/SKILL.md` |
 | Durable repo knowledge | `repo-memory/SKILL.md` |
 
 `product-notes` and `skill-eval` stay independent and explicit.
+
+DDev also owns two mandatory, operation-scoped rule dependencies. Before
+writing, editing, or reviewing code, it reads
+`~/.deweyou/agents/assets/rules/code-style.md`. Before module design, boundary
+refactoring, dependency changes, or architecturally significant behavior
+changes, it reads
+`~/.deweyou/agents/assets/rules/engineering-principles.md`. These files are read
+from the asset cache even when the user has not installed the rules globally or
+in the repository. If an applicable file remains missing after
+`deweyou-cli agent update`, the affected operation stops as blocked.
 
 ## Local State Contract
 
@@ -152,12 +173,14 @@ return control to `ddev` after their domain work:
             index.html
           retrospective.md
           events.jsonl
+          summary.md
           stop-issues.txt
 ```
 
 File roles:
 
-- `task.md`: goal, scope, non-goals, acceptance criteria, current status.
+- `task.md`: goal, scope, non-goals, acceptance criteria, acceptance source,
+  alignment status, unresolved decisions, and current status.
 - `brainstorm.md`: frame, divergent options, critiques, tradeoffs, recommendation.
 - `context.md`: files, commands, docs, constraints, and relevant facts.
 - `graph.md`: lightweight dependency graph or step checklist.
@@ -167,7 +190,9 @@ File roles:
 - `demo.md`: demo path, local URL, visual checks, and demo evidence.
 - `demo/index.html`: branch-session static HTML demo workspace.
 - `retrospective.md`: candidates for repo-memory or DDev improvement.
-- `events.jsonl`: runtime events appended by CLI or future explicit integrations.
+- `events.jsonl`: append-only schema-versioned protocol events.
+- `summary.md`: generated single-session view of latest nodes, claims, failures,
+  reviews, recovery hints, delivery, and open issues.
 - `stop-issues.txt`: findings from earlier or explicit diagnostics; the MVP does
   not install a passive Stop hook.
 
@@ -198,6 +223,21 @@ Use `evidence.md` like this:
 - `pnpm --filter deweyou-cli test -- dev.test.ts args.test.ts` passed.
 - `deweyou-cli dev doctor` reported DDev passive hooks absent.
 ```
+
+For non-trivial sessions, the CLI adds a small machine-readable protocol without
+replacing the human-readable files:
+
+```bash
+deweyou-cli dev record --kind node --data \
+  '{"node_id":"implement","node_type":"implementation","status":"completed"}'
+deweyou-cli dev record --kind evidence --data \
+  '{"evidence_id":"test-1","claim_id":"tests-pass","evidence_type":"command","status":"verified","summary":"Targeted tests passed."}'
+deweyou-cli dev summary --format markdown
+```
+
+`record` validates before appending. `summary` rejects malformed persisted
+events instead of silently dropping evidence. A failure or review event may
+carry `restart_from`; it is a recovery hint, not an automatic retry.
 
 ## Lightweight DAG In MVP
 
@@ -243,6 +283,26 @@ global cache for a prototype before implementation. The prototype can be a
 screen/state structure, a prototype image prompt, a component-level sketch, or a
 local HTML demo when seeing the interaction would reduce uncertainty.
 
+## Requirement Alignment In MVP
+
+New features, user-visible behavior changes, and ambiguous product requests load
+`spec-driven-coding` before product-source edits. A request to implement starts
+the workflow; it does not approve requirements inferred by the agent.
+
+DDev records one of three alignment states:
+
+- `alignment_required`: material behavior is missing or inferred; show a concise
+  spec and wait for explicit user confirmation.
+- `confirmed`: the user explicitly approved the relevant requirement, spec, or
+  prototype.
+- `confirmation_not_required`: behavior is already defined by the user or an
+  authoritative contract, or the user explicitly delegated a reversible,
+  low-risk choice.
+
+Internal notes and prototypes are evidence of work, not evidence of user
+approval. Mechanical edits and narrow bugfixes with established expected
+behavior can proceed without an unnecessary confirmation pause.
+
 ## HTML Demo In MVP
 
 Use the local demo workspace when a concept needs to be seen:
@@ -267,6 +327,8 @@ deweyou-cli dev status
 deweyou-cli dev doctor
 deweyou-cli dev clean [--branch name|--all] [--dry-run]
 deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+deweyou-cli dev record [--branch name] --kind kind --data json
+deweyou-cli dev summary [--branch name] [--format markdown|json]
 deweyou-cli dev uninstall [--dry-run]
 ```
 
@@ -282,6 +344,10 @@ deweyou-cli agent init \
 deweyou-cli dev install
 deweyou-cli dev doctor
 ```
+
+Global or project installation of `code-style` and `engineering-principles` is
+optional for DDev. DDev reads the cached rule files directly when their
+operation scope applies.
 
 ## Ownership Boundary
 
@@ -300,14 +366,17 @@ agents.
 
 These are intentionally outside MVP:
 
-- machine-readable RequirementContext
-- machine Artifact / Claim / Evidence schema
 - DAG/node scheduler
-- Review Node
+- executable Review Node
 - subagent binding
 - complex recovery state machine
 - report generation over many sessions
+- automatic cross-session analysis and skill mutation
 - optional compatibility backend for Superpowers-style workflows
 
-Only add them when the lightweight session model is no longer enough for real
-recurring work.
+Adoption triggers and boundaries live in
+[`docs/ddev-evolution.md`](https://github.com/deweyou/agents/blob/main/docs/ddev-evolution.md). Only add these capabilities
+when repeated session evidence shows the lightweight protocol is insufficient.
+
+---
+*Last updated: 2026-07-21 | Reason: Added validated session events, summaries, and evidence-based future capability triggers.*
