@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 - 2026-07-21
+
+### Added
+
+- ddev: add structured sessions and bilingual docs
 ## 1.1.0 - 2026-07-20
 
 ### Added
