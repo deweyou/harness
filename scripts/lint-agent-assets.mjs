@@ -3,6 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { load } from 'js-yaml'
 
+import { validateChineseReadingAssets } from './chinese-reading-assets.mjs'
+
 const MAX_SKILL_DESCRIPTION_BYTES = 900
 
 function isKebabCase(s) {
@@ -78,6 +80,8 @@ const rules = findRuleFiles('rules')
 const designs = findDesignFiles('design')
 const errors = []
 
+errors.push(...validateChineseReadingAssets(process.cwd()))
+
 for (const { path, dirName } of skills) {
   const fm = parseFrontmatter(path, errors)
   if (!fm) continue
@@ -141,7 +145,7 @@ if (errors.length) {
   for (const e of errors) console.error(`  ${e}`)
   process.exit(1)
 } else {
-  console.log(`✓ ${skills.length} SKILL.md file(s), ${rules.length} rule file(s), and ${designs.length} design file(s) passed`)
+  console.log(`✓ ${skills.length} SKILL.md file(s), ${rules.length} rule file(s), ${designs.length} design file(s), and all Chinese reading companions passed`)
 }
 
 function lintTags(path, tags, errors) {

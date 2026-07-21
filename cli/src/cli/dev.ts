@@ -2,6 +2,7 @@ import {
   createReadStream,
 } from 'node:fs'
 import {
+  appendFile,
   copyFile,
   mkdir,
   readFile,
@@ -22,14 +23,24 @@ import type {
   DevDemoResult,
   DevDoctorCheck,
   DevDoctorResult,
+  DevRecordResult,
+  DevSummaryResult,
   DevFlags,
   DevInstallResult,
   DevUninstallResult,
   DevStatusResult,
 } from './types.ts'
+import {
+  createDevEvent,
+  parseDevEventKind,
+  parseDevEventLog,
+  parseDevEventPayload,
+  renderDevSummary,
+  summarizeDevEvents,
+} from './dev-events.ts'
 
 const execFileAsync = promisify(execFile)
-const DDEV_VERSION = '0.2.0'
+const DDEV_VERSION = '0.3.0'
 const LEGACY_DDEV_EXCLUDE_LINE = '.deweyou/dev/'
 const CODEX_HOOKS_PATH = '.codex/hooks.json'
 const MODULE_SKILLS = [
@@ -51,6 +62,7 @@ const SESSION_FILES: Record<string, string> = {
   'demo.md': '# Demo\n\n- Path: demo/index.html\n- URL:\n- Evidence:\n',
   'retrospective.md': '# Retrospective\n\n',
   'events.jsonl': '',
+  'summary.md': '# DDev Session Summary\n\n- No events summarized yet.\n',
 }
 
 export async function runDevInstall(
@@ -288,6 +300,54 @@ export async function runDevDemo(
 
   await waitForServerClose(server)
   return { demoRoot, indexPath, url, served: true, dryRun }
+}
+
+export async function runDevRecord(
+  flags: DevFlags = {},
+): Promise<DevRecordResult> {
+  const paths = devPaths(flags)
+  const branch = flags.branch ?? await currentBranch(paths.repoRoot)
+  const kind = parseDevEventKind(flags.kind)
+  const payload = parseDevEventPayload(kind, flags.data)
+  const event = createDevEvent(kind, branch, payload)
+  const sessionPath = await ensureSession(paths.repoStateRoot, branch)
+  const eventsPath = join(sessionPath, 'events.jsonl')
+
+  await appendFile(eventsPath, `${JSON.stringify(event)}\n`, 'utf8')
+  console.log(`Recorded DDev ${kind} event: ${event.event_id}`)
+
+  return { sessionPath, eventsPath, event }
+}
+
+export async function runDevSummary(
+  flags: DevFlags = {},
+): Promise<DevSummaryResult> {
+  if (flags.format && flags.format !== 'markdown' && flags.format !== 'json') {
+    throw new Error(`Invalid DDev summary format: ${flags.format}`)
+  }
+  const paths = devPaths(flags)
+  const branch = flags.branch ?? await currentBranch(paths.repoRoot)
+  const sessionPath = await ensureSession(paths.repoStateRoot, branch)
+  const eventsPath = join(sessionPath, 'events.jsonl')
+  const summaryPath = join(sessionPath, 'summary.md')
+  const events = parseDevEventLog(await readText(eventsPath))
+  const mismatched = events.find((event) => event.branch !== branch)
+  if (mismatched) {
+    throw new Error(
+      `DDev event ${mismatched.event_id} belongs to branch ${mismatched.branch}, expected ${branch}`,
+    )
+  }
+  const summary = summarizeDevEvents(branch, events)
+  const markdown = renderDevSummary(summary)
+
+  await writeFile(summaryPath, markdown, 'utf8')
+  if (flags.format === 'json') {
+    console.log(JSON.stringify(summary, null, 2))
+  } else if (!flags.format || flags.format === 'markdown') {
+    console.log(markdown.trimEnd())
+  }
+
+  return { sessionPath, eventsPath, summaryPath, summary, markdown }
 }
 
 async function resolveDevStatus(flags: DevFlags): Promise<DevStatusResult> {

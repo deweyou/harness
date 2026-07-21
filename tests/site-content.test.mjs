@@ -14,6 +14,10 @@ test('discovers DDev and module skills in website order', async () => {
 
   assert.deepEqual(skillNames.slice(0, 4), ['ddev', 'problem-framing', 'product-design', 'ui-design']);
   assert.ok(assets.skills.find((skill) => skill.name === 'spec-driven-coding'));
+  assert.match(assets.skills[0].chineseDescription, /DDev 生命周期工作流/);
+  assert.equal(assets.rules[0].chineseSource, 'docs/zh/assets/rules/collaboration-defaults.md');
+  assert.match(assets.rules[0].chineseDescription, /默认协作行为/);
+  assert.equal(assets.designs[0].chineseSource, 'docs/zh/assets/design/dewey-interface.md');
 });
 
 test('rewrites repository-relative markdown links for generated guide and DDev pages', () => {
@@ -39,12 +43,20 @@ test('builds DDev website pages from source docs', async () => {
     const englishOperations = await readFile(path.join(outputRoot, 'ddev/operations.md'), 'utf8');
     const chineseOperations = await readFile(path.join(outputRoot, 'zh/ddev/operations.md'), 'utf8');
     const englishCli = await readFile(path.join(outputRoot, 'cli/index.md'), 'utf8');
+    const chineseRules = await readFile(path.join(outputRoot, 'zh/rules/code-style.md'), 'utf8');
+    const chineseDesign = await readFile(path.join(outputRoot, 'zh/design/dewey-interface.md'), 'utf8');
+    const chineseRuleIndex = await readFile(path.join(outputRoot, 'zh/rules/index.md'), 'utf8');
 
     assert.match(englishOperations, /^---\ntitle: DDev Operations\n/m);
     assert.match(englishOperations, /Only `ddev` needs to be installed as the repository entry skill/);
     assert.match(chineseOperations, /每个仓库只需要把 `ddev` 作为入口 skill 安装进去/);
     assert.match(englishCli, /deweyou-cli agent init --skills ddev/);
     assert.match(englishCli, /Module skills live at `~\/\.deweyou\/agents\/assets\/skills\/<skill>\/SKILL\.md`/);
+    assert.match(chineseRules, /# 代码风格/);
+    assert.doesNotMatch(chineseRules, /source-digest:/);
+    assert.match(chineseDesign, /# Dewey 界面设计/);
+    assert.match(chineseRuleIndex, /\[code-style\]\(\.\/code-style\.md\)/);
+    assert.match(chineseRuleIndex, /关于命名、函数、注释、错误和测试的代码表达偏好/);
   } finally {
     await rm(outputRoot, { recursive: true, force: true });
   }

@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/git-delivery/SKILL.md
+source-digest: sha256:94810ffdd8e1ae5ba8cf65b455c6981916de736f4c6533d24d8a8a2be45f8230
+translation-status: current
+description: 保护工作区边界的分支感知 Git 交付工作流。
+-->
+
 # git-delivery
 
 > 分支感知的交付工作流，用于安全编辑、提交、推送、创建 PR 和跟进 CI。

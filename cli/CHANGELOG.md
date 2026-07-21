@@ -25,6 +25,7 @@
 ### Added
 
 - add `--global` shortcut for global skill and rule installs
+- add validated DDev protocol events and generated branch-session summaries
 
 ### Changed
 

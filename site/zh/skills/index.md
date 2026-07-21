@@ -11,12 +11,12 @@ description: 可安装的主动 agent 工作流。DDev 项目默认只把 `ddev`
 
 | Skill | Description |
 | --- | --- |
-| [ddev](/skills/ddev) | DDev personal cross-repository development harness workflow. Use when the user explicitly invokes DDev or ddev, or when project instructions opt into DDev as the default development workflow. Coordinates global ~/.deweyou/dev state and product, UI, coding, delivery, and memory skills under one lifecycle owner. |
-| [problem-framing](/skills/problem-framing) | Problem framing workflow for Grilling, brainstorming, tradeoff critique, and recommendation. Use when the user asks to brainstorm, explore options, clarify requirements, think through a product/design/technical direction before implementation, or when another workflow needs a compact problem frame before building. |
-| [product-design](./product-design.md) | Product design workflow for personal products. Use when the user asks whether to build an idea or feature, how to shape the next version, how similar products solve a problem, or how to turn product thinking into a buildable decision without enterprise process theater. |
-| [ui-design](./ui-design.md) | UX/UI design and prototype workflow for research, flow design, visual style, implementation, review, and AI design prompts. Use for DDev UI requirement design that needs a prototype, and for web, mobile/H5, native apps, HarmonyOS, mini programs, macOS, dashboards, tools, component libraries, onboarding, settings, empty states, UX references, or explicit UI/UX/style requests. |
-| [spec-driven-coding](./spec-driven-coding.md) | DDev-native coding workflow for features, behavior changes, debugging, TDD, and verification. Use when starting or continuing implementation work, requirement alignment, behavior-impacting refactors, ambiguous coding tasks, or bugfixes that need reproduction, tests, focused repair, and evidence. |
-| [git-delivery](./git-delivery.md) | Branch-aware git delivery workflow. Use before editing new coding or asset tasks to check branch, dirty work, and base sync; use when the user asks to commit, submit, push, open a PR, ship work, resolve base conflicts, or follow PR CI, while protecting unrelated work. |
-| [repo-memory](./repo-memory.md) | Repository memory workflow for durable project knowledge. Use before commits or PRs, after meaningful code or workflow changes, when initializing or updating AGENTS.md/docs/DESIGN.md/CLAUDE.md, or when local skills, design contracts, and repo conventions may need knowledge updates. |
-| [product-notes](./product-notes.md) | Product notes workflow for turning product thinking into durable notes. Use when the user wants to capture ideas, positioning, iteration plans, decisions, insights, competitor observations, release reviews, or discussion outcomes in a custom product notes workspace. |
-| [skill-eval](./skill-eval.md) | Skill evaluation workflow. Use only when the user explicitly asks to generate or complete skill eval cases, run a skill eval suite, test skill routing, or evaluate whether prompts trigger the right skill. |
+| [ddev](./ddev.md) | 面向个人跨仓库开发的 DDev 生命周期工作流。 |
+| [problem-framing](./problem-framing.md) | 用于追问、发散、权衡批判和形成建议的问题定义工作流。 |
+| [product-design](./product-design.md) | 面向个人软件的产品范围、版本规划和产品判断工作流。 |
+| [ui-design](./ui-design.md) | 覆盖 UX、视觉设计、原型、实现与现场验证的 UI 工作流。 |
+| [spec-driven-coding](./spec-driven-coding.md) | DDev 原生的需求对齐、实现和验证编码工作流。 |
+| [git-delivery](./git-delivery.md) | 保护工作区边界的分支感知 Git 交付工作流。 |
+| [repo-memory](./repo-memory.md) | 为仓库沉淀难以从代码恢复的长期知识。 |
+| [product-notes](./product-notes.md) | 将讨论和研究整理为可持续维护的产品笔记。 |
+| [skill-eval](./skill-eval.md) | 通过可评分用例评估 Skill 的触发和工作流行为。 |

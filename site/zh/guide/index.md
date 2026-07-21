@@ -102,11 +102,16 @@ deweyou-cli agent init --dry-run
 Skills 是主动工作流。它们位于 `skills/<name>/SKILL.md`，也可能包含面向人的
 `README.md` 和 `README_ZH.md`、references、scripts、assets、previews 或 eval cases。
 DDev 项目只需要把 `ddev` 入口 skill 安装进目标仓库；模块 skills 由 DDev 从全局
-cache `~/.deweyou/agents/assets/skills/<skill>/SKILL.md` 按绝对路径加载。
+cache `~/.deweyou/agents/assets/skills/<skill>/SKILL.md` 按绝对路径加载，并从
+`~/.deweyou/agents/assets/rules/` 读取按操作强依赖的 rules。
+
+可执行的 Skill、Rule 和 Design 继续只使用英文，并作为唯一行为来源。每个资产都有
+中文阅读版：Skill 位于 `skills/<name>/README_ZH.md`，Rule 和 Design 的完整中文正文
+位于 `docs/zh/assets/`。`pnpm run lint:assets` 会通过源摘要发现缺失或已经过期的中文版本。
 
 | Skill | 介绍 | 来源 |
 |-------|------|------|
-| `ddev` | DDev 个人跨仓库开发 harness 工作流。它负责任务生命周期、`~/.deweyou/dev/` 下的全局按仓库状态、UI 原型门禁、HTML demo、harness map、有边界循环、证据、交付路由和记忆路由。 | [`skills/ddev/`](/skills/ddev) |
+| `ddev` | DDev 个人跨仓库开发 harness 工作流。它负责任务生命周期、缓存中的编码与工程强依赖 rules、`~/.deweyou/dev/` 下的全局按仓库状态、UI 原型门禁、HTML demo、harness map、有边界循环、证据、交付路由和记忆路由。 | [`skills/ddev/`](/skills/ddev) |
 | `problem-framing` | Grilling、brainstorming、tradeoff 批判和推荐工作流，用于在实现前澄清模糊请求。 | [`skills/problem-framing/`](/skills/problem-framing) |
 | `repo-memory` | 仓库长期记忆工作流。它初始化和刷新 durable repo context，运行提交前记忆检查，在工作改变重要知识时更新文档和 UI 设计记忆，并检查本地 skill drift。 | [`skills/repo-memory/`](/skills/repo-memory) |
 | `git-delivery` | 分支感知的 git 交付工作流，覆盖分支准备、有意 staging、提交、base 分支冲突检查、安全 rebase、push、PR 创建、CI 跟进和明确低风险 CI 失败的自动修复。 | [`skills/git-delivery/`](/skills/git-delivery) |
@@ -145,6 +150,8 @@ skills。
 ## Rules
 
 Rules 是被动偏好和约束。它们位于 `rules/<name>.md`，并通过 `deweyou-cli` 按仓库选择启用。
+DDev 还会在对应操作前直接从全局 asset cache 读取 `code-style` 和
+`engineering-principles`，因此这两个 rules 是否安装不影响 DDev。
 
 | Rule | 介绍 | 来源 |
 |------|------|------|

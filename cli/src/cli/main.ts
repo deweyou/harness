@@ -3,7 +3,16 @@ import type { DevFlags } from './types.ts'
 import packageJson from '../../package.json' with { type: 'json' }
 
 const AGENT_COMMANDS = ['init', 'update', 'context', 'doctor'] as const
-const DEV_COMMANDS = ['install', 'status', 'doctor', 'clean', 'demo', 'uninstall'] as const
+const DEV_COMMANDS = [
+  'install',
+  'status',
+  'doctor',
+  'clean',
+  'demo',
+  'record',
+  'summary',
+  'uninstall',
+] as const
 type AgentCommand = (typeof AGENT_COMMANDS)[number]
 type DevCommand = (typeof DEV_COMMANDS)[number]
 
@@ -62,6 +71,18 @@ export async function main(argv: string[]): Promise<void> {
       return
     }
 
+    if (parsed.command === 'record') {
+      const { runDevRecord } = await import('./dev.ts')
+      await runDevRecord(parsed.flags as DevFlags)
+      return
+    }
+
+    if (parsed.command === 'summary') {
+      const { runDevSummary } = await import('./dev.ts')
+      await runDevSummary(parsed.flags as DevFlags)
+      return
+    }
+
     printUsageAndThrow()
   }
 
@@ -111,6 +132,8 @@ Commands:
   dev doctor      Diagnose local DDev runtime and repo state.
   dev clean       Remove DDev-owned global per-repo state.
   dev demo        Create and serve the branch-session HTML demo workspace.
+  dev record      Append a validated protocol event to the branch session.
+  dev summary     Summarize branch-session events and update summary.md.
   dev uninstall   Remove repo state, legacy state, old hooks, and unused runtime.
 
 Options:
@@ -135,6 +158,8 @@ function devUsage(): string {
   deweyou-cli dev doctor
   deweyou-cli dev clean [--branch name|--all] [--dry-run]
   deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+  deweyou-cli dev record [--branch name] --kind kind --data json
+  deweyou-cli dev summary [--branch name] [--format markdown|json]
   deweyou-cli dev uninstall [--dry-run]
 
 Run \`deweyou-cli dev <command> -h\` for command-specific help.`
@@ -235,6 +260,27 @@ Options:
 Options:
   --dry-run   Print planned removals without changing files.
   -h, --help  Show help.`
+  }
+
+  if (command === 'record') {
+    return `Usage:
+  deweyou-cli dev record [--branch name] --kind requirement|node|evidence|failure|review|recovery|delivery --data json
+
+Options:
+  --branch name  Use a specific branch session.
+  --kind kind    Select the validated DDev event payload contract.
+  --data json    Provide the event payload as one JSON object.
+  -h, --help     Show help.`
+  }
+
+  if (command === 'summary') {
+    return `Usage:
+  deweyou-cli dev summary [--branch name] [--format markdown|json]
+
+Options:
+  --branch name          Use a specific branch session.
+  --format markdown|json Choose console output. summary.md is always updated.
+  -h, --help             Show help.`
   }
 
   return `Usage:

@@ -9,6 +9,6 @@ description: 用于 AI 辅助 UI 工作的可复用界面设计契约。
 
 用于 AI 辅助 UI 工作的可复用界面设计契约。
 
-| Asset | Description | Source |
+| 资产 | 说明 | 英文源文件 |
 | --- | --- | --- |
-| `dewey-interface` | Restrained, typographic, component-driven interface style for Dewey's personal products. | [Source](https://github.com/deweyou/agents/blob/main/design/dewey-interface.md) |
+| [dewey-interface](./dewey-interface.md) | 克制、重排版、组件驱动的个人产品界面风格。 | [英文源文件](https://github.com/deweyou/agents/blob/main/design/dewey-interface.md) |

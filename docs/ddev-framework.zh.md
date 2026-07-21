@@ -74,6 +74,10 @@ CLI 负责确定性的本地基础设施：
   旧 git exclude，以及旧 DDev 被动 hooks 是否已移除。
 - `clean`：删除 DDev 本地状态。
 - `demo`：创建分支 session 的 `demo/index.html`，并可选启动本地静态 HTTP 服务。
+- `record`：校验并追加 requirement、node、evidence、failure、review、recovery 或
+  delivery 事件。
+- `summary`：校验 `events.jsonl`，重新生成 `summary.md`，并输出 Markdown 或 JSON
+  单 session 视图。
 - `uninstall`：删除当前仓库全局状态、旧仓库本地状态、精确旧 git exclude 行、旧版
   DDev 被动 hooks，并且只在没有其他 repo state 时删除 runtime。
 
@@ -150,6 +154,7 @@ rules 全局安装或安装进仓库，DDev 也会直接从 asset cache 读取�
             index.html
           retrospective.md
           events.jsonl
+          summary.md
           stop-issues.txt
 ```
 
@@ -165,7 +170,9 @@ rules 全局安装或安装进仓库，DDev 也会直接从 asset cache 读取�
 - `demo.md`：demo 路径、本地 URL、视觉检查和 demo 证据。
 - `demo/index.html`：分支 session 静态 HTML demo 工作台。
 - `retrospective.md`：候选 repo-memory 或 DDev 改进点。
-- `events.jsonl`：CLI 或手动 runtime 追加的运行事件。
+- `events.jsonl`：append-only、带 schema 版本的协议事件。
+- `summary.md`：生成的单 session 视图，汇总最新节点、claim、失败、Review、恢复建议、
+  交付和未解决事项。
 - `stop-issues.txt`：旧版或显式诊断留下的问题；MVP 不安装被动 Stop hook。
 
 这些都是项目源码外的本地工作记忆。新版 DDev install 不写项目 `.gitignore` 或
@@ -193,6 +200,20 @@ MVP 先做人可读版本：
 - `pnpm --filter deweyou-cli test -- dev.test.ts args.test.ts` 通过。
 - 目标环境仍需运行 `deweyou-cli dev install` 初始化手动 runtime。
 ```
+
+非平凡 session 还可以使用一层很薄的机器协议，但不会替代这些人类可读文件：
+
+```bash
+deweyou-cli dev record --kind node --data \
+  '{"node_id":"implement","node_type":"implementation","status":"completed"}'
+deweyou-cli dev record --kind evidence --data \
+  '{"evidence_id":"test-1","claim_id":"tests-pass","evidence_type":"command","status":"verified","summary":"Targeted tests passed."}'
+deweyou-cli dev summary --format markdown
+```
+
+`record` 会在追加前校验 payload；`summary` 遇到损坏的持久化事件会明确失败，不会静默
+丢弃证据。Failure 或 Review 事件可以携带 `restart_from`，但它只是恢复建议，不是自动
+重试。
 
 ## MVP 里的轻量 DAG
 
@@ -274,6 +295,8 @@ deweyou-cli dev status
 deweyou-cli dev doctor
 deweyou-cli dev clean [--branch name|--all] [--dry-run]
 deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+deweyou-cli dev record [--branch name] --kind kind --data json
+deweyou-cli dev summary [--branch name] [--format markdown|json]
 deweyou-cli dev uninstall [--dry-run]
 ```
 
@@ -309,13 +332,16 @@ DDev 不检查、不诊断、不写 exclude，也不清理其他 harness agents 
 
 这些刻意不进 MVP：
 
-- 机器可读 RequirementContext
-- 机器 Artifact / Claim / Evidence schema
 - DAG / Node 调度器
-- Review Node
+- 可执行 Review Node
 - subagent binding
 - 复杂恢复状态机
 - 多 session 报告生成
+- 自动跨 session 分析和 Skill 改造
 - Superpowers-style workflow 的可选兼容后端
 
-只有当轻量 session 模型在真实重复工作里不够用时，再升级这些能力。
+采用条件和边界记录在 [`docs/ddev-evolution.md`](./ddev-evolution.md)。只有重复 session
+证据证明轻量协议不够用时，才升级这些能力。
+
+---
+*Last updated: 2026-07-21 | Reason: Added validated session events, summaries, and evidence-based future capability triggers.*

@@ -12,8 +12,8 @@ The v0 scope is intentionally small:
   `DESIGN.md`
 - render the active agent context for the current repository
 - diagnose whether the current repository is wired correctly
-- initialize, inspect, diagnose, clean, uninstall, and serve global DDev
-  per-repository state under `~/.deweyou/dev/`
+- initialize, inspect, diagnose, clean, uninstall, serve, record, and summarize
+  global DDev per-repository state under `~/.deweyou/dev/`
 
 ## Install
 
@@ -316,6 +316,48 @@ It creates:
 With `--no-server`, it only creates the demo files. Without `--no-server`, it
 starts a local static server and prints the URL. The demo is local working state
 and should stay out of git unless explicitly promoted into product source.
+
+### `deweyou-cli dev record`
+
+Validates one structured session event and appends it to `events.jsonl`.
+
+```bash
+deweyou-cli dev record --kind node --data \
+  '{"node_id":"verify","node_type":"verification","status":"completed"}'
+```
+
+Supported kinds are `requirement`, `node`, `evidence`, `failure`, `review`,
+`recovery`, and `delivery`. The command records facts only; it does not execute,
+retry, approve, or deliver nodes.
+
+| Kind | Required payload fields |
+| --- | --- |
+| `requirement` | `status`, `acceptance_source` |
+| `node` | `node_id`, `node_type`, `status` |
+| `evidence` | `evidence_id`, `claim_id`, `evidence_type`, `status`, `summary` |
+| `failure` | `failure_id`, `node_id`, `failure_class`, `summary` |
+| `review` | `review_id`, `scope`, `verdict` |
+| `recovery` | `recovery_id`, `source_event_id`, `restart_from`, `reason`, `status` |
+| `delivery` | `delivery_id`, `status`, `summary` |
+
+Failure classes are `requirement`, `design`, `implementation`, `verification`,
+`environment`, `permission`, `external`, `user_decision`, or `unknown`. Keep
+secrets and large raw logs out of payloads; record redacted summaries and
+artifact references instead.
+
+### `deweyou-cli dev summary`
+
+Validates all persisted session events, regenerates `summary.md`, and prints a
+Markdown or JSON view.
+
+```bash
+deweyou-cli dev summary
+deweyou-cli dev summary --format json
+deweyou-cli dev summary --branch feature/demo
+```
+
+The summary shows the latest node states, claims and evidence, failures, review
+verdicts, recovery hints, delivery events, and open issues.
 
 ## Install Modes
 

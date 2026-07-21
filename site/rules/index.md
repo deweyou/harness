@@ -11,9 +11,9 @@ Reusable passive preferences and constraints for agent work.
 
 | Asset | Description | Source |
 | --- | --- | --- |
-| `collaboration-defaults` | Default agent collaboration behavior for language, ambiguity, context, task order, parallel work, evidence, safety, and handoff. | [Source](https://github.com/deweyou/agents/blob/main/rules/collaboration-defaults.md) |
-| `code-style` | Code expression preferences for naming, functions, comments, errors, and tests. | [Source](https://github.com/deweyou/agents/blob/main/rules/code-style.md) |
-| `engineering-principles` | Design preferences for module boundaries, abstraction, dependencies, state, and easy-to-delete code. | [Source](https://github.com/deweyou/agents/blob/main/rules/engineering-principles.md) |
-| `ddev-local-state` | Ownership, visibility, cleanup, and commit boundaries for global DDev local state under ~/.deweyou/dev. | [Source](https://github.com/deweyou/agents/blob/main/rules/ddev-local-state.md) |
-| `verification-evidence` | Evidence expectations for completion claims, skipped checks, live UI/runtime proof, and verification gaps. | [Source](https://github.com/deweyou/agents/blob/main/rules/verification-evidence.md) |
-| `loop-boundaries` | Bound implementation, debugging, verification, and CI repair loops so agents know when to continue, stop, or ask. | [Source](https://github.com/deweyou/agents/blob/main/rules/loop-boundaries.md) |
+| [collaboration-defaults](./collaboration-defaults.md) | Default agent collaboration behavior for language, ambiguity, context, task order, parallel work, evidence, safety, and handoff. | [Source](https://github.com/deweyou/agents/blob/main/rules/collaboration-defaults.md) |
+| [code-style](./code-style.md) | Code expression preferences for naming, functions, comments, errors, and tests. | [Source](https://github.com/deweyou/agents/blob/main/rules/code-style.md) |
+| [engineering-principles](./engineering-principles.md) | Design preferences for module boundaries, abstraction, dependencies, state, and easy-to-delete code. | [Source](https://github.com/deweyou/agents/blob/main/rules/engineering-principles.md) |
+| [ddev-local-state](./ddev-local-state.md) | Ownership, visibility, cleanup, and commit boundaries for global DDev local state under ~/.deweyou/dev. | [Source](https://github.com/deweyou/agents/blob/main/rules/ddev-local-state.md) |
+| [verification-evidence](./verification-evidence.md) | Evidence expectations for completion claims, skipped checks, live UI/runtime proof, and verification gaps. | [Source](https://github.com/deweyou/agents/blob/main/rules/verification-evidence.md) |
+| [loop-boundaries](./loop-boundaries.md) | Bound implementation, debugging, verification, and CI repair loops so agents know when to continue, stop, or ask. | [Source](https://github.com/deweyou/agents/blob/main/rules/loop-boundaries.md) |

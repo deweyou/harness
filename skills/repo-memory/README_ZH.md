@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/repo-memory/SKILL.md
+source-digest: sha256:d5d5ee2416e589d986e20f662206ca1c4547d20e9f9e844023f24dbe0381231e
+translation-status: current
+description: 为仓库沉淀难以从代码恢复的长期知识。
+-->
+
 # repo-memory
 
 > 面向 `AGENTS.md`、`docs/`、工作流知识和 skill drift 的仓库长期记忆工作流。

@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/ddev/SKILL.md
+source-digest: sha256:e267ac1586e6bf950f7ac991066697811f0e25cd041996da7f64ca4e7a31975a
+translation-status: current
+description: 面向个人跨仓库开发的 DDev 生命周期工作流。
+-->
+
 # ddev
 
 > 面向 DDev 会话的个人跨仓库开发 harness 工作流。
@@ -10,6 +17,10 @@
 
 DDev 默认手动激活：用户显式输入 `$DDev` / `ddev`，或项目指令把它设为非平凡
 开发任务的默认工作流。它不依赖全局被动 hooks。
+
+对于有依赖、多个证据或失败恢复的任务，DDev 可以用 `deweyou-cli dev record`
+追加经过校验的协议事件，并用 `deweyou-cli dev summary` 生成单 session 摘要；这不会
+引入自动调度器。
 
 对于编码和架构工作，DDev 强依赖两个 rule：写、改、审代码前读取
 `code-style`；模块设计、边界重构、依赖变更或有架构影响的行为变更前读取
@@ -64,6 +75,9 @@ deweyou-cli dev doctor
 - 机械修改、已有预期的窄 bugfix，以及用户明确委托的低风险可逆选择不会被无意义地
   阻塞。
 - UI 任务需要时执行原型和现场证据门禁。
+- 记录带版本的 requirement、node、evidence、failure、review、recovery 和 delivery
+  事件，并生成 `summary.md`。
+- `restart_from` 是显式、可审阅的恢复建议，不触发自动重试。
 - 只有用户明确要求时才交付，不静默 commit、push、开 PR 或安装被动 hooks。
 
 ## SOP
@@ -74,8 +88,10 @@ deweyou-cli dev doctor
 4. 新功能或模糊产品工作提前加载 `spec-driven-coding`，只询问会改变结果的关键问题，
    并形成简短 spec。
 5. Agent 推断了关键行为时等待用户明确确认；否则记录不需要等待的原因。
-6. 按需加载其他能力 modules，执行有边界的实现和验证循环并记录证据。
-7. 仅在任务需要时路由交付或长期记忆。
+6. 按需加载其他能力 modules，执行有边界的实现和验证循环并记录证据；非平凡任务用
+   `deweyou-cli dev record` 记录关键事实，并用 `deweyou-cli dev summary` 汇总。
+7. 把失败分类、Review verdict 和 `restart_from` 当作显式事实，不自动调度或重试。
+8. 仅在任务需要时路由交付或长期记忆。
 
 ## Source
 

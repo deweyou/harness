@@ -1,3 +1,10 @@
+<!-- Chinese reading companion
+source: skills/ui-design/SKILL.md
+source-digest: sha256:da779c14b7dc7f8cdbb74b269ba65db902476bf3c11c610994de85a3ec1d9e86
+translation-status: current
+description: 覆盖 UX、视觉设计、原型、实现与现场验证的 UI 工作流。
+-->
+
 # ui-design
 
 > 面向调研、交互设计、视觉系统、实现、评审和 AI 设计 prompt 的 UX/UI 工作流。
