@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0 - 2026-07-22
+
+### Added
+
+- ddev: add task sessions and unified updates
 ## 1.3.0 - 2026-07-22
 
 ### Added
