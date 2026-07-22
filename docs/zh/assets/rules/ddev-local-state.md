@@ -1,6 +1,6 @@
 <!-- Chinese reading companion
 source: rules/ddev-local-state.md
-source-digest: sha256:9e024ba41702708fb563c00d1ffe0904a7b017d5116502ed57d71a1c07a1fe8b
+source-digest: sha256:01a3cb08a6a3b368b157748448b467bf014316a7f9aa75acaf2336ee5c08dffe
 translation-status: current
 description: 关于 ~/.deweyou/dev 下全局 DDev 本地状态的所有权、可见性、清理和提交边界。
 -->
@@ -13,7 +13,8 @@ description: 关于 ~/.deweyou/dev 下全局 DDev 本地状态的所有权、可
 
 - DDev 本地状态位于 `~/.deweyou/dev/`。
 - 每个仓库的 session 位于
-  `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/`。
+  `~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/`；branch、worktree 和 head
+  只是元数据，不是 session 身份。
 - 把 DDev 状态视为本地工作记忆，而不是项目源码。
 - 不要创建项目内的 `.deweyou/dev/` 状态。
 - 只有显式调用 DDev、仓库把 DDev 设为默认工作流，或正在运行
@@ -24,15 +25,20 @@ description: 关于 ~/.deweyou/dev 下全局 DDev 本地状态的所有权、可
 - 新的全局状态安装不要向项目 `.gitignore` 或 `.git/info/exclude` 添加 DDev 忽略项。
 - DDev 创建本地状态后，通过 `doctor`、`status` 或最终交接让它可见；不要留下无法解释的
   runtime 目录。
-- `clean` 只能删除 DDev 拥有的状态，并且必须说明删除了什么。
+- 正常完成使用 `session close`；需要本地保留使用 `session archive`。
+- 永久 `clean` 必须显式带 `--force`、拒绝删除 active session，并且只能删除 DDev
+  拥有的状态，同时说明删除了什么。
 - `uninstall` 只能删除当前仓库的全局 DDev 状态、旧版仓库内 DDev 状态、精确匹配的旧版
   DDev git exclude 行、旧的 DDev 被动 hooks，以及在没有其他仓库状态时的 runtime 根目录。
   不要影响无关的 harness Agent 和 hooks。
 
-## 分支 Session
+## Task Session
 
-- 任务状态保存在 `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/`。
-- 分支 session 文件应保持简短和临时。
+- 任务状态保存在 `~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/`。
+- 四个核心 session 文件保持简短和临时；其他 artifact 只在有助于恢复、review 或证据时
+  创建。
+- 旧 branch 命名 session 和路径型 repo root 作为可见 legacy 状态保留，不隐式迁移或
+  删除。
 - 长期知识应进入仓库文档或 `repo-memory`，不要只保存在 DDev session 文件中。
 - 使用 `graph.md` 记录轻量依赖，使用 `evidence.md` 记录结论、证据和未解决缺口。
 - 不要把重放完整对话作为状态来源；应保存简短事实和证据链接。

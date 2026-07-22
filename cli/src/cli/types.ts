@@ -76,6 +76,7 @@ export interface GlobalDryRunManifest extends Omit<GlobalManifest, 'initializedA
 export interface CacheManifest {
   source: SourceSnapshot
   cliVersion: string
+  capabilities: string[]
   updatedAt: string
 }
 
@@ -135,6 +136,49 @@ export interface CacheOptions {
   homeDir?: string
   sourceRoot?: string
   cliVersion?: string
+  capabilities?: readonly string[]
+}
+
+export interface UnifiedUpdateFlags {
+  dryRun?: boolean
+  cliOnly?: boolean
+  agentsOnly?: boolean
+}
+
+export type DevSessionCommand = 'start' | 'list' | 'status' | 'close' | 'archive' | 'clean'
+
+export interface ParsedDevSessionArgs {
+  command: DevSessionCommand
+  flags: DevFlags
+}
+
+export interface CommandResult {
+  stdout: string
+  stderr: string
+}
+
+export type CommandRunner = (
+  file: string,
+  args: string[],
+  options?: { env?: NodeJS.ProcessEnv },
+) => Promise<CommandResult>
+
+export interface UpdateRuntimeOptions {
+  env?: NodeJS.ProcessEnv
+  logger?: (message: string) => void
+  platform?: NodeJS.Platform
+  runner?: CommandRunner
+}
+
+export interface UnifiedUpdateResult {
+  cli: {
+    status: 'planned' | 'unchanged' | 'updated'
+    version: string | null
+  }
+  agents: {
+    status: 'planned' | 'unchanged' | 'updated'
+    source: string | null
+  }
 }
 
 export interface ContextFlags {
@@ -203,7 +247,44 @@ export interface DevFlags {
   dryRun?: boolean
   kind?: string
   data?: string
+  dataFile?: string
   format?: OutputFormat
+  id?: string
+  title?: string
+  force?: boolean
+}
+
+export type DevSessionStatus = 'active' | 'closed' | 'archived'
+
+export interface DevSession {
+  schema_version: 1
+  id: string
+  title: string
+  repo_id: string
+  repo_root: string
+  branch: string
+  head_sha: string | null
+  status: DevSessionStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface DevSessionListItem {
+  id: string
+  path: string
+  status: DevSessionStatus | 'legacy'
+  title: string | null
+  branch: string | null
+  current: boolean
+}
+
+export interface DevSessionResult {
+  session: DevSession
+  sessionPath: string
+}
+
+export interface DevSessionListResult {
+  sessions: DevSessionListItem[]
 }
 
 export type DevEventKind =
@@ -220,6 +301,7 @@ export interface DevEvent {
   event_id: string
   occurred_at: string
   kind: DevEventKind
+  session_id: string
   branch: string
   payload: Record<string, unknown>
 }
@@ -311,7 +393,7 @@ export interface DevInstallResult {
   runtimeRoot: string
   repoStateRoot: string
   configPath: string
-  sessionPath: string
+  sessionPath: string | null
   codexHooksPath: string
   moduleSkills: Record<string, string>
   dryRun: boolean

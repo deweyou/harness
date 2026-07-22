@@ -1,10 +1,63 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert/strict'
 
-import { parseArgs } from '../src/cli/args.ts'
+import { parseArgs, parseDevSessionArgs, parseUpdateArgs } from '../src/cli/args.ts'
 import { main } from '../src/cli/main.ts'
 
 describe('parseArgs', () => {
+  it('parses root update flags', () => {
+    assert.deepEqual(parseUpdateArgs(['--dry-run']), {
+      dryRun: true,
+    })
+    assert.deepEqual(parseUpdateArgs(['--cli-only']), {
+      cliOnly: true,
+    })
+    assert.deepEqual(parseUpdateArgs(['--agents-only']), {
+      agentsOnly: true,
+    })
+  })
+
+  it('parses explicit task session commands', () => {
+    assert.deepEqual(
+      parseDevSessionArgs(['start', '--title', 'Implement update flow']),
+      { command: 'start', flags: { title: 'Implement update flow' } },
+    )
+    assert.deepEqual(
+      parseDevSessionArgs(['clean', '--id', 'task-1', '--force']),
+      { command: 'clean', flags: { id: 'task-1', force: true } },
+    )
+    assert.throws(
+      () => parseDevSessionArgs(['clean', '--id', 'task-1', '--all']),
+      /cannot be used together/,
+    )
+    assert.deepEqual(
+      parseDevSessionArgs(['clean', '--all', '--dry-run']),
+      { command: 'clean', flags: { all: true, dryRun: true } },
+    )
+  })
+
+  it('rejects malformed task session arguments', () => {
+    assert.throws(() => parseDevSessionArgs([]), /missing/)
+    assert.throws(() => parseDevSessionArgs(['unknown']), /unknown/)
+    assert.throws(() => parseDevSessionArgs(['list', 'extra']), /Unexpected argument/)
+    assert.throws(() => parseDevSessionArgs(['list', '--unknown']), /Unknown flag/)
+    assert.throws(() => parseDevSessionArgs(['list', '--id', 'task-1']), /not valid/)
+    assert.throws(() => parseDevSessionArgs(['start', '--title']), /Missing value/)
+    assert.throws(() => parseDevSessionArgs(['status', '--id', '--force']), /Missing value/)
+  })
+
+  it('rejects incompatible root update flags', () => {
+    assert.throws(
+      () => parseUpdateArgs(['--cli-only', '--agents-only']),
+      /cannot be used together/,
+    )
+    assert.throws(
+      () => parseUpdateArgs(['--yes']),
+      /Unknown flag: --yes/,
+    )
+    assert.throws(() => parseUpdateArgs(['latest']), /Unexpected argument/)
+  })
+
   it('parses agent init flags', () => {
     assert.deepEqual(
       parseArgs(['agent', 'init', '--all', '--mode', 'link', '--yes']),
@@ -330,7 +383,16 @@ describe('main', () => {
     assert.match(shortOutput, /Usage:/)
     assert.match(shortOutput, /deweyou-cli agent <command>/)
     assert.match(shortOutput, /deweyou-cli dev <command>/)
+    assert.match(shortOutput, /deweyou-cli update/)
     assert.equal(longOutput, shortOutput)
+  })
+
+  it('prints root update help', async () => {
+    const output = await captureLog(() => main(['update', '-h']))
+
+    assert.match(output, /deweyou-cli update \[--dry-run\]/)
+    assert.match(output, /--cli-only/)
+    assert.match(output, /--agents-only/)
   })
 
   it('prints top-level help for unknown help topics', async () => {
@@ -378,6 +440,7 @@ describe('main', () => {
     const unknownOutput = await captureLog(() => main(['dev', 'unknown', '-h']))
 
     assert.match(devOutput, /deweyou-cli dev install \[--dry-run\]/)
+    assert.match(devOutput, /deweyou-cli dev session start/)
     assert.match(devOutput, /deweyou-cli dev clean/)
     assert.match(devOutput, /deweyou-cli dev demo/)
     assert.match(devOutput, /deweyou-cli dev uninstall/)
@@ -390,6 +453,15 @@ describe('main', () => {
     assert.match(demoOutput, /--port port/)
     assert.match(uninstallOutput, /deweyou-cli dev uninstall \[--dry-run\]/)
     assert.match(unknownOutput, /deweyou-cli dev <command> -h/)
+  })
+
+  it('prints task session help', async () => {
+    const output = await captureLog(() => main(['dev', 'session', '-h']))
+    const clean = await captureLog(() => main(['dev', 'session', 'clean', '-h']))
+
+    assert.match(output, /dev session start --title/)
+    assert.match(output, /dev session archive/)
+    assert.match(clean, /--force/)
   })
 
   it('prints scoped help for unknown nested help targets', async () => {

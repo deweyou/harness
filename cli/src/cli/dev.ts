@@ -2,7 +2,6 @@ import {
   createReadStream,
 } from 'node:fs'
 import {
-  appendFile,
   copyFile,
   mkdir,
   readFile,
@@ -12,10 +11,8 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
-import { homedir } from 'node:os'
-import { basename, dirname, extname, join, resolve, sep } from 'node:path'
+import { dirname, extname, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 
 import type {
@@ -37,47 +34,53 @@ import {
   parseDevEventPayload,
   renderDevSummary,
   summarizeDevEvents,
+  validateDevEventSequence,
 } from './dev-events.ts'
+import {
+  assertDdevCompatibility,
+  assertDdevRuntimeAssets,
+  ddevManifestPath,
+  loadDdevManifest,
+  type DdevManifest,
+} from './dev-manifest.ts'
+import {
+  currentBranch,
+  legacySessionName,
+  legacySessionPath,
+  resolveDdevPaths,
+  type DdevPaths,
+} from './dev-paths.ts'
+import {
+  resolveOperationalSession,
+  runDevSessionClean,
+} from './dev-session.ts'
+import {
+  appendFileLocked,
+  mkdirPrivate,
+  readTextLimited,
+  writeFileAtomic,
+  writeJsonAtomic,
+} from './safe-io.ts'
+import { CLI_CAPABILITIES, CLI_VERSION } from './version-contract.ts'
 
 const execFileAsync = promisify(execFile)
-const DDEV_VERSION = '0.3.0'
+const DDEV_VERSION = '0.4.0'
 const LEGACY_DDEV_EXCLUDE_LINE = '.deweyou/dev/'
-const CODEX_HOOKS_PATH = '.codex/hooks.json'
-const MODULE_SKILLS = [
-  'problem-framing',
-  'product-design',
-  'ui-design',
-  'spec-driven-coding',
-  'git-delivery',
-  'repo-memory',
-] as const
-const SESSION_FILES: Record<string, string> = {
-  'task.md': '# Task\n\n- Goal:\n- Current branch:\n- Status:\n',
-  'brainstorm.md': '# Brainstorm\n\n## Frame\n\n## Options\n\n## Tradeoffs\n\n## Recommendation\n',
-  'context.md': '# Context\n\n## Repository\n\n## Relevant Files\n\n## Constraints\n',
-  'graph.md': '# Graph\n\n- [ ] Understand request\n- [ ] Edit focused files\n- [ ] Verify behavior\n- [ ] Summarize outcome\n',
-  'decisions.md': '# Decisions\n\n',
-  'verification.md': '# Verification\n\n',
-  'evidence.md': '# Evidence\n\n## Claims\n\n## Evidence\n\n',
-  'demo.md': '# Demo\n\n- Path: demo/index.html\n- URL:\n- Evidence:\n',
-  'retrospective.md': '# Retrospective\n\n',
-  'events.jsonl': '',
-  'summary.md': '# DDev Session Summary\n\n- No events summarized yet.\n',
-}
 
 export async function runDevInstall(
   flags: DevFlags = {},
 ): Promise<DevInstallResult> {
-  const paths = devPaths(flags)
+  const paths = await resolveDdevPaths(flags)
+  const manifest = await loadDdevManifest(paths.homeDir)
+  assertDdevCompatibility(manifest)
+  await assertDdevRuntimeAssets(paths.homeDir, manifest)
   const dryRun = flags.dryRun === true
-  const branch = flags.branch ?? await currentBranch(paths.repoRoot)
-  const sessionPath = sessionPathFor(paths.repoStateRoot, branch)
 
   if (dryRun) {
     console.log('DDev Install Plan')
     console.log(`Runtime: ${paths.runtimeRoot}`)
     console.log(`Repo state: ${paths.repoStateRoot}`)
-    console.log(`Session: ${sessionPath}`)
+    console.log('Session: not created; start one explicitly with `deweyou-cli dev session start --title "..."`')
     console.log(`Config: ${paths.configPath}`)
     console.log('Repository writes: none')
     console.log('Activation: manual')
@@ -87,9 +90,9 @@ export async function runDevInstall(
       runtimeRoot: paths.runtimeRoot,
       repoStateRoot: paths.repoStateRoot,
       configPath: paths.configPath,
-      sessionPath,
+      sessionPath: null,
       codexHooksPath: paths.codexHooksPath,
-      moduleSkills: moduleSkillPaths(paths),
+      moduleSkills: moduleSkillPaths(paths, manifest.module_skills),
       dryRun,
       exclude: 'not needed: global state only',
       hooks: 'manual activation; not installed',
@@ -97,17 +100,18 @@ export async function runDevInstall(
     }
   }
 
-  await mkdir(paths.runtimeRoot, { recursive: true })
-  await writeRuntimeConfig(paths)
-  await writeRepoConfig(paths)
-  await ensureSession(paths.repoStateRoot, branch)
+  await mkdirPrivate(paths.runtimeRoot)
+  await mkdirPrivate(paths.repoStateContainer)
+  await mkdirPrivate(paths.repoStateRoot)
+  await writeRuntimeConfig(paths, manifest)
+  await writeRepoConfig(paths, manifest)
 
   const codexHooks = await removeDdevCodexHooks(paths)
 
   console.log('DDev installed')
   console.log(`Runtime: ${paths.runtimeRoot}`)
   console.log(`Repo state: ${paths.repoStateRoot}`)
-  console.log(`Session: ${sessionPath}`)
+  console.log('Session: not created; start one explicitly with `deweyou-cli dev session start --title "..."`')
   console.log('Repository writes: none')
   console.log('Activation: manual')
   console.log('Hooks: not installed')
@@ -118,9 +122,9 @@ export async function runDevInstall(
     runtimeRoot: paths.runtimeRoot,
     repoStateRoot: paths.repoStateRoot,
     configPath: paths.configPath,
-    sessionPath,
+    sessionPath: null,
     codexHooksPath: paths.codexHooksPath,
-    moduleSkills: moduleSkillPaths(paths),
+    moduleSkills: moduleSkillPaths(paths, manifest.module_skills),
     dryRun,
     exclude: 'not needed: global state only',
     hooks: 'manual activation; not installed',
@@ -145,7 +149,7 @@ export async function runDevStatus(
 export async function runDevDoctor(
   flags: DevFlags = {},
 ): Promise<DevDoctorResult> {
-  const paths = devPaths(flags)
+  const paths = await resolveDdevPaths(flags)
   const branch = flags.branch ?? await currentBranch(paths.repoRoot)
   const checks: DevDoctorCheck[] = []
 
@@ -154,7 +158,12 @@ export async function runDevDoctor(
       ? pass(`runtime root exists: ${paths.runtimeRoot}`)
       : fail(`runtime root is missing: ${paths.runtimeRoot}. Run \`deweyou-cli dev install\`.`),
   )
-  checks.push(...await checkModuleSkills(paths))
+  const manifest = await checkDdevManifest(paths, checks)
+  if (manifest) {
+    checks.push(...await checkModuleSkills(paths, manifest.module_skills))
+    checks.push(...await checkRequiredRules(paths, manifest.required_rules))
+    checks.push(...await checkRuntimeConfigs(paths, manifest))
+  }
   checks.push(
     await pathExists(paths.repoStateRoot)
       ? pass(`global repo DDev state exists: ${paths.repoStateRoot}`)
@@ -181,41 +190,30 @@ export async function runDevDoctor(
 export async function runDevClean(
   flags: DevFlags = {},
 ): Promise<DevCleanResult> {
-  const paths = devPaths(flags)
-  const dryRun = flags.dryRun === true
-  const target = flags.all
-    ? paths.repoStateRoot
-    : join(paths.repoStateRoot, 'sessions', sessionName(flags.branch ?? await currentBranch(paths.repoRoot)))
-  const exists = await pathExists(target)
-
-  if (dryRun) {
-    console.log(`DDev clean target: ${target}`)
-    return { target, removed: false, dryRun }
-  }
-
-  if (!exists) {
-    console.log(`Nothing to clean: ${target}`)
-    return { target, removed: false, dryRun }
-  }
-
-  await rm(target, { recursive: true, force: true })
-  console.log(`Removed DDev state: ${target}`)
-
-  return { target, removed: true, dryRun }
+  return runDevSessionClean({
+    ...flags,
+    id: flags.id ?? (flags.branch ? legacySessionName(flags.branch) : undefined),
+  })
 }
 
 export async function runDevUninstall(
   flags: DevFlags = {},
 ): Promise<DevUninstallResult> {
-  const paths = devPaths(flags)
+  const paths = await resolveDdevPaths(flags)
   const dryRun = flags.dryRun === true
   const runtimeExists = await pathExists(paths.runtimeRoot)
   const repoStateExists = await pathExists(paths.repoStateRoot)
+  const legacyGlobalRepoStateExists = paths.legacyGlobalRepoStateRoot
+    ? await pathExists(paths.legacyGlobalRepoStateRoot)
+    : false
 
   if (dryRun) {
     console.log('DDev Uninstall Plan')
     console.log(`Runtime: remove only if no other repo state remains (${paths.runtimeRoot})`)
     console.log(`Repo state: ${paths.repoStateRoot}`)
+    if (paths.legacyGlobalRepoStateRoot) {
+      console.log(`Legacy global repo state: ${paths.legacyGlobalRepoStateRoot}`)
+    }
     console.log(`Legacy repo state: remove ${paths.legacyRepoStateRoot}`)
     console.log(`Legacy git exclude: remove ${LEGACY_DDEV_EXCLUDE_LINE}`)
     console.log(`Codex hooks: remove old DDev passive hooks from ${paths.codexHooksPath}`)
@@ -235,6 +233,9 @@ export async function runDevUninstall(
   const legacyRepoStateExists = await pathExists(paths.legacyRepoStateRoot)
 
   if (repoStateExists) await rm(paths.repoStateRoot, { recursive: true, force: true })
+  if (legacyGlobalRepoStateExists && paths.legacyGlobalRepoStateRoot) {
+    await rm(paths.legacyGlobalRepoStateRoot, { recursive: true, force: true })
+  }
   if (legacyRepoStateExists) await rm(paths.legacyRepoStateRoot, { recursive: true, force: true })
   const runtimeRemoved = await removeRuntimeIfUnused(paths)
 
@@ -250,7 +251,7 @@ export async function runDevUninstall(
     repoStateRoot: paths.repoStateRoot,
     dryRun,
     runtimeRemoved,
-    repoStateRemoved: repoStateExists,
+    repoStateRemoved: repoStateExists || legacyGlobalRepoStateExists,
     exclude,
     codexHooks,
   }
@@ -259,14 +260,14 @@ export async function runDevUninstall(
 export async function runDevDemo(
   flags: DevFlags = {},
 ): Promise<DevDemoResult> {
-  const paths = devPaths(flags)
   const dryRun = flags.dryRun === true
-  const branch = flags.branch ?? await currentBranch(paths.repoRoot)
-  const sessionPath = sessionPathFor(paths.repoStateRoot, branch)
-  const demoRoot = join(sessionPath, 'demo')
-  const indexPath = join(demoRoot, 'index.html')
   const host = flags.host ?? '127.0.0.1'
   const port = parsePort(flags.port)
+  const session = await resolveOperationalSession(flags)
+  const branch = session.branch
+  const sessionPath = session.path
+  const demoRoot = join(sessionPath, 'demo')
+  const indexPath = join(demoRoot, 'index.html')
 
   if (dryRun) {
     console.log('DDev Demo Plan')
@@ -276,7 +277,6 @@ export async function runDevDemo(
     return { demoRoot, indexPath, url: null, served: false, dryRun }
   }
 
-  await ensureSession(paths.repoStateRoot, branch)
   await ensureDemoFile(demoRoot, indexPath, branch)
 
   if (flags.noServer === true) {
@@ -305,15 +305,23 @@ export async function runDevDemo(
 export async function runDevRecord(
   flags: DevFlags = {},
 ): Promise<DevRecordResult> {
-  const paths = devPaths(flags)
-  const branch = flags.branch ?? await currentBranch(paths.repoRoot)
   const kind = parseDevEventKind(flags.kind)
-  const payload = parseDevEventPayload(kind, flags.data)
-  const event = createDevEvent(kind, branch, payload)
-  const sessionPath = await ensureSession(paths.repoStateRoot, branch)
+  const payload = parseDevEventPayload(kind, await resolveEventData(flags))
+  const session = await resolveOperationalSession(flags)
+  const branch = session.branch
+  const event = createDevEvent(
+    kind,
+    branch,
+    payload,
+    new Date(),
+    session.session?.id ?? `legacy:${branch}`,
+  )
+  const sessionPath = session.path
   const eventsPath = join(sessionPath, 'events.jsonl')
 
-  await appendFile(eventsPath, `${JSON.stringify(event)}\n`, 'utf8')
+  await appendFileLocked(eventsPath, `${JSON.stringify(event)}\n`, {
+    beforeAppend: (current) => validateEventAppend(current, event, session),
+  })
   console.log(`Recorded DDev ${kind} event: ${event.event_id}`)
 
   return { sessionPath, eventsPath, event }
@@ -325,22 +333,20 @@ export async function runDevSummary(
   if (flags.format && flags.format !== 'markdown' && flags.format !== 'json') {
     throw new Error(`Invalid DDev summary format: ${flags.format}`)
   }
-  const paths = devPaths(flags)
-  const branch = flags.branch ?? await currentBranch(paths.repoRoot)
-  const sessionPath = await ensureSession(paths.repoStateRoot, branch)
+  const session = await resolveOperationalSession(flags, { allowClosed: true })
+  const branch = session.branch
+  const sessionPath = session.path
   const eventsPath = join(sessionPath, 'events.jsonl')
   const summaryPath = join(sessionPath, 'summary.md')
-  const events = parseDevEventLog(await readText(eventsPath))
-  const mismatched = events.find((event) => event.branch !== branch)
-  if (mismatched) {
-    throw new Error(
-      `DDev event ${mismatched.event_id} belongs to branch ${mismatched.branch}, expected ${branch}`,
-    )
-  }
+  const events = parseDevEventLog(await readTextLimited(eventsPath, 10 * 1024 * 1024))
+  validateDevEventSequence(events, {
+    expectedBranch: branch,
+    expectedSessionId: session.session?.id ?? `legacy:${branch}`,
+  })
   const summary = summarizeDevEvents(branch, events)
   const markdown = renderDevSummary(summary)
 
-  await writeFile(summaryPath, markdown, 'utf8')
+  await writeFileAtomic(summaryPath, markdown)
   if (flags.format === 'json') {
     console.log(JSON.stringify(summary, null, 2))
   } else if (!flags.format || flags.format === 'markdown') {
@@ -351,9 +357,9 @@ export async function runDevSummary(
 }
 
 async function resolveDevStatus(flags: DevFlags): Promise<DevStatusResult> {
-  const paths = devPaths(flags)
+  const paths = await resolveDdevPaths(flags)
   const branch = flags.branch ?? await currentBranch(paths.repoRoot)
-  const sessionPath = sessionPathFor(paths.repoStateRoot, branch)
+  const sessionPath = legacySessionPath(paths.repoStateRoot, branch)
 
   return {
     runtimeRoot: paths.runtimeRoot,
@@ -366,93 +372,60 @@ async function resolveDevStatus(flags: DevFlags): Promise<DevStatusResult> {
   }
 }
 
-function devPaths(flags: DevFlags) {
-  const repoRoot = resolve(flags.repoRoot ?? process.cwd())
-  const homeDir = flags.homeDir ?? homedir()
-  const runtimeRoot = join(homeDir, '.deweyou', 'dev')
-  const repoId = repoStateId(repoRoot)
-  const repoStateContainer = join(runtimeRoot, 'repos')
-  const repoStateRoot = join(repoStateContainer, repoId)
-
-  return {
-    repoRoot,
-    homeDir,
-    runtimeRoot,
-    repoId,
-    repoStateContainer,
-    repoStateRoot,
-    legacyRepoStateRoot: join(repoRoot, '.deweyou', 'dev'),
-    configPath: join(runtimeRoot, 'config.json'),
-    codexHooksPath: join(homeDir, CODEX_HOOKS_PATH),
-  }
-}
-
-function repoStateId(repoRoot: string): string {
-  const name = basename(repoRoot).replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'repo'
-  const hash = createHash('sha256').update(repoRoot).digest('hex').slice(0, 10)
-  return `${name}-${hash}`
-}
-
-async function writeRuntimeConfig(paths: ReturnType<typeof devPaths>): Promise<void> {
+async function writeRuntimeConfig(paths: DdevPaths, manifest: DdevManifest): Promise<void> {
   const current = await readJsonObject(paths.configPath)
   const next: Record<string, unknown> = {
     ...current,
     version: DDEV_VERSION,
+    runtimeSchema: manifest.runtime_schema,
+    eventSchema: manifest.event_schema,
+    cliVersion: CLI_VERSION,
+    cliCapabilities: [...CLI_CAPABILITIES],
+    manifestPath: ddevManifestPath(paths.homeDir),
     activation: 'manual',
     passiveHooks: false,
     stateLocation: 'global',
     stateRoot: paths.repoStateContainer,
     moduleSkillRoot: moduleSkillRoot(paths),
-    moduleSkills: moduleSkillPaths(paths),
-    moduleRefreshCommand: 'deweyou-cli agent update',
-    sessionFiles: Object.keys(SESSION_FILES),
+    moduleSkills: moduleSkillPaths(paths, manifest.module_skills),
+    moduleRefreshCommand: 'deweyou-cli update --agents-only',
+    sessionFiles: manifest.session_files,
   }
   delete next.hooks
   await writeJsonIfChanged(paths.configPath, current, next)
 }
 
-async function writeRepoConfig(paths: ReturnType<typeof devPaths>): Promise<void> {
+async function writeRepoConfig(paths: DdevPaths, manifest: DdevManifest): Promise<void> {
   const path = join(paths.repoStateRoot, 'config.json')
   const current = await readJsonObject(path)
   const next: Record<string, unknown> = {
     ...current,
     version: DDEV_VERSION,
+    runtimeSchema: manifest.runtime_schema,
+    eventSchema: manifest.event_schema,
     activation: 'manual',
     passiveHooks: false,
     entrySkill: 'ddev',
     moduleSkillResolution: 'global-dewey-cache',
     repoRoot: paths.repoRoot,
     repoId: paths.repoId,
-    sessionFiles: Object.keys(SESSION_FILES),
+    sessionFiles: manifest.session_files,
   }
   delete next.hooks
   await writeJsonIfChanged(path, current, next)
 }
 
-function moduleSkillRoot(paths: ReturnType<typeof devPaths>): string {
+function moduleSkillRoot(paths: DdevPaths): string {
   return join(paths.homeDir, '.deweyou', 'agents', 'assets', 'skills')
 }
 
-function moduleSkillPaths(paths: ReturnType<typeof devPaths>): Record<string, string> {
+function moduleSkillPaths(paths: DdevPaths, moduleSkills: string[]): Record<string, string> {
   return Object.fromEntries(
-    MODULE_SKILLS.map((name) => [
+    moduleSkills.map((name) => [
       name,
       join(moduleSkillRoot(paths), name, 'SKILL.md'),
     ]),
   )
-}
-
-async function ensureSession(repoStateRoot: string, branch: string): Promise<string> {
-  const directory = sessionPathFor(repoStateRoot, branch)
-  await mkdir(directory, { recursive: true })
-  await Promise.all(
-    Object.entries(SESSION_FILES).map(async ([file, content]) => {
-      const path = join(directory, file)
-      if (await pathExists(path)) return
-      await writeFile(path, content, 'utf8')
-    }),
-  )
-  return directory
 }
 
 async function ensureDemoFile(
@@ -460,9 +433,49 @@ async function ensureDemoFile(
   indexPath: string,
   branch: string,
 ): Promise<void> {
-  await mkdir(demoRoot, { recursive: true })
+  await mkdirPrivate(demoRoot)
   if (await pathExists(indexPath)) return
   await writeFile(indexPath, defaultDemoHtml(branch), 'utf8')
+}
+
+async function resolveEventData(flags: DevFlags): Promise<string | undefined> {
+  if (flags.data && flags.dataFile) {
+    throw new Error('Use only one DDev event input: --data or --data-file.')
+  }
+  if (flags.data) return enforceEventPayloadSize(flags.data)
+  if (flags.dataFile) {
+    return enforceEventPayloadSize(await readTextLimited(flags.dataFile, 1024 * 1024))
+  }
+  if (process.stdin.isTTY) return undefined
+
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of process.stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    size += buffer.length
+    if (size > 1024 * 1024) throw new Error('DDev event data exceeds 1048576 bytes')
+    chunks.push(buffer)
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+function enforceEventPayloadSize(value: string): string {
+  if (Buffer.byteLength(value) > 1024 * 1024) {
+    throw new Error('DDev event data exceeds 1048576 bytes')
+  }
+  return value
+}
+
+async function validateEventAppend(
+  current: string,
+  event: ReturnType<typeof createDevEvent>,
+  session: Awaited<ReturnType<typeof resolveOperationalSession>>,
+): Promise<void> {
+  const events = parseDevEventLog(current)
+  validateDevEventSequence([...events, event], {
+    expectedBranch: session.branch,
+    expectedSessionId: session.session?.id ?? `legacy:${session.branch}`,
+  })
 }
 
 export async function startDemoServer(
@@ -586,7 +599,7 @@ async function removeGitExclude(repoRoot: string): Promise<string> {
   return 'removed'
 }
 
-async function removeRuntimeIfUnused(paths: ReturnType<typeof devPaths>): Promise<boolean> {
+async function removeRuntimeIfUnused(paths: DdevPaths): Promise<boolean> {
   if (!await pathExists(paths.runtimeRoot)) return false
 
   const remainingRepoStates = await directoryEntries(paths.repoStateContainer)
@@ -608,8 +621,15 @@ async function directoryEntries(path: string): Promise<string[]> {
   }
 }
 
-async function checkLegacyRepoState(paths: ReturnType<typeof devPaths>): Promise<DevDoctorCheck[]> {
+async function checkLegacyRepoState(paths: DdevPaths): Promise<DevDoctorCheck[]> {
   const checks: DevDoctorCheck[] = []
+  if (paths.legacyGlobalRepoStateRoot) {
+    checks.push(
+      await pathExists(paths.legacyGlobalRepoStateRoot)
+        ? warn(`legacy path-identified DDev state exists: ${paths.legacyGlobalRepoStateRoot}. It is preserved until explicit cleanup or uninstall.`)
+        : pass(`legacy path-identified DDev state is absent: ${paths.legacyGlobalRepoStateRoot}`),
+    )
+  }
   checks.push(
     await pathExists(paths.legacyRepoStateRoot)
       ? warn(`legacy repo-local DDev state exists: ${paths.legacyRepoStateRoot}. Run \`deweyou-cli dev uninstall\` to remove it.`)
@@ -631,22 +651,66 @@ async function checkLegacyRepoState(paths: ReturnType<typeof devPaths>): Promise
 }
 
 async function checkSessionFiles(repoStateRoot: string, branch: string): Promise<DevDoctorCheck> {
-  const directory = sessionPathFor(repoStateRoot, branch)
+  const directory = legacySessionPath(repoStateRoot, branch)
   if (!await pathExists(directory)) {
-    return warn(`current branch session is missing: ${directory}`)
+    return pass(`no legacy branch session selected: ${directory}`)
   }
 
-  const missing: string[] = []
-  for (const file of Object.keys(SESSION_FILES)) {
-    if (!await pathExists(join(directory, file))) missing.push(file)
-  }
-
-  return missing.length === 0
-    ? pass(`current branch session files exist: ${directory}`)
-    : warn(`current branch session is missing files: ${missing.join(', ')}`)
+  return warn(`legacy branch session exists without task lifecycle metadata: ${directory}`)
 }
 
-async function checkModuleSkills(paths: ReturnType<typeof devPaths>): Promise<DevDoctorCheck[]> {
+async function checkDdevManifest(
+  paths: DdevPaths,
+  checks: DevDoctorCheck[],
+): Promise<DdevManifest | null> {
+  try {
+    const manifest = await loadDdevManifest(paths.homeDir)
+    assertDdevCompatibility(manifest)
+    checks.push(pass(`DDev runtime manifest is compatible: ${ddevManifestPath(paths.homeDir)}`))
+    return manifest
+  } catch (error) {
+    checks.push(fail(error instanceof Error ? error.message : String(error)))
+    return null
+  }
+}
+
+async function checkRuntimeConfigs(
+  paths: DdevPaths,
+  manifest: DdevManifest,
+): Promise<DevDoctorCheck[]> {
+  const runtime = await readJsonObject(paths.configPath)
+  const repo = await readJsonObject(join(paths.repoStateRoot, 'config.json'))
+  const checks: DevDoctorCheck[] = []
+  checks.push(
+    runtime.runtimeSchema === manifest.runtime_schema
+      ? pass(`runtime schema matches manifest: ${manifest.runtime_schema}`)
+      : fail(`runtime config schema is missing or incompatible. Run \`deweyou-cli dev install\`.`),
+  )
+  checks.push(
+    runtime.cliVersion === CLI_VERSION
+      ? pass(`runtime CLI version matches current CLI: ${CLI_VERSION}`)
+      : fail(`runtime config was initialized by CLI ${String(runtime.cliVersion)}, current ${CLI_VERSION}. Run \`deweyou-cli dev install\`.`),
+  )
+  checks.push(
+    repo.runtimeSchema === manifest.runtime_schema
+      ? pass(`repo runtime schema matches manifest: ${manifest.runtime_schema}`)
+      : fail(`repo DDev config schema is missing or incompatible. Run \`deweyou-cli dev install\`.`),
+  )
+  const configuredCapabilities = Array.isArray(runtime.cliCapabilities)
+    ? runtime.cliCapabilities.filter((item): item is string => typeof item === 'string')
+    : []
+  const missing = manifest.required_cli_capabilities.filter(
+    (capability) => !configuredCapabilities.includes(capability),
+  )
+  checks.push(
+    missing.length === 0
+      ? pass('runtime CLI capabilities satisfy the DDev manifest')
+      : fail(`runtime config is missing CLI capabilities: ${missing.join(', ')}. Run \`deweyou-cli dev install\`.`),
+  )
+  return checks
+}
+
+async function checkModuleSkills(paths: DdevPaths, moduleSkills: string[]): Promise<DevDoctorCheck[]> {
   const root = moduleSkillRoot(paths)
   if (!await pathExists(root)) {
     return [
@@ -655,7 +719,7 @@ async function checkModuleSkills(paths: ReturnType<typeof devPaths>): Promise<De
   }
 
   const missing: string[] = []
-  for (const [name, skillPath] of Object.entries(moduleSkillPaths(paths))) {
+  for (const [name, skillPath] of Object.entries(moduleSkillPaths(paths, moduleSkills))) {
     if (!await pathExists(skillPath)) missing.push(`${name} (${skillPath})`)
   }
 
@@ -664,7 +728,26 @@ async function checkModuleSkills(paths: ReturnType<typeof devPaths>): Promise<De
     : [fail(`global DDev module skills are missing: ${missing.join(', ')}. Run \`deweyou-cli agent update\`.`)]
 }
 
-async function checkCodexHooks(paths: ReturnType<typeof devPaths>): Promise<DevDoctorCheck[]> {
+async function checkRequiredRules(paths: DdevPaths, requiredRules: string[]): Promise<DevDoctorCheck[]> {
+  const root = join(paths.homeDir, '.deweyou', 'agents', 'assets', 'rules')
+  if (!await pathExists(root)) {
+    return [
+      fail(`global DDev required rule cache is missing: ${root}. Run \`deweyou-cli agent update\`.`),
+    ]
+  }
+
+  const missing: string[] = []
+  for (const name of requiredRules) {
+    const rulePath = join(root, `${name}.md`)
+    if (!await pathExists(rulePath)) missing.push(`${name} (${rulePath})`)
+  }
+
+  return missing.length === 0
+    ? [pass(`global DDev required rules are available: ${root}`)]
+    : [fail(`global DDev required rules are missing: ${missing.join(', ')}. Run \`deweyou-cli agent update\`.`)]
+}
+
+async function checkCodexHooks(paths: DdevPaths): Promise<DevDoctorCheck[]> {
   const hooks = await readCodexHooks(paths.codexHooksPath)
   if (!hooks) return [pass(`DDev passive hooks are absent: ${paths.codexHooksPath}`)]
 
@@ -678,7 +761,7 @@ async function checkCodexHooks(paths: ReturnType<typeof devPaths>): Promise<DevD
   ]
 }
 
-async function removeDdevCodexHooks(paths: ReturnType<typeof devPaths>): Promise<string> {
+async function removeDdevCodexHooks(paths: DdevPaths): Promise<string> {
   const before = await readCodexHooks(paths.codexHooksPath)
   if (!before) return 'skipped: no readable Codex hooks file'
   if (!isRecord(before)) return 'skipped: Codex hooks file is not an object'
@@ -781,30 +864,6 @@ async function gitPath(repoRoot: string, path: string): Promise<string | null> {
   }
 }
 
-async function currentBranch(repoRoot: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync('git', [
-      '-C',
-      repoRoot,
-      'rev-parse',
-      '--abbrev-ref',
-      'HEAD',
-    ])
-    const branch = stdout.trim()
-    return branch && branch !== 'HEAD' ? branch : 'detached'
-  } catch {
-    return 'unknown'
-  }
-}
-
-function sessionPathFor(repoStateRoot: string, branch: string): string {
-  return join(repoStateRoot, 'sessions', sessionName(branch))
-}
-
-function sessionName(branch: string): string {
-  return branch.replace(/[^A-Za-z0-9._-]+/g, '__')
-}
-
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path)
@@ -851,8 +910,7 @@ async function writeJsonIfChanged(
 }
 
 async function writeJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  await writeJsonAtomic(path, value)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { cachePaths, updateCache } from '../src/cli/cache.ts'
 import { readJson, writeJson } from '../src/cli/manifest.ts'
 import { resolveSourceRoot } from '../src/cli/source.ts'
+import { CLI_CAPABILITIES } from '../src/cli/version-contract.ts'
 
 describe('cachePaths', () => {
   it('returns the cache root, assets root, and manifest path', () => {
@@ -58,6 +59,7 @@ describe('updateCache', () => {
     assert.deepEqual(await readJson(paths.manifestPath), manifest)
     assert.deepEqual(manifest.source, { root: sourceRoot, commit: null })
     assert.equal(manifest.cliVersion, '0.1.0')
+    assert.deepEqual(manifest.capabilities, CLI_CAPABILITIES)
     assert.equal(Number.isNaN(Date.parse(manifest.updatedAt)), false)
   })
 

@@ -29,7 +29,7 @@
 
 ```bash
 npm install -g deweyou-cli
-deweyou-cli agent update
+deweyou-cli update
 ```
 
 默认情况下，`agent update` 会把 `https://github.com/deweyou/agents.git`
@@ -37,7 +37,7 @@ deweyou-cli agent update
 
 ```bash
 export DEWEYOU_AGENTS_SOURCE=/path/to/deweyou/agents
-deweyou-cli agent update
+deweyou-cli update --agents-only
 ```
 
 初始化另一个仓库：
@@ -54,6 +54,7 @@ deweyou-cli agent context --format markdown
 deweyou-cli dev install
 deweyou-cli dev status
 deweyou-cli dev doctor
+deweyou-cli dev session start --title "第一个任务"
 ```
 
 脚本化初始化示例：
@@ -70,16 +71,18 @@ deweyou-cli agent init --dry-run
 
 | 命令 | 用途 |
 |------|------|
-| `deweyou-cli agent update` | 刷新本地资产缓存和生成的 registry。 |
+| `deweyou-cli update` | 更新全局 CLI，再用新 CLI 刷新 agent assets。 |
+| `deweyou-cli agent update` | 只刷新本地 asset cache 与 registry。 |
 | `deweyou-cli agent init` | 把选中的 skills、rules 和可选 `DESIGN.md` 加入当前仓库；也可用 `--global` 做用户级安装。 |
 | `deweyou-cli agent context --format markdown` | 输出当前仓库启用的 agent instructions。 |
 | `deweyou-cli agent context --format json` | 输出给工具使用的结构化 context。 |
 | `deweyou-cli agent doctor` | 检查缓存、manifest、符号链接、已选资产和 hash 是否一致。 |
-| `deweyou-cli dev install` | 初始化手动 DDev runtime、`~/.deweyou/dev/` 下的全局按仓库状态、全局模块 registry，并移除旧版 DDev 被动 hooks。 |
-| `deweyou-cli dev status` | 输出 DDev runtime、仓库状态和分支 session 状态。 |
-| `deweyou-cli dev doctor` | 诊断 DDev runtime、全局按仓库 session 文件、旧仓库本地状态和被动 hook 缺席。 |
-| `deweyou-cli dev clean` | 按分支或整个仓库清理 DDev-owned 全局按仓库状态。 |
-| `deweyou-cli dev demo` | 创建并启动分支 session 静态 HTML demo 工作台。 |
+| `deweyou-cli dev install` | 校验 DDev manifest，并初始化 runtime/repo config；不创建 task session。 |
+| `deweyou-cli dev session ...` | start、list、status、close、archive 或显式 clean task session。 |
+| `deweyou-cli dev status` | 输出 DDev runtime 和仓库状态。 |
+| `deweyou-cli dev doctor` | 诊断 schema、CLI capability、manifest 模块、legacy 状态和被动 hook 缺席。 |
+| `deweyou-cli dev clean` | 兼容旧 branch session 的清理命令；永久删除必须带 `--force`。 |
+| `deweyou-cli dev demo` | 创建并启动 active task session 的静态 HTML demo 工作台。 |
 | `deweyou-cli dev uninstall` | 删除当前仓库 DDev 状态、旧仓库本地状态和 exclude、旧版 DDev 被动 hooks；仅当没有其他 repo state 时删除 runtime。 |
 
 ### 安装模式

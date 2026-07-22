@@ -1014,7 +1014,7 @@ async function createFixture({ mode }) {
   const repoRoot = await mkdtemp(join(tmpdir(), 'deweyou-repo-'))
   const sourceRoot = await createAssetHub()
 
-  await updateCache({ homeDir, sourceRoot, cliVersion: '0.1.0' })
+  await updateCache({ homeDir, sourceRoot })
   await initRepo({
     homeDir,
     repoRoot,

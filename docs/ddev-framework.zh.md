@@ -1,5 +1,15 @@
 # DDev 框架技术方案
 
+```mermaid
+flowchart LR
+    Update["deweyou-cli update"] --> Cache["CLI 与 agent cache"]
+    Cache --> Install["dev install"]
+    Install --> Session["显式 task session"]
+    Session --> Close["close"]
+    Close --> Archive["archive"]
+    Close --> Clean["clean --force"]
+```
+
 *状态：MVP 实施方案*
 
 DDev 是 Dewey 个人跨仓库开发使用的 Agent Harness。它不是通用团队平台，
@@ -21,7 +31,7 @@ CLI 命名空间：    deweyou-cli dev ...
 
 - 为个人跨仓库开发提供一个默认工作流。
 - 让任务上下文保持薄、准、可检查。
-- 让分支上的工作可以恢复，但不把 runtime state 提交到仓库。
+- 让 task session 可以跨分支和 worktree 恢复，但不把 runtime state 提交到仓库。
 - 在完成声明或交付前显式记录验证证据。
 - 让 brainstorm 变得具体：比较方向、压力测试取舍，并在有帮助时把想法变成
   本地 HTML demo。
@@ -34,7 +44,8 @@ CLI 命名空间：    deweyou-cli dev ...
 ## 非目标
 
 - MVP 不做通用 DAG / Node Runtime。
-- MVP 不做机器 `state.json`、节点调度器、Review Node、subagent binding 或复杂恢复状态机。
+- 机器状态只记录身份、生命周期、兼容性和 append-only 证据；MVP 不做节点调度器、
+  Review Node、subagent binding 或复杂恢复状态机。
 - 不要求业务仓库提交 DDev runtime state。
 - 不替代项目自己的测试、CI、lint、浏览器检查或 review。
 - 不把 `product-notes` 和 `skill-eval` 耦合进默认开发链路。
@@ -48,7 +59,7 @@ CLI 命名空间：    deweyou-cli dev ...
 flowchart TD
     User["用户请求"] --> DDev["ddev skill"]
     CLI["deweyou-cli dev"] --> Runtime["~/.deweyou/dev"]
-    Runtime --> State["~/.deweyou/dev/repos/<repo-id>/sessions/<branch>"]
+    Runtime --> State["~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>"]
     DDev --> State
     Cache["~/.deweyou/agents/assets/skills"] --> Modules["global module skills"]
     RuleCache["~/.deweyou/agents/assets/rules"] --> Rules["按操作强依赖的 rules"]
@@ -68,12 +79,21 @@ flowchart TD
 
 CLI 负责确定性的本地基础设施：
 
-- `install`：创建手动 runtime 和全局按仓库 session 文件。
-- `status`：展示 runtime、repo state 和当前分支 session。
-- `doctor`：诊断 runtime、全局模块 skill cache、session 文件、旧仓库本地状态、
+- [`cli/src/cli/dev-session.ts#L1`](../cli/src/cli/dev-session.ts#L1) 负责 task session
+  生命周期与清理安全。
+- [`cli/src/cli/dev-manifest.ts#L1`](../cli/src/cli/dev-manifest.ts#L1) 负责 runtime
+  兼容性握手。
+- [`skills/ddev/runtime.json#L1`](../skills/ddev/runtime.json#L1) 是机器可读的模块与
+  schema registry。
+
+- `install`：初始化手动 runtime 和按仓库配置，不创建 task session。
+- `session start|list|status|close|archive|clean`：管理显式 task 生命周期。正常完成用
+  `close`；永久删除必须带 `--force`，并拒绝删除 active session。
+- `status`：展示 runtime 和 repo state。
+- `doctor`：诊断 runtime/CLI 兼容性、manifest 模块 cache、session 状态、旧仓库本地状态、
   旧 git exclude，以及旧 DDev 被动 hooks 是否已移除。
-- `clean`：删除 DDev 本地状态。
-- `demo`：创建分支 session 的 `demo/index.html`，并可选启动本地静态 HTTP 服务。
+- `clean`：兼容旧命令，同样要求 `--force`。
+- `demo`：创建 task session 的 `demo/index.html`，并可选启动本地静态 HTTP 服务。
 - `record`：校验并追加 requirement、node、evidence、failure、review、recovery 或
   delivery 事件。
 - `summary`：校验 `events.jsonl`，重新生成 `summary.md`，并输出 Markdown 或 JSON
@@ -111,17 +131,9 @@ Orient
   -> Retrospect and cleanup
 ```
 
-其他 skills 是全局模块，位于 `~/.deweyou/agents/assets/skills/`，完成领域工作后
-回到 `ddev`：
-
-| 场景 | 模块 |
-| --- | --- |
-| Grilling、brainstorming、批判、推荐 | `problem-framing/SKILL.md` |
-| 产品范围和取舍 | `product-design/SKILL.md` |
-| UI 需求原型、交互、视觉证据 | `ui-design/SKILL.md` |
-| 需求对齐、编码、调试、TDD、验证 | `spec-driven-coding/SKILL.md` |
-| Commit、push、PR、CI | `git-delivery/SKILL.md` |
-| 持久仓库知识 | `repo-memory/SKILL.md` |
+其他 skills 是 `~/.deweyou/agents/assets/skills/` 下的全局模块，唯一清单来自
+`skills/ddev/runtime.json`。DDev 根据模块自身的 trigger contract 选择能力，领域工作
+完成后回到 `ddev`。
 
 `product-notes` 和 `skill-eval` 保持独立，只在明确请求时使用。
 
@@ -130,7 +142,11 @@ DDev 还拥有两个按操作生效的强依赖 rules。写、改、审代码前
 或有架构影响的行为变更前，必须读取
 `~/.deweyou/agents/assets/rules/engineering-principles.md`。即使用户没有把这两个
 rules 全局安装或安装进仓库，DDev 也会直接从 asset cache 读取。若执行
-`deweyou-cli agent update` 后对应文件仍缺失，则阻塞相关操作。
+`deweyou-cli update --agents-only` 后对应文件仍缺失，则阻塞相关操作。
+
+模块清单、runtime schema 和 event schema 的唯一机器真相是 asset cache 中的
+`skills/ddev/runtime.json`。CLI 在 install/doctor 时校验最低版本与必需 capability；
+runtime config 只是物化视图，不是第二份 registry。
 
 ## 本地状态契约
 
@@ -141,42 +157,39 @@ rules 全局安装或安装进仓库，DDev 也会直接从 asset cache 读取�
     <repo-id>/
       config.json
       sessions/
-        <branch>/
+        <session-id>/
+          session.json
           task.md
-          brainstorm.md
-          context.md
-          graph.md
-          decisions.md
-          verification.md
-          evidence.md
-          demo.md
-          demo/
-            index.html
-          retrospective.md
           events.jsonl
           summary.md
-          stop-issues.txt
+          demo/              # 按需
+            index.html
+          <other-artifacts>  # 按需
+      archives/
+        <session-id>/
+      checkouts/
+        <checkout-id>.json
 ```
 
-文件职责：
+核心文件职责：
 
-- `task.md`：目标、范围、非目标、验收标准、验收来源、对齐状态、未解决决策和当前状态。
-- `brainstorm.md`：问题 frame、发散选项、批判、取舍和推荐方向。
-- `context.md`：相关文件、命令、文档、约束和事实。
-- `graph.md`：轻量依赖图或步骤清单。
-- `decisions.md`：改变路径的决策和原因。
-- `verification.md`：计划执行的验证 gate。
-- `evidence.md`：claim、命令、截图、artifact、live check、缺口。
-- `demo.md`：demo 路径、本地 URL、视觉检查和 demo 证据。
-- `demo/index.html`：分支 session 静态 HTML demo 工作台。
-- `retrospective.md`：候选 repo-memory 或 DDev 改进点。
+- `session.json`：task 身份和 active/closed/archived 生命周期；branch/head 只是元数据。
+- `task.md`：简洁的任务意图、验收、对齐状态和进度。
 - `events.jsonl`：append-only、带 schema 版本的协议事件。
 - `summary.md`：生成的单 session 视图，汇总最新节点、claim、失败、Review、恢复建议、
   交付和未解决事项。
-- `stop-issues.txt`：旧版或显式诊断留下的问题；MVP 不安装被动 Stop hook。
+
+Demo、graph、context、decision、evidence 和 retrospective 文件只在有用时创建。目录权限
+为 `0700`，文件为 `0600`；metadata/summary 原子替换；事件校验和 append 在同一文件锁
+中串行执行。Payload 和日志有大小限制，事件 JSON 支持 `--data`、`--data-file` 或 stdin。
 
 这些都是项目源码外的本地工作记忆。新版 DDev install 不写项目 `.gitignore` 或
 `.git/info/exclude`；项目里的 `.deweyou/dev/` 只作为旧版遗留状态处理。
+
+Repo id 优先使用规范化后的 origin remote，否则使用 Git common dir 或绝对路径回退。
+因此多个 worktree 可以共享 repo state，同时每个 checkout 保留独立的 current-session
+pointer。旧的路径型 repo root 和 branch 命名 session 继续作为 legacy 展示，不会被
+install/list 隐式迁移或删除。
 
 ## MVP 里的 Artifact / Claim / Evidence
 
@@ -191,7 +204,7 @@ MVP 先做人可读版本：
 ```markdown
 ## Claims
 
-- [verified] CLI install 会创建分支 session 文件。
+- [verified] 显式 session start 会创建四个核心 task 文件。
 - [verified] 旧版 DDev 被动 hooks 已从 Codex config 移除。
 
 ## Evidence
@@ -282,7 +295,7 @@ deweyou-cli dev demo --no-server
 deweyou-cli dev demo --port 4173
 ```
 
-demo 位于 `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/demo/index.html`，
+demo 位于 `~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/demo/index.html`，
 属于本地工作状态。它适合产品草图、UI state、交互原型，以及在改产品代码前比较
 brainstorm 方向。DDev 应把原型路径、本地 URL、视觉检查或明确缺口记录到
 `demo.md` 和 `evidence.md`。
@@ -291,19 +304,25 @@ brainstorm 方向。DDev 应把原型路径、本地 URL、视觉检查或明确
 
 ```bash
 deweyou-cli dev install [--dry-run]
+deweyou-cli dev session start --title "task"
+deweyou-cli dev session list
+deweyou-cli dev session status [--id id]
+deweyou-cli dev session close [--id id]
+deweyou-cli dev session archive [--id id]
+deweyou-cli dev session clean [--id id|--all] [--dry-run] --force
 deweyou-cli dev status
 deweyou-cli dev doctor
-deweyou-cli dev clean [--branch name|--all] [--dry-run]
-deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
-deweyou-cli dev record [--branch name] --kind kind --data json
-deweyou-cli dev summary [--branch name] [--format markdown|json]
+deweyou-cli dev clean [--branch name|--all] [--dry-run] --force
+deweyou-cli dev demo [--id id|--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+deweyou-cli dev record [--id id|--branch name] --kind kind (--data json|--data-file path)
+deweyou-cli dev summary [--id id|--branch name] [--format markdown|json]
 deweyou-cli dev uninstall [--dry-run]
 ```
 
 推荐仓库接入：
 
 ```bash
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli agent init \
   --skills ddev \
   --rules ddev-local-state,verification-evidence,loop-boundaries \
@@ -344,4 +363,4 @@ DDev 不检查、不诊断、不写 exclude，也不清理其他 harness agents 
 证据证明轻量协议不够用时，才升级这些能力。
 
 ---
-*Last updated: 2026-07-21 | Reason: Added validated session events, summaries, and evidence-based future capability triggers.*
+*Last updated: 2026-07-22 | Reason: Added explicit task sessions, runtime compatibility handshake, and safe lifecycle cleanup.*

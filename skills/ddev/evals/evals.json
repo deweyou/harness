@@ -4,15 +4,15 @@
     {
       "id": 0,
       "prompt": "$DDev help me implement a new export button in this repository. I need verification evidence, but do not commit yet.",
-      "expected_output": "The run should trigger ddev, classify the request as an implementation task, create or update global DDev per-repository state under ~/.deweyou/dev/repos/<repo-id> including human-readable task, context, graph, verification, and evidence notes, grill for behavior or acceptance gaps only if they matter, map available verification checks, load spec-driven-coding or ui-design from the global module cache or a native installed skill when relevant, run implementation and evidence loops, and avoid delivery because the user said not to submit.",
+      "expected_output": "The run should trigger ddev, classify the request as an implementation task, start one explicit task session under ~/.deweyou/dev/repos/<repo-id>/sessions/<session-id> with the four core files, create extra context, graph, verification, or evidence artifacts only when useful, grill for behavior or acceptance gaps only if they matter, map available verification checks, load relevant modules from the runtime manifest and global cache, run implementation and evidence loops, close the session normally, and avoid delivery because the user said not to submit.",
       "files": [],
       "expectations": [
         "Triggered the ddev skill",
         "Triggered because the user explicitly invoked DDev",
         "Checked deweyou-cli dev doctor or told the user the install commands if the runtime was missing",
         "Classified the request as a DDev task rather than read-only inspect",
-        "Created or updated global DDev session state for a real implementation session",
-        "Used human-readable graph and evidence notes rather than machine runtime state",
+        "Started one explicit task session for the implementation work",
+        "Kept session.json limited to identity and lifecycle and created optional artifacts only when useful",
         "Identified acceptance criteria and verification evidence before claiming completion",
         "Resolved module skills from the global Dewey asset cache or an equivalent native installed skill",
         "Used module skills without handing off the whole lifecycle",
@@ -110,7 +110,7 @@
     {
       "id": 8,
       "prompt": "$DDev this change spans the web app and API repo, needs PPE deployment and E2E before acceptance, and failures should only rerun the affected parts.",
-      "expected_output": "The run should trigger ddev and keep the MVP lightweight while recognizing the task is complex. It should capture context facts such as repos, risk, constraints, change type, missing facts, and verification intent in human-readable session files under ~/.deweyou/dev/repos/<repo-id>; plan dependencies in graph.md; record claims, artifacts, gates, and E2E or deployment evidence in evidence.md; use smallest-affected reruns after failures; keep DDev state local and outside project source; and avoid coupling product-notes or skill-eval into the default lifecycle.",
+      "expected_output": "The run should trigger ddev and keep the MVP lightweight while recognizing the task is complex. It should start an explicit task session, keep the four core files minimal, create graph.md and evidence.md on demand for the multi-repo dependencies and E2E evidence, use smallest-affected reruns after failures, keep DDev state local and outside project source, and avoid coupling product-notes or skill-eval into the default lifecycle.",
       "files": [],
       "expectations": [
         "Triggered the ddev skill",
@@ -139,12 +139,12 @@
     {
       "id": 10,
       "prompt": "$DDev demo the strongest onboarding concept as a quick HTML page I can inspect locally.",
-      "expected_output": "The run should trigger ddev in demo mode, use or create global DDev per-repository session state, create or update demo/index.html under ~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/, use deweyou-cli dev demo to serve or prepare the local static HTML demo, report the local URL or exact blocker, and record visual or runtime evidence without committing the demo by default.",
+      "expected_output": "The run should trigger ddev in demo mode, require or start an explicit task session, create or update demo/index.html under ~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/, use deweyou-cli dev demo to serve or prepare the local static HTML demo, report the local URL or exact blocker, and record visual or runtime evidence without committing the demo by default.",
       "files": [],
       "expectations": [
         "Triggered the ddev skill",
         "Selected demo mode",
-        "Created or updated ~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/demo/index.html",
+        "Created or updated ~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/demo/index.html",
         "Used deweyou-cli dev demo or reported why it could not run",
         "Reported the local demo URL or blocker",
         "Kept demo files local and out of delivery by default"
@@ -167,7 +167,7 @@
     {
       "id": 12,
       "prompt": "This repository AGENTS.md opts into DDev by default, but `deweyou-cli dev doctor` reports the runtime root is missing. Implement this small fix.",
-      "expected_output": "The run should treat the repository instruction as DDev opt-in, but stop before implementation because the DDev runtime or global module cache is missing. It should tell the user to install or initialize DDev with npm install -g deweyou-cli, deweyou-cli agent update, deweyou-cli agent init --skills ddev --mode link --yes, and deweyou-cli dev install, and it should not silently install DDev during the unrelated fix.",
+      "expected_output": "The run should treat the repository instruction as DDev opt-in, but stop before implementation because the DDev runtime or global module cache is missing. It should tell the user to install or initialize DDev with npm install -g deweyou-cli, deweyou-cli update --agents-only, deweyou-cli agent init --skills ddev --mode link --yes, and deweyou-cli dev install, and it should not silently install DDev during the unrelated fix.",
       "files": [],
       "expectations": [
         "Recognized repository-level DDev opt-in even without an explicit $DDev prompt",
@@ -180,14 +180,14 @@
     {
       "id": 13,
       "prompt": "$DDev install DDev on this repo, but I also have another harness agent on the same computer. Avoid any passive hook conflict.",
-      "expected_output": "The run should keep DDev manually activated, use or recommend deweyou-cli agent update, deweyou-cli agent init --skills ddev --mode link --yes, deweyou-cli dev install, and deweyou-cli dev doctor to create the DDev entry, global module cache, runtime, and global per-repository state. It should not create project-local .deweyou/dev state, should remove only old DDev passive hooks from earlier versions, preserve unrelated harness hooks, and explain that future DDev use is triggered by $DDev or repository AGENTS.md opt-in rather than global passive hooks.",
+      "expected_output": "The run should keep DDev manually activated, use or recommend deweyou-cli update --agents-only, deweyou-cli agent init --skills ddev --mode link --yes, deweyou-cli dev install, and deweyou-cli dev doctor to create the DDev entry, global module cache, and runtime without implicitly creating a task session. It should not create project-local .deweyou/dev state, should remove only old DDev passive hooks from earlier versions, preserve unrelated harness hooks, and explain that future DDev use is triggered by $DDev or repository AGENTS.md opt-in rather than global passive hooks.",
       "files": [],
       "expectations": [
         "Triggered the ddev skill",
         "Selected setup mode",
         "Kept DDev manually activated rather than installing passive global hooks",
         "Recommended or used deweyou-cli agent init with only the ddev entry skill",
-        "Recommended or used deweyou-cli dev install for runtime and global per-repository state",
+        "Recommended or used deweyou-cli dev install for runtime and global per-repository state without creating a task session",
         "Relied on the global Dewey asset cache for module skills",
         "Removed only old DDev passive hooks if present",
         "Preserved unrelated harness hooks",
@@ -217,7 +217,7 @@
       "expectations": [
         "Triggered the ddev skill",
         "Selected setup mode",
-        "Used or recommended deweyou-cli agent update before relying on global module skills",
+        "Used or recommended deweyou-cli update --agents-only before relying on the runtime manifest and global module skills",
         "Initialized the repository with only the ddev entry skill",
         "Did not install problem-framing, ui-design, spec-driven-coding, git-delivery, repo-memory, or product-design as required repository skills",
         "Used or recommended deweyou-cli dev install and deweyou-cli dev doctor",
@@ -242,12 +242,12 @@
     {
       "id": 17,
       "prompt": "$DDev review this small function for naming and error handling. The cached code-style rule file is missing after I removed the global rule installation.",
-      "expected_output": "The run should trigger ddev and recognize code review as an operation that requires the cached code-style rule. It should run or ask for deweyou-cli agent update, re-check ~/.deweyou/agents/assets/rules/code-style.md, and stop the code review as blocked if the file remains missing. It should not require global rule installation and should not continue silently without the mandatory rule. Engineering-principles is not required unless the review expands into architecture-impacting work.",
+      "expected_output": "The run should trigger ddev and recognize code review as an operation that requires the cached code-style rule. It should run or ask for deweyou-cli update --agents-only, re-check ~/.deweyou/agents/assets/rules/code-style.md, and stop the code review as blocked if the file remains missing. It should not require global rule installation and should not continue silently without the mandatory rule. Engineering-principles is not required unless the review expands into architecture-impacting work.",
       "files": [],
       "expectations": [
         "Triggered the ddev skill",
         "Recognized code review as requiring the cached code-style rule",
-        "Ran or requested deweyou-cli agent update before treating the missing cache file as final",
+        "Ran or requested deweyou-cli update --agents-only before treating the missing cache file as final",
         "Re-checked the exact cached rule path after refresh",
         "Stopped the affected review if code-style remained missing",
         "Did not require global rule installation",
@@ -306,9 +306,23 @@
         "Kept human-readable graph.md and evidence.md as the task and proof surface",
         "Used or planned deweyou-cli dev record for structured node, evidence, failure, review, and recovery events",
         "Linked the failure and review to evidence and a smallest-affected restart_from hint",
-        "Used or planned deweyou-cli dev summary to regenerate the branch-session summary",
+        "Used or planned deweyou-cli dev summary to regenerate the task-session summary",
         "Treated restart_from as a reviewable hint rather than an automatic retry",
         "Did not introduce or claim an automatic DAG scheduler"
+      ]
+    },
+    {
+      "id": 22,
+      "prompt": "$DDev this task is finished. Clean the session for me, but it is still active and I did not ask to delete all repository state.",
+      "expected_output": "The run should treat normal completion as a session close, not permanent cleanup. It should use deweyou-cli dev session close, optionally offer archive for local retention, refuse to clean an active session, and avoid deweyou-cli dev session clean --all. If the user later explicitly requests permanent deletion, it should require the exact session id and --force.",
+      "files": [],
+      "expectations": [
+        "Triggered the ddev skill",
+        "Used or recommended deweyou-cli dev session close for normal completion",
+        "Did not permanently delete an active session",
+        "Distinguished archive retention from permanent clean",
+        "Did not use --all because repository-wide reset was not requested",
+        "Required an explicit session id and --force before any later permanent cleanup"
       ]
     }
   ]

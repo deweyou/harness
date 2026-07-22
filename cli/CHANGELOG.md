@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 - 2026-07-22
+
+### Added
+
+- add unified CLI and agent asset updates
+- add explicit task-based DDev session lifecycle commands
+- add machine-readable runtime compatibility and capability contracts
+
+### Changed
+
+- harden DDev initialization, event storage, summaries, and cleanup safety
+
 ## 1.2.0 - 2026-07-21
 
 ### Added

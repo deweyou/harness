@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "runtime_schema": 1,
+  "event_schema": 1,
+  "minimum_cli_version": "1.3.0",
+  "required_cli_capabilities": [
+    "agent:update",
+    "cli:update",
+    "ddev:event-schema@1",
+    "ddev:runtime-schema@1",
+    "ddev:task-sessions"
+  ],
+  "module_skills": [
+    "problem-framing",
+    "product-design",
+    "ui-design",
+    "spec-driven-coding",
+    "git-delivery",
+    "repo-memory"
+  ],
+  "required_rules": [
+    "code-style",
+    "engineering-principles"
+  ],
+  "session_files": [
+    "session.json",
+    "task.md",
+    "events.jsonl",
+    "summary.md"
+  ]
+}

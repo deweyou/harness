@@ -57,16 +57,18 @@ manifest:
 ~/.deweyou/agents/assets/skills/<skill>/SKILL.md
 ```
 
-Use this module registry:
+The machine-readable registry and compatibility contract is:
 
-| Situation | Module skill path |
-| --- | --- |
-| Grilling, brainstorming, option critique, recommendation | `~/.deweyou/agents/assets/skills/problem-framing/SKILL.md` |
-| Product scope, next-version decisions, comparable product research | `~/.deweyou/agents/assets/skills/product-design/SKILL.md` |
-| UI requirement prototypes, UX, visual design, implementation, live visual evidence | `~/.deweyou/agents/assets/skills/ui-design/SKILL.md` |
-| Coding, debugging, TDD, verification, requirement alignment | `~/.deweyou/agents/assets/skills/spec-driven-coding/SKILL.md` |
-| Commit, push, PR, base sync, CI follow-up | `~/.deweyou/agents/assets/skills/git-delivery/SKILL.md` |
-| Durable repository knowledge after meaningful changes | `~/.deweyou/agents/assets/skills/repo-memory/SKILL.md` |
+```text
+~/.deweyou/agents/assets/skills/ddev/runtime.json
+```
+
+Read `module_skills` from that manifest instead of maintaining another module
+list. Resolve each listed module to
+`~/.deweyou/agents/assets/skills/<skill>/SKILL.md`, then select the relevant
+module from its description and instructions. `deweyou-cli dev install` records
+the resolved paths in runtime config for inspection, but `runtime.json` remains
+the source of truth.
 
 Before applying a module, read that module's `SKILL.md` from the absolute path
 above. If the host already exposes the module as a native installed skill, using
@@ -76,7 +78,7 @@ If a module file is missing during an explicit DDev run or `$DDev setup`, run or
 ask the user to run:
 
 ```bash
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli dev install
 deweyou-cli dev doctor
 ```
@@ -113,7 +115,7 @@ coding rules unless it turns into code review or an architectural decision.
 If an applicable rule file is missing, run or ask the user to run:
 
 ```bash
-deweyou-cli agent update
+deweyou-cli update --agents-only
 ```
 
 Re-check the exact rule path after the refresh. If it is still missing, stop the
@@ -131,46 +133,37 @@ For non-trivial implementation sessions, use:
     <repo-id>/
       config.json
       sessions/
-        <branch>/
+        <session-id>/
+          session.json
           task.md
-          brainstorm.md
-          context.md
-          graph.md
-          decisions.md
-          verification.md
-          evidence.md
-          demo.md
-          demo/
-            index.html
-          retrospective.md
           events.jsonl
           summary.md
-          stop-issues.txt
+          demo/                  # optional, created on demand
+            index.html
+          <other-artifacts>      # optional, created only when useful
+      archives/
+        <session-id>/
+      checkouts/
+        <checkout-id>.json
 ```
 
-Keep these files short and human-readable:
+Every managed task session starts with only four files:
 
-- `task.md`: goal, scope, non-goals, acceptance criteria, acceptance source,
-  alignment status, unresolved decisions, and current status.
-- `brainstorm.md`: frame, divergent options, critiques, tradeoffs, and recommendation.
-- `context.md`: relevant files, commands, docs, constraints, and facts.
-- `graph.md`: lightweight step or dependency graph; use checkboxes or edges.
-- `decisions.md`: decisions that changed the path and why.
-- `verification.md`: planned verification gates.
-- `evidence.md`: claims, commands, screenshots, live checks, and gaps.
-- `demo.md`: demo path, local URL, visual checks, and demo evidence.
-- `demo/index.html`: branch-session static HTML demo for sketches and prototypes.
-- `retrospective.md`: candidates for repo-memory or DDev improvement.
+- `session.json`: task identity and lifecycle only: session id, title, repository
+  identity, branch/head metadata, timestamps, and active/closed/archived status.
+- `task.md`: concise task intent, alignment, acceptance, and current status.
 - `events.jsonl`: append-only validated protocol events.
 - `summary.md`: generated single-session view of requirements, nodes, claims,
   failures, reviews, recovery, delivery, and open issues.
-- `stop-issues.txt`: optional diagnostics from earlier or explicit checks;
-  there is no passive Stop hook in the MVP.
 
-Do not create machine `state.json`, a node scheduler, subagent bindings, or a
-complex recovery state machine in the MVP. For complex tasks, use `graph.md` and
-`evidence.md` as the human recovery surface, and use validated protocol events
-only to link nodes, evidence, failures, review verdicts, and restart hints.
+Create `demo/`, graph, context, evidence, decision, or retrospective artifacts
+only when the task needs them. Keep all artifacts short and human-readable.
+
+Do not turn `session.json` into scheduler state. Do not create a node scheduler,
+subagent bindings, or a complex recovery state machine in the MVP. For complex
+tasks, create lightweight graph/evidence artifacts on demand and use validated
+protocol events only to link nodes, evidence, failures, review verdicts, and
+restart hints.
 
 ### Structured Session Protocol
 
@@ -178,12 +171,17 @@ For non-trivial implementation sessions, record lifecycle facts with:
 
 ```bash
 deweyou-cli dev record --kind <kind> --data '<json-object>'
+# or: ... --data-file payload.json
+# or: printf '%s' '<json-object>' | deweyou-cli dev record --kind <kind>
 deweyou-cli dev summary --format markdown
 ```
 
 Supported kinds are `requirement`, `node`, `evidence`, `failure`, `review`,
 `recovery`, and `delivery`. Each command appends one schema-versioned event to
 `events.jsonl`; `summary` validates the full log and regenerates `summary.md`.
+Validation covers duplicate event ids, ISO timestamps, session/branch identity,
+entity references, state transitions, and completed-delivery consistency. An
+empty log is incomplete evidence, never proof that no issues remain.
 
 Use the protocol when a task has dependencies, multiple evidence claims, a
 review verdict, a failure that may restart from a smaller boundary, or a delivery
@@ -219,13 +217,13 @@ missing runtime or module cache, stop and tell the user:
 
 ```bash
 npm install -g deweyou-cli
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli agent init --skills ddev --mode link --yes
 deweyou-cli dev install
 ```
 
 Do not install or wire DDev automatically inside an unrelated task. If the user
-explicitly asks to set up DDev, use `deweyou-cli agent update`,
+explicitly asks to set up DDev, use `deweyou-cli update --agents-only`,
 `deweyou-cli agent init --skills ddev --mode link --yes`, and
 `deweyou-cli dev install`, then verify with `deweyou-cli dev doctor`.
 
@@ -236,7 +234,7 @@ Classify the request:
   this before changing it."
 - `brainstorm`: divergent exploration, concept comparison, product/design
   directions, or "think with me before building."
-- `demo`: create or serve a branch-session HTML demo to make a concept visible.
+- `demo`: create or serve a task-session HTML demo to make a concept visible.
 - `setup`: install, upgrade, diagnose, or explain DDev runtime setup.
 - `ship`: explicit delivery request.
 - `retrospect`: capture durable learning or clean up temporary context.
@@ -281,7 +279,7 @@ Ask `ui-design` for the smallest useful prototype artifact:
 
 - low-fidelity screen or state structure
 - visual prototype plan or prototype image prompt
-- branch-session static HTML demo when seeing the flow would clarify direction
+- task-session static HTML demo when seeing the flow would clarify direction
 - component-level prototype notes for existing design systems
 
 Record the chosen prototype path, URL, screenshot/render check, or explicit gap
@@ -321,17 +319,21 @@ visible, but do not convert it into product source until the gate permits it.
 
 ### 3. Capture Context And Acceptance
 
-For implementation sessions, create or update the local session. Keep the files
-thin:
+For implementation sessions, start one task session explicitly:
+
+```bash
+deweyou-cli dev session start --title "short task title"
+```
+
+Keep the core files thin:
 
 - summarize the task in `task.md`
 - record `acceptance_source` as `user`, `existing_contract`, or `inferred`
 - record `alignment_status` as `alignment_required`, `confirmed`, or
   `confirmation_not_required`, including unresolved decisions or the no-pause
   reason
-- add inspected facts to `context.md`
-- add the next steps or dependencies to `graph.md`
-- add verification intent to `verification.md`
+- add optional context, graph, decision, demo, or evidence artifacts only when
+  they materially improve recovery or review
 - for non-trivial sessions, record the requirement event after alignment is
   resolved so later evidence has a stable acceptance source
 
@@ -345,7 +347,7 @@ Identify the available harness before editing:
 - live preview or browser/app verification path
 - product, UI, coding, delivery, and memory module paths that apply
 - mandatory `code-style` or `engineering-principles` rule paths that apply
-- branch-session HTML demo path and preview URL when concept work needs a visual
+- task-session HTML demo path and preview URL when concept work needs a visual
 - UI prototype artifact or gap when requirement design includes interface work
 - files or generated artifacts that must stay out of commits
 
@@ -389,7 +391,7 @@ deweyou-cli dev demo --port 4173
 ```
 
 The default path is
-`~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/demo/index.html`.
+`~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/demo/index.html`.
 
 Use it for sketches, product explorations, interaction states, and throwaway
 visual prototypes. Keep demos outside commits by default. If the demo becomes
@@ -431,21 +433,21 @@ from code alone. Do not copy temporary session notes wholesale into docs.
 `product-notes` and `skill-eval` remain independent. Use them only when the user
 explicitly asks to capture product notes or run/update skill evaluations.
 
+End normal work with `deweyou-cli dev session close`. Use `archive` when the
+closed task should remain locally available. Permanent cleanup is exceptional:
+`deweyou-cli dev session clean --id <id> --force` refuses active sessions, and
+`--all --force` removes task sessions, archives, and checkout pointers for only
+the current repository while preserving runtime assets and other repositories.
+Legacy branch directories remain visible as `legacy` and are never migrated or
+deleted implicitly. The compatibility command `deweyou-cli dev clean` follows
+the same `--force` requirement.
+
 ## Skill Routing
 
-Use global skills as capability modules:
-
-| Situation | Skill |
-| --- | --- |
-| Grilling, brainstorming, option critique, recommendation | `problem-framing` |
-| Product scope, next-version decisions, comparable product research | `product-design` |
-| UI requirement prototypes, UX, visual design, implementation, live visual evidence | `ui-design` |
-| Coding, debugging, TDD, verification, requirement alignment | `spec-driven-coding` |
-| Commit, push, PR, base sync, CI follow-up | `git-delivery` |
-| Durable repository knowledge after meaningful changes | `repo-memory` |
-
-After a module skill completes its domain work, resume DDev ownership for
-evidence, delivery decision, memory routing, and cleanup.
+Read available modules from `runtime.json`, then inspect the relevant module's
+own trigger description and instructions. After a module completes its domain
+work, resume DDev ownership for evidence, delivery decision, memory routing,
+and cleanup. Do not duplicate the module registry in this skill.
 
 ## Modes
 
