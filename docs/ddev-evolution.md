@@ -11,7 +11,7 @@ flowchart TD
     Pilot --> Review
 ```
 
-DDev should become more automated only when repeated branch-session evidence
+DDev should become more automated only when repeated task-session evidence
 shows that the current protocol cannot reliably preserve intent, proof, or the
 smallest recovery boundary. This is the durable backlog for capabilities that
 are useful to study but intentionally not implemented yet.
@@ -21,7 +21,7 @@ are useful to study but intentionally not implemented yet.
 - [`cli/src/cli/dev-events.ts#L1`](../cli/src/cli/dev-events.ts#L1) validates
   requirement, node, evidence, failure, review, recovery, and delivery events.
 - [`cli/src/cli/dev.ts#L1`](../cli/src/cli/dev.ts#L1) appends events and generates
-  the branch-session summary.
+  the task-session summary.
 - [`skills/ddev/SKILL.md#L123`](../skills/ddev/SKILL.md#L123) keeps human-readable
   task, graph, evidence, and decision files as the primary recovery surface.
 - `restart_from` is a recorded recommendation. No code automatically schedules,

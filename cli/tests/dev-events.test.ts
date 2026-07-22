@@ -8,6 +8,7 @@ import {
   parseDevEventPayload,
   renderDevSummary,
   summarizeDevEvents,
+  validateDevEventSequence,
 } from '../src/cli/dev-events.ts'
 import type { DevEventKind } from '../src/cli/types.ts'
 
@@ -172,6 +173,114 @@ describe('DDev event protocol', () => {
     assert.match(empty, /No failure or recovery events recorded/)
     assert.match(empty, /No review events recorded/)
     assert.match(empty, /No delivery events recorded/)
-    assert.match(empty, /## Open Issues\n\n- None/)
+    assert.match(empty, /No events recorded; session evidence is incomplete/)
+  })
+
+  it('validates event identity, references, state transitions, and delivery consistency', () => {
+    const at = new Date('2026-07-21T00:00:00.000Z')
+    const requirement = createDevEvent(
+      'requirement',
+      'main',
+      { status: 'confirmed', acceptance_source: 'user' },
+      at,
+      'session-1',
+    )
+    const nodeRunning = createDevEvent(
+      'node',
+      'main',
+      { node_id: 'implement', node_type: 'implementation', status: 'running' },
+      at,
+      'session-1',
+    )
+    const evidence = createDevEvent(
+      'evidence',
+      'main',
+      {
+        evidence_id: 'test-1',
+        claim_id: 'tests-pass',
+        evidence_type: 'command',
+        status: 'verified',
+        summary: 'Tests passed.',
+      },
+      at,
+      'session-1',
+    )
+    const nodeCompleted = createDevEvent(
+      'node',
+      'main',
+      {
+        node_id: 'implement',
+        node_type: 'implementation',
+        status: 'completed',
+        evidence_ids: ['test-1'],
+      },
+      at,
+      'session-1',
+    )
+    const delivery = createDevEvent(
+      'delivery',
+      'main',
+      {
+        delivery_id: 'delivery-1',
+        status: 'completed',
+        summary: 'Ready.',
+        evidence_ids: ['test-1'],
+      },
+      at,
+      'session-1',
+    )
+
+    assert.doesNotThrow(() => validateDevEventSequence(
+      [requirement, nodeRunning, evidence, nodeCompleted, delivery],
+      { expectedBranch: 'main', expectedSessionId: 'session-1' },
+    ))
+    assert.throws(
+      () => validateDevEventSequence([requirement, { ...requirement }]),
+      /Duplicate DDev event id/,
+    )
+    assert.throws(
+      () => validateDevEventSequence([nodeCompleted]),
+      /Unknown DDev node evidence: test-1/,
+    )
+    assert.throws(
+      () => validateDevEventSequence([nodeRunning, evidence, nodeCompleted, {
+        ...nodeRunning,
+        event_id: 'evt-regression',
+      }]),
+      /completed -> running/,
+    )
+    assert.throws(
+      () => validateDevEventSequence([{ ...requirement, occurred_at: 'yesterday' }]),
+      /invalid ISO timestamp/,
+    )
+    assert.throws(
+      () => validateDevEventSequence([requirement, nodeRunning, {
+        ...delivery,
+        payload: { ...delivery.payload, evidence_ids: [] },
+      }]),
+      /incomplete nodes/,
+    )
+    assert.throws(
+      () => validateDevEventSequence([evidence, delivery]),
+      /requires confirmed requirement alignment/,
+    )
+    const selfReferentialRecovery = createDevEvent(
+      'recovery',
+      'main',
+      {
+        recovery_id: 'self-reference',
+        source_event_id: 'placeholder',
+        restart_from: 'implement',
+        reason: 'Invalid self reference.',
+        status: 'planned',
+      },
+      at,
+      'session-1',
+    )
+    selfReferentialRecovery.payload.source_event_id = selfReferentialRecovery.event_id
+    assert.throws(
+      () => validateDevEventSequence([nodeRunning, selfReferentialRecovery]),
+      /Unknown DDev recovery source event/,
+    )
   })
 })

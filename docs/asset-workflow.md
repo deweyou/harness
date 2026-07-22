@@ -107,6 +107,8 @@ When changing DDev behavior, update the assets that define the full operating
 contract rather than only one file:
 
 - `skills/ddev/SKILL.md` for the lifecycle workflow.
+- `skills/ddev/runtime.json` for runtime/event schemas, CLI capabilities, and
+  the authoritative DDev module registry.
 - `skills/ddev/evals/evals.json` for routing and behavior coverage.
 - DDev-related rules under `rules/` when a passive preference or boundary
   changes.
@@ -119,9 +121,9 @@ into the default DDev lifecycle; use them only when the user explicitly asks for
 product note capture or skill evaluation work.
 
 DDev repository setup should install only the `ddev` entry skill. Capability
-modules such as `problem-framing`, `ui-design`, `spec-driven-coding`,
-`git-delivery`, `repo-memory`, and `product-design` are resolved from the global
-Dewey asset cache under `~/.deweyou/agents/assets/skills/<skill>/SKILL.md`.
+modules are listed once in `skills/ddev/runtime.json` and resolved from the
+global Dewey asset cache under
+`~/.deweyou/agents/assets/skills/<skill>/SKILL.md`.
 Keep those module skills independently installable for users who want standalone
 native skill access, but do not make them required project-level DDev assets.
 

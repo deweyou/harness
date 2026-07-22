@@ -14,14 +14,15 @@ DDev is manually activated. It starts when the user invokes `$DDev`/`ddev`, or
 when project instructions explicitly opt into DDev as the default workflow for
 non-trivial development tasks. It does not rely on passive global hooks.
 
-The MVP keeps human-readable `task.md`, `context.md`, `graph.md`, `evidence.md`,
-and related notes under `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/`.
-For non-trivial tasks it can also append validated protocol events and generate
-`summary.md` without introducing an automatic scheduler.
+Each task gets an explicit session under
+`~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/`. It starts with only
+`session.json`, `task.md`, `events.jsonl`, and `summary.md`; demos and other
+human-readable artifacts are created on demand. Branch and head are metadata,
+not session identity.
 
 For concept work, DDev loads `problem-framing` from the global Dewey asset cache
 for Grilling, brainstorming, critique, and recommendation, then uses
-`deweyou-cli dev demo` to create or serve a branch-session static HTML demo when
+`deweyou-cli dev demo` to create or serve a task-session static HTML demo when
 seeing the idea would help. When requirement design includes UI, DDev
 proactively loads `ui-design` to produce a prototype before implementation.
 
@@ -77,10 +78,11 @@ install only the `ddev` entry skill in the target repository:
 
 ```bash
 npm install -g deweyou-cli
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli agent init --skills ddev --mode link --yes
 deweyou-cli dev install
 deweyou-cli dev doctor
+deweyou-cli dev session start --title "first task"
 ```
 
 Module skills stay in `~/.deweyou/agents/assets/skills/<skill>/SKILL.md` and
@@ -90,13 +92,15 @@ user to install or initialize it instead of silently wiring it during an
 unrelated task.
 
 Mandatory rules stay in `~/.deweyou/agents/assets/rules/`. Refreshing the asset
-cache with `deweyou-cli agent update` is sufficient; rule installation is
+cache with `deweyou-cli update --agents-only` is sufficient; rule installation is
 optional for DDev.
 
 ## Features
 
 - One lifecycle owner across framing, UI, coding, evidence, delivery, and memory.
-- Human-readable, branch-scoped working state outside project source.
+- Explicit task sessions with stable repository identity and branch/head metadata.
+- Normal `close` and `archive` lifecycle; permanent `clean` requires `--force`
+  and refuses active sessions.
 - Mandatory cached `code-style` and `engineering-principles` rules for their
   matching operations, independent of global or project rule installation.
 - New features and ambiguous behavior route through `spec-driven-coding` before
@@ -115,8 +119,9 @@ optional for DDev.
 
 1. Activate DDev explicitly or through repository instructions and verify the
    runtime with `deweyou-cli dev doctor`.
-2. Classify the request, capture only the state needed, and map the available
-   project harness.
+2. For implementation work, start a session with
+   `deweyou-cli dev session start --title "..."`; read-only inspection creates
+   no session by default.
 3. Before applicable coding or architecture operations, read the mandatory rule
    files from `~/.deweyou/agents/assets/rules/`; refresh the cache or stop if a
    required file is missing.
@@ -129,8 +134,12 @@ optional for DDev.
    `deweyou-cli dev record` and regenerate the view with `deweyou-cli dev summary`.
 7. Treat failure classes, review verdicts, and `restart_from` as explicit facts,
    not as an automatic scheduler.
-8. Route delivery or durable memory only when the task requires it.
+8. Close the session at normal completion. Archive it when local retention is
+   useful; clean it permanently only with explicit `--force`.
+9. Route delivery or durable memory only when the task requires it.
 
 ## Source
 
-This skill is maintained in `deweyou/agents` and indexed by `deweyou-cli agent update`.
+This skill is maintained in `deweyou/agents` and indexed by
+`deweyou-cli update --agents-only`. Its machine-readable runtime and module
+contract lives in `skills/ddev/runtime.json`.

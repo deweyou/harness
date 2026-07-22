@@ -23,10 +23,10 @@ From npm:
 npm install -g deweyou-cli
 ```
 
-Then refresh the local asset cache:
+Then use one command for later CLI and asset upgrades:
 
 ```bash
-deweyou-cli agent update
+deweyou-cli update
 ```
 
 By default, `agent update` clones or pulls `https://github.com/deweyou/agents.git`
@@ -38,7 +38,7 @@ instead.
 
 ```bash
 cd /path/to/your/repo
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli agent init \
   --skills ddev \
   --rules ddev-local-state,verification-evidence,loop-boundaries \
@@ -49,6 +49,7 @@ deweyou-cli agent context --format markdown
 deweyou-cli dev install
 deweyou-cli dev status
 deweyou-cli dev doctor
+deweyou-cli dev session start --title "first task"
 deweyou-cli agent -h
 deweyou-cli -v
 ```
@@ -111,6 +112,22 @@ Source selection:
   `~/.deweyou/agents/source`.
 - Override: set `DEWEYOU_AGENTS_SOURCE=/path/to/deweyou/agents` to scan a local
   checkout.
+
+### `deweyou-cli update`
+
+Updates the globally installed CLI first, then invokes the updated binary to
+refresh agent assets:
+
+```bash
+deweyou-cli update
+deweyou-cli update --dry-run
+deweyou-cli update --cli-only
+deweyou-cli update --agents-only
+```
+
+The CLI step runs `npm install --global deweyou-cli@latest`. If it fails, asset
+refresh does not run. If the CLI succeeds but asset refresh fails, the command
+reports partial success and leaves the updated CLI available for retry.
 
 ### `deweyou-cli agent init`
 
@@ -223,12 +240,13 @@ It creates:
 ```text
 ~/.deweyou/dev/config.json
 ~/.deweyou/dev/repos/<repo-id>/config.json
-~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/
 ```
 
-The global runtime config records the absolute module skill registry under
-`~/.deweyou/agents/assets/skills`. It does not install module skills into the
-repository. Run `deweyou-cli agent update` to refresh that global cache.
+Install validates the cached `skills/ddev/runtime.json` manifest, the current CLI
+version/capabilities, every declared module skill, and every required rule before
+writing runtime config. It records resolved module paths under
+`~/.deweyou/agents/assets/skills`, but does not install assets or create a task
+session. Run `deweyou-cli update --agents-only` to refresh the cache.
 
 The install command does not write DDev state into the project repository and
 does not add a new git exclude rule. It removes old DDev passive Codex hooks
@@ -237,13 +255,14 @@ from earlier versions, but it does not install new hooks.
 DDev starts only when the user invokes `$DDev`/`ddev` or when a repository's
 `AGENTS.md` explicitly opts into DDev as the default workflow for non-trivial
 development tasks. If DDev is missing on a machine, tell the user to run
-`npm install -g deweyou-cli`, `deweyou-cli agent update`, and
+`npm install -g deweyou-cli`, `deweyou-cli update --agents-only`, and
 `deweyou-cli agent init --skills ddev --mode link --yes`, then
 `deweyou-cli dev install`; do not install it silently during unrelated work.
 
 ### `deweyou-cli dev status`
 
-Prints the current DDev runtime, repo state, branch, and branch-session status.
+Prints the current DDev runtime, repo state, branch metadata, and legacy branch
+session status. Use `dev session status` for the managed task lifecycle.
 
 ```bash
 deweyou-cli dev status
@@ -258,27 +277,51 @@ deweyou-cli dev doctor
 ```
 
 It reports whether the runtime root exists, whether the global DDev module skill
-cache exists, whether global per-repository state exists, whether the current
-branch session files exist, whether legacy repo-local DDev state or legacy git
+cache exists, whether global per-repository state exists, whether legacy branch
+session state exists, whether legacy repo-local DDev state or legacy git
 exclude wiring is present, and whether DDev passive Codex hooks are absent.
-Missing runtime state or missing global module skills fail; missing session
-state is reported as a warning. DDev does not diagnose or manage other harness
-agents.
+It also verifies the runtime schema, CLI version/capabilities, manifest-backed
+module registry, and required rules. Missing runtime state or declared assets
+fail. A missing active task session is normal. DDev does not diagnose or manage
+other harness agents.
+
+### `deweyou-cli dev session`
+
+Manages one explicit task per session. Branch, worktree, and head are metadata;
+they are not the session key.
+
+```bash
+deweyou-cli dev session start --title "task title"
+deweyou-cli dev session list
+deweyou-cli dev session status [--id <session-id>]
+deweyou-cli dev session close [--id <session-id>]
+deweyou-cli dev session archive [--id <session-id>]
+deweyou-cli dev session clean --id <session-id> --force
+deweyou-cli dev session clean --all --force
+```
+
+`start` creates only `session.json`, `task.md`, `events.jsonl`, and `summary.md`.
+Normal completion uses `close`. `archive` retains a closed session locally.
+Permanent cleanup requires `--force` and refuses active sessions. `--all`
+removes task sessions, archives, and checkout pointers only for the current
+repository; it preserves DDev assets, config, and all other repositories. Old
+branch-named directories remain visible as `legacy` until explicit cleanup.
 
 ### `deweyou-cli dev clean`
 
 Removes DDev-owned global per-repository state.
 
 ```bash
-deweyou-cli dev clean
-deweyou-cli dev clean --branch feature/demo
-deweyou-cli dev clean --all
+deweyou-cli dev clean --dry-run
+deweyou-cli dev clean --branch feature/demo --force
+deweyou-cli dev clean --all --force
 deweyou-cli dev clean --all --dry-run
 ```
 
-Without `--all`, this cleans the current branch session, or the branch provided
-with `--branch`. With `--all`, it removes the current repository's whole global
-DDev state tree under `~/.deweyou/dev/repos/<repo-id>/`.
+This is a compatibility command for legacy branch sessions. It follows the same
+permanent-cleanup rules as `dev session clean`: non-dry-run deletion requires
+`--force`, active managed sessions are refused, and `--all` keeps runtime and
+repository config intact.
 
 ### `deweyou-cli dev uninstall`
 
@@ -299,18 +342,18 @@ other harness agents.
 
 ### `deweyou-cli dev demo`
 
-Creates and serves a branch-session static HTML demo workspace.
+Creates and serves the active task-session static HTML demo workspace.
 
 ```bash
 deweyou-cli dev demo --no-server
 deweyou-cli dev demo --port 4173
-deweyou-cli dev demo --branch feature/demo --port 0
+deweyou-cli dev demo --id <session-id> --port 0
 ```
 
 It creates:
 
 ```text
-~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/demo/index.html
+~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/demo/index.html
 ```
 
 With `--no-server`, it only creates the demo files. Without `--no-server`, it
@@ -324,11 +367,18 @@ Validates one structured session event and appends it to `events.jsonl`.
 ```bash
 deweyou-cli dev record --kind node --data \
   '{"node_id":"verify","node_type":"verification","status":"completed"}'
+deweyou-cli dev record --kind evidence --data-file evidence.json
+printf '%s' '{"status":"confirmed","acceptance_source":"user"}' | \
+  deweyou-cli dev record --kind requirement
 ```
 
 Supported kinds are `requirement`, `node`, `evidence`, `failure`, `review`,
 `recovery`, and `delivery`. The command records facts only; it does not execute,
 retry, approve, or deliver nodes.
+
+Validation covers session identity, strict ISO timestamps, duplicate event ids,
+references, state transitions, and completed-delivery consistency. Writes are
+size-bounded and serialized with a per-log lock.
 
 | Kind | Required payload fields |
 | --- | --- |
@@ -353,7 +403,7 @@ Markdown or JSON view.
 ```bash
 deweyou-cli dev summary
 deweyou-cli dev summary --format json
-deweyou-cli dev summary --branch feature/demo
+deweyou-cli dev summary --id <session-id>
 ```
 
 The summary shows the latest node states, claims and evidence, failures, review
@@ -393,7 +443,7 @@ files such as `~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`.
 
 ## Safety Notes
 
-- Run `deweyou-cli agent update` before `deweyou-cli agent init`.
+- Run `deweyou-cli update --agents-only` before `deweyou-cli agent init`.
 - Asset ids must be kebab-case and must exist in the cached registry.
 - `--force` only replaces destinations that are already managed by this CLI. It
   refuses to overwrite unrelated user-created files or directories.

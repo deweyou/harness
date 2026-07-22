@@ -19,6 +19,9 @@ import {
   closeServer,
   startDemoServer,
 } from '../src/cli/dev.ts'
+import {
+  runDevSessionStart,
+} from '../src/cli/dev-session.ts'
 
 const execFileAsync = promisify(execFile)
 const MODULE_SKILLS = [
@@ -36,6 +39,7 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await writeModuleSkillCache(homeDir)
 
     const result = await runDevInstall({ homeDir, repoRoot, dryRun: true })
 
@@ -55,6 +59,7 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await writeModuleSkillCache(homeDir)
 
     const result = await runDevInstall({ homeDir, repoRoot })
 
@@ -63,7 +68,7 @@ describe('dev commands', () => {
     assert.equal(result.repoStateRoot, expectedRepoStateRoot(homeDir, repoRoot))
     const config = JSON.parse(await readFile(join(homeDir, '.deweyou/dev/config.json'), 'utf8'))
     const repoConfig = JSON.parse(await readFile(join(result.repoStateRoot, 'config.json'), 'utf8'))
-    assert.equal(config.version, '0.3.0')
+    assert.equal(config.version, '0.4.0')
     assert.equal(config.activation, 'manual')
     assert.equal(config.passiveHooks, false)
     assert.equal(config.stateLocation, 'global')
@@ -73,17 +78,16 @@ describe('dev commands', () => {
       config.moduleSkills['spec-driven-coding'],
       join(homeDir, '.deweyou/agents/assets/skills/spec-driven-coding/SKILL.md'),
     )
-    assert.equal(config.moduleRefreshCommand, 'deweyou-cli agent update')
+    assert.equal(config.moduleRefreshCommand, 'deweyou-cli update --agents-only')
     assert.equal(repoConfig.activation, 'manual')
     assert.equal(repoConfig.passiveHooks, false)
     assert.equal(repoConfig.entrySkill, 'ddev')
     assert.equal(repoConfig.moduleSkillResolution, 'global-dewey-cache')
     assert.equal(repoConfig.repoRoot, repoRoot)
-    await stat(join(result.repoStateRoot, 'sessions/unknown/task.md'))
-    await stat(join(result.repoStateRoot, 'sessions/unknown/context.md'))
-    await stat(join(result.repoStateRoot, 'sessions/unknown/graph.md'))
-    await stat(join(result.repoStateRoot, 'sessions/unknown/evidence.md'))
-    await stat(join(result.repoStateRoot, 'sessions/unknown/summary.md'))
+    assert.equal(result.sessionPath, null)
+    await assert.rejects(() => stat(join(result.repoStateRoot, 'sessions')), {
+      code: 'ENOENT',
+    })
     await assert.rejects(() => stat(join(repoRoot, '.deweyou/dev')), {
       code: 'ENOENT',
     })
@@ -136,7 +140,7 @@ describe('dev commands', () => {
     const second = await runDevInstall({ homeDir, repoRoot })
     const afterInstallDoctor = await runDevDoctor({ homeDir, repoRoot })
 
-    assert.equal(beforeInstallDoctor.ok, true)
+    assert.equal(beforeInstallDoctor.ok, false)
     assert.equal(
       beforeInstallDoctor.checks.some((check) =>
         check.message.includes('global repo DDev state is not created yet'),
@@ -162,7 +166,7 @@ describe('dev commands', () => {
     assert.equal(JSON.stringify(hooks).includes('.deweyou/dev/hooks/stop.mjs'), false)
     await stat(join(homeDir, '.codex/hooks.json.bak'))
     const upgraded = JSON.parse(await readFile(configPath, 'utf8'))
-    assert.equal(upgraded.version, '0.3.0')
+    assert.equal(upgraded.version, '0.4.0')
     assert.equal(upgraded.activation, 'manual')
     assert.equal(upgraded.passiveHooks, false)
     assert.equal('hooks' in upgraded, false)
@@ -230,6 +234,7 @@ describe('dev commands', () => {
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
     await execFileAsync('git', ['init'], { cwd: repoRoot })
+    await writeModuleSkillCache(homeDir)
     await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
       cwd: repoRoot,
     })
@@ -257,6 +262,7 @@ describe('dev commands', () => {
     const excludePath = join(repoRoot, '.git/info/exclude')
     await mkdir(repoRoot, { recursive: true })
     await execFileAsync('git', ['init'], { cwd: repoRoot })
+    await writeModuleSkillCache(homeDir)
     await writeFile(excludePath, 'existing-rule')
 
     const result = await runDevInstall({ homeDir, repoRoot })
@@ -273,6 +279,7 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await writeModuleSkillCache(homeDir)
     await runDevInstall({ homeDir, repoRoot })
     await writeModuleSkillCache(homeDir)
 
@@ -315,7 +322,12 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await writeModuleSkillCache(homeDir)
     await runDevInstall({ homeDir, repoRoot })
+    await rm(join(homeDir, '.deweyou/agents/assets/skills/problem-framing'), {
+      recursive: true,
+      force: true,
+    })
 
     const originalExitCode = process.exitCode
     try {
@@ -324,13 +336,36 @@ describe('dev commands', () => {
       assert.equal(missing.ok, false)
       assert.equal(
         missing.checks.some((check) =>
-          check.message.includes('global DDev module skill cache is missing'),
+          check.message.includes('global DDev module skills are missing'),
         ),
         true,
       )
 
       process.exitCode = undefined
-      await writeModuleSkillCache(homeDir)
+      await mkdir(
+        join(homeDir, '.deweyou/agents/assets/skills/problem-framing'),
+        { recursive: true },
+      )
+      await writeFile(
+        join(homeDir, '.deweyou/agents/assets/skills/problem-framing/SKILL.md'),
+        '# problem-framing\n',
+      )
+      await rm(join(homeDir, '.deweyou/agents/assets/rules/code-style.md'))
+      process.exitCode = undefined
+      const missingRule = await runDevDoctor({ homeDir, repoRoot })
+      assert.equal(missingRule.ok, false)
+      assert.equal(
+        missingRule.checks.some((check) =>
+          check.message.includes('global DDev required rules are missing'),
+        ),
+        true,
+      )
+
+      await writeFile(
+        join(homeDir, '.deweyou/agents/assets/rules/code-style.md'),
+        '# code-style\n',
+      )
+      process.exitCode = undefined
       const healthy = await runDevDoctor({ homeDir, repoRoot })
       assert.equal(healthy.ok, true)
       assert.equal(
@@ -374,6 +409,7 @@ describe('dev commands', () => {
       homeDir,
       repoRoot,
       branch: 'feature/demo',
+      force: true,
     })
 
     assert.equal(dryRun.removed, false)
@@ -381,9 +417,9 @@ describe('dev commands', () => {
     await assert.rejects(() => stat(session), { code: 'ENOENT' })
 
     await mkdir(session, { recursive: true })
-    const removedAll = await runDevClean({ homeDir, repoRoot, all: true })
+    const removedAll = await runDevClean({ homeDir, repoRoot, all: true, force: true })
     assert.equal(removedAll.removed, true)
-    await assert.rejects(() => stat(expectedRepoStateRoot(homeDir, repoRoot)), {
+    await assert.rejects(() => stat(join(expectedRepoStateRoot(homeDir, repoRoot), 'sessions')), {
       code: 'ENOENT',
     })
   })
@@ -394,7 +430,12 @@ describe('dev commands', () => {
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
 
-    const result = await runDevClean({ homeDir, repoRoot, branch: 'missing' })
+    const result = await runDevClean({
+      homeDir,
+      repoRoot,
+      branch: 'missing',
+      force: true,
+    })
 
     assert.equal(result.removed, false)
     assert.equal(result.dryRun, false)
@@ -405,8 +446,9 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await startDdevTask(homeDir, repoRoot, 'Protocol events')
 
-    const baseFlags = { homeDir, repoRoot, branch: 'feature/protocol' }
+    const baseFlags = { homeDir, repoRoot }
     await runDevRecord({
       ...baseFlags,
       kind: 'requirement',
@@ -416,14 +458,13 @@ describe('dev commands', () => {
         unresolved_decisions: [],
       }),
     })
-    const node = await runDevRecord({
+    await runDevRecord({
       ...baseFlags,
       kind: 'node',
       data: JSON.stringify({
         node_id: 'implement',
         node_type: 'implementation',
-        status: 'failed',
-        depends_on: ['design'],
+        status: 'running',
       }),
     })
     const evidence = await runDevRecord({
@@ -437,6 +478,16 @@ describe('dev commands', () => {
         summary: 'Targeted test failed.',
         command: 'npm test',
         exit_code: 1,
+      }),
+    })
+    const node = await runDevRecord({
+      ...baseFlags,
+      kind: 'node',
+      data: JSON.stringify({
+        node_id: 'implement',
+        node_type: 'implementation',
+        status: 'failed',
+        evidence_ids: ['test-1'],
       }),
     })
     await runDevRecord({
@@ -457,8 +508,8 @@ describe('dev commands', () => {
       kind: 'delivery',
       data: JSON.stringify({
         delivery_id: 'delivery-1',
-        status: 'completed',
-        summary: 'Protocol evidence is ready for handoff.',
+        status: 'blocked',
+        summary: 'Protocol evidence blocks handoff.',
         evidence_ids: ['test-1'],
       }),
     })
@@ -490,16 +541,16 @@ describe('dev commands', () => {
     const events = (await readFile(result.eventsPath, 'utf8')).trim().split('\n').map(JSON.parse)
     const summaryMarkdown = await readFile(result.summaryPath, 'utf8')
 
-    assert.equal(events.length, 7)
+    assert.equal(events.length, 8)
     assert.equal(events[0].schema_version, 1)
-    assert.equal(events[0].branch, 'feature/protocol')
+    assert.equal(events[0].session_id.startsWith('protocol-events-'), true)
     assert.equal(events.some((event) => event.event_id === evidence.event.event_id), true)
-    assert.equal(result.summary.event_count, 7)
+    assert.equal(result.summary.event_count, 8)
     assert.deepEqual(result.summary.counts, {
       delivery: 1,
       evidence: 1,
       failure: 1,
-      node: 1,
+      node: 2,
       recovery: 1,
       requirement: 1,
       review: 1,
@@ -512,12 +563,12 @@ describe('dev commands', () => {
     assert.equal(result.summary.reviews[0].verdict, 'changes_requested')
     assert.deepEqual(result.summary.reviews[0].findings, ['Fix the event contract.'])
     assert.equal(result.summary.recoveries[0].status, 'planned')
-    assert.equal(result.summary.deliveries[0].status, 'completed')
+    assert.equal(result.summary.deliveries[0].status, 'blocked')
     assert.deepEqual(result.summary.deliveries[0].evidence_ids, ['test-1'])
     assert.match(summaryMarkdown, /# DDev Session Summary/)
     assert.match(summaryMarkdown, /Restart from `implement`/)
     assert.match(summaryMarkdown, /Review `review-1` requests changes/)
-    assert.match(summaryMarkdown, /`delivery-1`: `completed`/)
+    assert.match(summaryMarkdown, /`delivery-1`: `blocked`/)
     assert.match(summaryMarkdown, /Finding: Fix the event contract/)
     assert.match(summaryMarkdown, /Node `implement` is failed/)
   })
@@ -550,8 +601,8 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
-    const install = await runDevInstall({ homeDir, repoRoot })
-    await writeFile(join(install.sessionPath, 'events.jsonl'), '{not-json}\n')
+    const session = await startDdevTask(homeDir, repoRoot, 'Malformed events')
+    await writeFile(join(session.sessionPath, 'events.jsonl'), '{not-json}\n')
 
     await assert.rejects(
       () => runDevSummary({ homeDir, repoRoot, format: 'markdown' }),
@@ -564,10 +615,10 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    const session = await startDdevTask(homeDir, repoRoot, 'Wrong branch')
     const recorded = await runDevRecord({
       homeDir,
       repoRoot,
-      branch: 'feature/right',
       kind: 'node',
       data: JSON.stringify({
         node_id: 'verify',
@@ -575,13 +626,15 @@ describe('dev commands', () => {
         status: 'completed',
       }),
     })
-    const wrongSession = join(expectedRepoStateRoot(homeDir, repoRoot), 'sessions/feature__wrong')
-    await mkdir(wrongSession, { recursive: true })
-    await writeFile(join(wrongSession, 'events.jsonl'), `${JSON.stringify(recorded.event)}\n`)
+    recorded.event.branch = 'feature/right'
+    await writeFile(
+      join(session.sessionPath, 'events.jsonl'),
+      `${JSON.stringify(recorded.event)}\n`,
+    )
 
     await assert.rejects(
-      () => runDevSummary({ homeDir, repoRoot, branch: 'feature/wrong' }),
-      /belongs to branch feature\/right, expected feature\/wrong/,
+      () => runDevSummary({ homeDir, repoRoot }),
+      /belongs to branch feature\/right, expected unknown/,
     )
   })
 
@@ -590,28 +643,29 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await startDdevTask(homeDir, repoRoot, 'Demo files')
 
     const dryRun = await runDevDemo({
       homeDir,
       repoRoot,
-      branch: 'feature/demo',
       dryRun: true,
     })
     const result = await runDevDemo({
       homeDir,
       repoRoot,
-      branch: 'feature/demo',
       noServer: true,
     })
 
     assert.equal(dryRun.dryRun, true)
     assert.equal(dryRun.served, false)
     assert.equal(result.served, false)
-    assert.equal(result.demoRoot.endsWith('sessions/feature__demo/demo'), true)
+    assert.match(result.demoRoot, /sessions\/demo-files-.*\/demo$/)
     assert.match(result.demoRoot, /\.deweyou\/dev\/repos\//)
-    assert.match(await readFile(result.indexPath, 'utf8'), /DDev branch feature\/demo/)
-    await stat(join(result.demoRoot, '../brainstorm.md'))
-    await stat(join(result.demoRoot, '../demo.md'))
+    assert.match(await readFile(result.indexPath, 'utf8'), /DDev branch unknown/)
+    await stat(join(result.demoRoot, '../task.md'))
+    await assert.rejects(() => stat(join(result.demoRoot, '../brainstorm.md')), {
+      code: 'ENOENT',
+    })
     await assert.rejects(() => stat(join(repoRoot, '.deweyou/dev')), {
       code: 'ENOENT',
     })
@@ -622,6 +676,7 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await startDdevTask(homeDir, repoRoot, 'Demo server')
 
     const result = await runDevDemo({
       homeDir,
@@ -640,6 +695,7 @@ describe('dev commands', () => {
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
+    await startDdevTask(homeDir, repoRoot, 'Running demo')
     const originalLog = console.log
     const logs: string[] = []
     let serverHandle: any
@@ -742,6 +798,7 @@ describe('dev commands', () => {
     await writeFile(join(homeDir, '.deweyou/dev/config.json'), '{ not json')
     await writeFile(join(repoStateRoot, 'config.json'), '{ not json')
     await writeFile(join(homeDir, '.codex/hooks.json'), '[]')
+    await writeModuleSkillCache(homeDir)
 
     const result = await runDevInstall({ homeDir, repoRoot })
 
@@ -762,6 +819,7 @@ describe('dev commands', () => {
     await mkdir(repoStateRoot, { recursive: true })
     await writeFile(join(homeDir, '.deweyou/dev/config.json'), '[]')
     await writeFile(join(repoStateRoot, 'config.json'), '[]')
+    await writeModuleSkillCache(homeDir)
 
     await runDevInstall({ homeDir, repoRoot })
 
@@ -816,6 +874,7 @@ describe('dev commands', () => {
     const repoRoot = join(root, 'repo')
     await mkdir(repoRoot, { recursive: true })
     await execFileAsync('git', ['init'], { cwd: repoRoot })
+    await writeModuleSkillCache(homeDir)
     await runDevInstall({ homeDir, repoRoot })
     await mkdir(join(repoRoot, '.deweyou/dev'), { recursive: true })
     await writeFile(join(repoRoot, '.deweyou/dev/legacy.md'), 'legacy')
@@ -861,6 +920,7 @@ describe('dev commands', () => {
     const otherRepoRoot = join(root, 'other-repo')
     await mkdir(repoRoot, { recursive: true })
     await mkdir(otherRepoRoot, { recursive: true })
+    await writeModuleSkillCache(homeDir)
     await runDevInstall({ homeDir, repoRoot })
     await runDevInstall({ homeDir, repoRoot: otherRepoRoot })
 
@@ -882,6 +942,37 @@ async function writeModuleSkillCache(homeDir: string): Promise<void> {
     await mkdir(directory, { recursive: true })
     await writeFile(join(directory, 'SKILL.md'), `# ${skill}\n`)
   }
+  const rulesDirectory = join(homeDir, '.deweyou/agents/assets/rules')
+  await mkdir(rulesDirectory, { recursive: true })
+  await writeFile(join(rulesDirectory, 'code-style.md'), '# code-style\n')
+  await writeFile(join(rulesDirectory, 'engineering-principles.md'), '# engineering-principles\n')
+  const ddevDirectory = join(homeDir, '.deweyou/agents/assets/skills/ddev')
+  await mkdir(ddevDirectory, { recursive: true })
+  await writeFile(
+    join(ddevDirectory, 'runtime.json'),
+    JSON.stringify({
+      schema_version: 1,
+      runtime_schema: 1,
+      event_schema: 1,
+      minimum_cli_version: '1.3.0',
+      required_cli_capabilities: [
+        'agent:update',
+        'cli:update',
+        'ddev:event-schema@1',
+        'ddev:runtime-schema@1',
+        'ddev:task-sessions',
+      ],
+      module_skills: MODULE_SKILLS,
+      required_rules: ['code-style', 'engineering-principles'],
+      session_files: ['session.json', 'task.md', 'events.jsonl', 'summary.md'],
+    }),
+  )
+}
+
+async function startDdevTask(homeDir: string, repoRoot: string, title: string) {
+  await writeModuleSkillCache(homeDir)
+  await runDevInstall({ homeDir, repoRoot })
+  return runDevSessionStart({ homeDir, repoRoot, title })
 }
 
 function expectedRepoStateRoot(homeDir: string, repoRoot: string): string {

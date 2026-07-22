@@ -1,6 +1,6 @@
-import { parseArgs, usageError } from './args.ts'
+import { parseArgs, parseDevSessionArgs, parseUpdateArgs, usageError } from './args.ts'
 import type { DevFlags } from './types.ts'
-import packageJson from '../../package.json' with { type: 'json' }
+import { CLI_VERSION } from './version-contract.ts'
 
 const AGENT_COMMANDS = ['init', 'update', 'context', 'doctor'] as const
 const DEV_COMMANDS = [
@@ -24,7 +24,18 @@ export async function main(argv: string[]): Promise<void> {
   }
 
   if (isVersionRequest(argv)) {
-    console.log(packageJson.version)
+    console.log(CLI_VERSION)
+    return
+  }
+
+  if (argv[0] === 'update') {
+    const { runUnifiedUpdate } = await import('./update.ts')
+    await runUnifiedUpdate(parseUpdateArgs(argv.slice(1)))
+    return
+  }
+
+  if (argv[0] === 'dev' && argv[1] === 'session') {
+    await runDevSessionCommand(argv.slice(2))
     return
   }
 
@@ -119,26 +130,40 @@ function usage(): string {
 
 function rootUsage(): string {
   return `Usage:
+  deweyou-cli update [--dry-run] [--cli-only|--agents-only]
   deweyou-cli agent <command> [options]
   deweyou-cli dev <command> [options]
 
 Commands:
+  update          Update the global CLI and refresh Dewey agent assets.
   agent init      Initialize the current repository with Dewey assets.
   agent update    Refresh the local Dewey asset cache.
   agent context   Print the active Dewey agent context.
   agent doctor    Check whether the repository and cache are healthy.
   dev install     Initialize manual DDev runtime and global per-repo state.
-  dev status      Print DDev runtime and branch-session status.
+  dev session     Manage explicit task-based DDev sessions.
+  dev status      Print DDev runtime and repository status.
   dev doctor      Diagnose local DDev runtime and repo state.
   dev clean       Remove DDev-owned global per-repo state.
-  dev demo        Create and serve the branch-session HTML demo workspace.
-  dev record      Append a validated protocol event to the branch session.
-  dev summary     Summarize branch-session events and update summary.md.
+  dev demo        Create and serve the active task-session HTML demo workspace.
+  dev record      Append a validated protocol event to a task session.
+  dev summary     Summarize task-session events and update summary.md.
   dev uninstall   Remove repo state, legacy state, old hooks, and unused runtime.
 
 Options:
   -h, --help      Show help.
   -v, --version   Show the CLI version.`
+}
+
+function updateUsage(): string {
+  return `Usage:
+  deweyou-cli update [--dry-run] [--cli-only|--agents-only]
+
+Options:
+  --dry-run       Print update commands without executing them.
+  --cli-only      Update only the globally installed CLI.
+  --agents-only   Refresh only the Dewey agent assets.
+  -h, --help      Show help.`
 }
 
 function agentUsage(): string {
@@ -154,15 +179,35 @@ Run \`deweyou-cli agent <command> -h\` for command-specific help.`
 function devUsage(): string {
   return `Usage:
   deweyou-cli dev install [--dry-run]
+  deweyou-cli dev session start --title "task"
+  deweyou-cli dev session list|status|close|archive|clean
   deweyou-cli dev status
   deweyou-cli dev doctor
-  deweyou-cli dev clean [--branch name|--all] [--dry-run]
-  deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
-  deweyou-cli dev record [--branch name] --kind kind --data json
-  deweyou-cli dev summary [--branch name] [--format markdown|json]
+  deweyou-cli dev clean [--branch name|--all] [--dry-run] --force
+  deweyou-cli dev demo [--id id|--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+  deweyou-cli dev record [--id id|--branch name] --kind kind (--data json|--data-file path)
+  deweyou-cli dev summary [--id id|--branch name] [--format markdown|json]
   deweyou-cli dev uninstall [--dry-run]
 
 Run \`deweyou-cli dev <command> -h\` for command-specific help.`
+}
+
+function devSessionUsage(command?: string): string {
+  if (command === 'start') return 'Usage:\n  deweyou-cli dev session start --title "task title"'
+  if (command === 'list') return 'Usage:\n  deweyou-cli dev session list'
+  if (command === 'status') return 'Usage:\n  deweyou-cli dev session status [--id session-id]'
+  if (command === 'close') return 'Usage:\n  deweyou-cli dev session close [--id session-id]'
+  if (command === 'archive') return 'Usage:\n  deweyou-cli dev session archive [--id session-id]'
+  if (command === 'clean') {
+    return 'Usage:\n  deweyou-cli dev session clean [--id session-id|--all] [--dry-run] --force'
+  }
+  return `Usage:
+  deweyou-cli dev session start --title "task title"
+  deweyou-cli dev session list
+  deweyou-cli dev session status [--id session-id]
+  deweyou-cli dev session close [--id session-id]
+  deweyou-cli dev session archive [--id session-id]
+  deweyou-cli dev session clean [--id session-id|--all] [--dry-run] --force`
 }
 
 function commandUsage(command: AgentCommand): string {
@@ -223,12 +268,13 @@ Options:
 
   if (command === 'clean') {
     return `Usage:
-  deweyou-cli dev clean [--branch name|--all] [--dry-run]
+  deweyou-cli dev clean [--branch name|--all] [--dry-run] --force
 
 Options:
   --branch name  Clean one branch session.
   --all          Clean all DDev state for the current repository.
   --dry-run      Print the target without removing files.
+  --force        Confirm permanent deletion.
   -h, --help     Show help.`
   }
 
@@ -242,9 +288,10 @@ Options:
 
   if (command === 'demo') {
     return `Usage:
-  deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+  deweyou-cli dev demo [--id id|--branch name] [--host host] [--port port] [--no-server] [--dry-run]
 
 Options:
+  --id id        Use a managed task session by id.
   --branch name  Use a specific branch session.
   --host host    Host to bind. Defaults to 127.0.0.1.
   --port port    Port to bind. Defaults to 4173. Use 0 for any free port.
@@ -264,20 +311,23 @@ Options:
 
   if (command === 'record') {
     return `Usage:
-  deweyou-cli dev record [--branch name] --kind requirement|node|evidence|failure|review|recovery|delivery --data json
+  deweyou-cli dev record [--id id|--branch name] --kind requirement|node|evidence|failure|review|recovery|delivery (--data json|--data-file path)
 
 Options:
   --branch name  Use a specific branch session.
   --kind kind    Select the validated DDev event payload contract.
   --data json    Provide the event payload as one JSON object.
+  --data-file path
+                 Read the event payload from a JSON file. Stdin is used when neither flag is present.
   -h, --help     Show help.`
   }
 
   if (command === 'summary') {
     return `Usage:
-  deweyou-cli dev summary [--branch name] [--format markdown|json]
+  deweyou-cli dev summary [--id id|--branch name] [--format markdown|json]
 
 Options:
+  --id id                 Use a managed task session by id.
   --branch name          Use a specific branch session.
   --format markdown|json Choose console output. summary.md is always updated.
   -h, --help             Show help.`
@@ -298,6 +348,8 @@ function printUsageAndThrow(): never {
 function helpFor(argv: string[]): string | null {
   if (!argv.some(isHelpFlag)) return null
   if (isHelpFlag(argv[0])) return rootUsage()
+  if (argv[0] === 'update') return updateUsage()
+  if (argv[0] === 'dev' && argv[1] === 'session') return devSessionUsage(argv[2])
   if (argv[0] !== 'agent' && argv[0] !== 'dev') return rootUsage()
 
   const command = argv[1]
@@ -310,6 +362,17 @@ function helpFor(argv: string[]): string | null {
   if (!command || isHelpFlag(command)) return agentUsage()
   if (isAgentCommand(command)) return commandUsage(command)
   return agentUsage()
+}
+
+async function runDevSessionCommand(argv: string[]): Promise<void> {
+  const parsed = parseDevSessionArgs(argv)
+  const session = await import('./dev-session.ts')
+  if (parsed.command === 'start') await session.runDevSessionStart(parsed.flags)
+  if (parsed.command === 'list') await session.runDevSessionList(parsed.flags)
+  if (parsed.command === 'status') await session.runDevSessionStatus(parsed.flags)
+  if (parsed.command === 'close') await session.runDevSessionClose(parsed.flags)
+  if (parsed.command === 'archive') await session.runDevSessionArchive(parsed.flags)
+  if (parsed.command === 'clean') await session.runDevSessionClean(parsed.flags)
 }
 
 function isVersionRequest(argv: string[]): boolean {

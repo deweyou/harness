@@ -1,5 +1,14 @@
 # DDev Operations Manual
 
+```mermaid
+stateDiagram-v2
+    [*] --> Active: session start
+    Active --> Closed: close
+    Closed --> Archived: archive
+    Closed --> Removed: clean --force
+    Archived --> Removed: clean --force
+```
+
 This manual covers day-to-day DDev usage. See
 [`docs/ddev-framework.md`](./ddev-framework.md) for the technical plan.
 
@@ -8,7 +17,7 @@ This manual covers day-to-day DDev usage. See
 ```mermaid
 flowchart TD
     User["User task"] --> DDev["ddev skill"]
-    DDev --> State["~/.deweyou/dev/repos/<repo-id> branch-session state"]
+    DDev --> State["~/.deweyou/dev/repos/<repo-id> task-session state"]
     DDev --> GlobalModules["global module skills"]
     DDev --> MandatoryRules["mandatory operation-scoped rules"]
     GlobalModules --> Product["product-design"]
@@ -40,7 +49,7 @@ flowchart TD
 
 ```bash
 npm install -g deweyou-cli
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli agent init \
   --skills ddev \
   --rules ddev-local-state,verification-evidence,loop-boundaries \
@@ -53,19 +62,23 @@ deweyou-cli dev doctor
 Only `ddev` needs to be installed as the repository entry skill. Module skills
 such as `problem-framing`, `ui-design`, `spec-driven-coding`, `git-delivery`,
 `repo-memory`, and `product-design` stay in the global Dewey asset cache after
-`deweyou-cli agent update`. DDev loads them by absolute path when needed.
+`deweyou-cli update --agents-only`. DDev reads the authoritative module list
+from the cached `skills/ddev/runtime.json` manifest and loads modules by absolute
+path when needed.
 Users may still install any module skill explicitly for standalone use.
 
 Users do not need to install `code-style` or `engineering-principles` globally
-or per repository for DDev. `deweyou-cli agent update` places both rule files in
+or per repository for DDev. `deweyou-cli update --agents-only` places both rule files in
 the global asset cache, and DDev reads the applicable file before the matching
 operation. If a required file is still absent after a cache refresh, DDev stops
 that operation and reports the blocker.
 
-`deweyou-cli dev install` prepares `~/.deweyou/dev`, writes the global module
-registry into `~/.deweyou/dev/config.json`, creates the current repository's
-state under `~/.deweyou/dev/repos/<repo-id>/`, then removes old DDev passive
-hooks from earlier versions. It does not create project-local `.deweyou/dev/`,
+`deweyou-cli dev install` validates the runtime manifest, CLI capabilities,
+declared module skills, and required rules before it prepares
+`~/.deweyou/dev`, materializes the module paths in runtime config, and creates
+the current repository's config under
+`~/.deweyou/dev/repos/<repo-id>/`, then removes old DDev passive hooks. It does
+not create a task session or project-local `.deweyou/dev/`,
 does not add a new git exclude, and does not install new `SessionStart`,
 `UserPromptSubmit`, or `Stop` hooks.
 
@@ -84,7 +97,7 @@ To make DDev the default workflow for a repository, add this to `AGENTS.md`:
 - Before starting DDev work, run `deweyou-cli dev doctor` or
   `deweyou-cli dev status`.
 - If DDev is missing on this machine, stop and tell the user:
-  `DDev is not installed. Run: npm install -g deweyou-cli; deweyou-cli agent update; deweyou-cli agent init --skills ddev --mode link --yes; deweyou-cli dev install`.
+  `DDev is not installed. Run: npm install -g deweyou-cli; deweyou-cli update --agents-only; deweyou-cli agent init --skills ddev --mode link --yes; deweyou-cli dev install`.
 - Do not silently install DDev during an unrelated task.
 ```
 
@@ -106,8 +119,13 @@ repository uses DDev by default is decided by that repository's `AGENTS.md`.
 deweyou-cli dev install
 deweyou-cli dev status
 deweyou-cli dev doctor
-deweyou-cli dev clean --branch <branch>
-deweyou-cli dev clean --all --dry-run
+deweyou-cli dev session start --title "task title"
+deweyou-cli dev session list
+deweyou-cli dev session status
+deweyou-cli dev session close
+deweyou-cli dev session archive --id <session-id>
+deweyou-cli dev session clean --id <session-id> --force
+deweyou-cli dev session clean --all --dry-run
 deweyou-cli dev demo --no-server
 deweyou-cli dev demo --port 4173
 deweyou-cli dev record --kind node --data '{"node_id":"verify","node_type":"verification","status":"completed"}'
@@ -155,14 +173,14 @@ frame the problem, generate meaningfully different options, critique tradeoffs,
 converge on a recommendation, and decide whether an HTML demo would clarify the
 idea.
 
-`$DDev demo <idea>` creates or updates the branch-session static HTML demo and can
+`$DDev demo <idea>` creates or updates the active task-session static HTML demo and can
 serve it with `deweyou-cli dev demo`.
 
 `$DDev inspect <question>` is read-only by default and should not create DDev
 session state unless the user asks for a durable trail.
 
 `$DDev setup` installs, diagnoses, or explains the DDev entry, global module
-cache, and manual runtime with `deweyou-cli agent update`,
+cache, and manual runtime with `deweyou-cli update --agents-only`,
 `deweyou-cli agent init --skills ddev --mode link --yes`,
 `deweyou-cli dev install`, and `deweyou-cli dev doctor`.
 
@@ -173,7 +191,10 @@ protects unrelated dirty files, and reports commit, push, PR, CI, or blockers.
 `$DDev retrospect` decides whether DDev session findings should become durable
 repo memory. Do not copy temporary notes wholesale into docs.
 
-`$DDev clean-context` summarizes or removes DDev-local state after confirmation.
+`$DDev clean-context` closes the active session for normal completion. Archive a
+closed session when it should remain locally available. Permanent cleanup
+requires an exact id and `--force`; active sessions must be closed first, and
+`--all --force` is reserved for an explicit current-repository reset.
 
 `$DDev uninstall` runs `deweyou-cli dev uninstall` only on explicit request and
 preserves unrelated harness hooks.
@@ -187,21 +208,18 @@ preserves unrelated harness hooks.
     <repo-id>/
       config.json
       sessions/
-        <branch>/
+        <session-id>/
+          session.json
           task.md
-          brainstorm.md
-          context.md
-          graph.md
-          decisions.md
-          verification.md
-          evidence.md
-          demo.md
-          demo/
-            index.html
-          retrospective.md
           events.jsonl
           summary.md
-          stop-issues.txt
+          demo/              # optional
+            index.html
+          <other-artifacts>  # optional
+      archives/
+        <session-id>/
+      checkouts/
+        <checkout-id>.json
 ```
 
 Rules:
@@ -211,11 +229,12 @@ Rules:
   new global-state installs.
 - If project-local `.deweyou/dev/` exists, treat it as legacy state and leave it
   unstaged unless the user explicitly asks to version a fixture.
-- Keep session files short and task-local.
-- Use `brainstorm.md` for option framing, critique, and recommendation.
-- Use `graph.md` for lightweight step or dependency tracking.
-- Use `evidence.md` for claims, artifacts, commands, screenshots, live checks,
-  skipped checks, and unresolved gaps.
+- Branch-named session directories and earlier path-identified repo roots are
+  listed as legacy and remain untouched until explicit cleanup or uninstall.
+- Start implementation sessions explicitly; branch/head are metadata, not the
+  session key. Read-only inspection creates no session by default.
+- Keep the four core session files short and task-local. Create brainstorm,
+  graph, evidence, decision, demo, or retrospective artifacts only when useful.
 - Use `events.jsonl` only when structured requirement, node, evidence, failure,
   review, recovery, or delivery facts improve traceability.
 - Regenerate `summary.md` with `deweyou-cli dev summary`; it is a view, not a
@@ -249,7 +268,7 @@ Common evidence levels:
 2. For UI requirements, let `ui-design` define the prototype structure and
    states before editing files.
 3. Run `deweyou-cli dev demo --no-server` to create the demo workspace.
-4. Edit `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/demo/index.html`.
+4. Edit `~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/demo/index.html`.
 5. Run `deweyou-cli dev demo --port 4173`.
 6. Verify the page in a browser and record the result in `demo.md` and
    `evidence.md`.
@@ -257,7 +276,7 @@ Common evidence levels:
 ## New Repository Checklist
 
 1. Install or upgrade the global CLI: `npm install -g deweyou-cli@latest`.
-2. In the target repository, run `deweyou-cli agent update`.
+2. In the target repository, run `deweyou-cli update --agents-only`.
 3. Run `deweyou-cli agent init --skills ddev --mode link --yes`.
 4. Choose either DDev-by-default or explicit-only DDev in `AGENTS.md`.
 5. Run `deweyou-cli agent context --format markdown`.
@@ -266,16 +285,17 @@ Common evidence levels:
 8. Confirm `deweyou-cli dev status` points at `~/.deweyou/dev/repos/<repo-id>`.
 9. Confirm project-local `.deweyou/dev/` was not created.
 10. Use `$DDev inspect` for a read-only repo orientation.
-11. Use a small docs or test task for the first `$DDev <task>` session.
-12. Use `$DDev retrospect` to decide whether repo-memory is needed.
+11. Start the first task with `deweyou-cli dev session start --title "..."`.
+12. Use a small docs or test task for the first `$DDev <task>` session.
+13. Close it normally, then use `$DDev retrospect` to decide whether
+    repo-memory or archival is needed.
 
 ## Upgrade And Iteration
 
 After the first release, daily upgrades use the same path:
 
 ```bash
-npm install -g deweyou-cli@latest
-deweyou-cli agent update
+deweyou-cli update
 deweyou-cli agent init \
   --skills ddev \
   --rules ddev-local-state,verification-evidence,loop-boundaries \
@@ -296,7 +316,9 @@ rerun the upgrade commands in the target repository.
 | Symptom | Action |
 | --- | --- |
 | `.deweyou/dev/` looks like an unknown repo file | Treat it as legacy DDev repo-local state; leave it unstaged and run `deweyou-cli dev uninstall` only when you want DDev to clean legacy state. |
-| DDev command is missing | Install or upgrade with `npm install -g deweyou-cli@latest`, then run `deweyou-cli agent update`. |
+| DDev command is missing | Install once with `npm install -g deweyou-cli@latest`; later use `deweyou-cli update`. |
+| `record` or `demo` says no active session | Run `deweyou-cli dev session start --title "..."`; install alone does not create a task. |
+| A finished session is taking space | Close it normally, archive it if useful, or permanently delete the closed id with `dev session clean --id <id> --force`. |
 | Repository does not trigger DDev | Check whether `AGENTS.md` opted into DDev by default; otherwise invoke `$DDev ...` explicitly. |
 | Other harness agents are installed | Keep DDev manually triggered; DDev does not inspect or clean their local state. |
 | DDev session gets long or noisy | Use `$DDev retrospect` to extract durable knowledge, then `$DDev clean-context`. |
@@ -321,4 +343,4 @@ cd cli && npm pack --dry-run
 ```
 
 ---
-*Last updated: 2026-07-21 | Reason: Added structured DDev protocol recording and single-session summary operations.*
+*Last updated: 2026-07-22 | Reason: Added task session lifecycle, unified updates, and force-gated cleanup.*

@@ -1,6 +1,6 @@
 <!-- Chinese reading companion
 source: skills/ddev/SKILL.md
-source-digest: sha256:e267ac1586e6bf950f7ac991066697811f0e25cd041996da7f64ca4e7a31975a
+source-digest: sha256:bdca2ddef891cded4954264e7cf35f6cc9089e713ab30a0ed4281715369b89f6
 translation-status: current
 description: 面向个人跨仓库开发的 DDev 生命周期工作流。
 -->
@@ -21,6 +21,11 @@ DDev 默认手动激活：用户显式输入 `$DDev` / `ddev`，或项目指令�
 对于有依赖、多个证据或失败恢复的任务，DDev 可以用 `deweyou-cli dev record`
 追加经过校验的协议事件，并用 `deweyou-cli dev summary` 生成单 session 摘要；这不会
 引入自动调度器。
+
+实现任务使用显式 task session：`dev install` 只初始化 runtime，不会偷偷创建
+session；`dev session start --title "..."` 才创建任务。每个 session 初始只有
+`session.json`、`task.md`、`events.jsonl` 和 `summary.md`，branch/head 只是元数据，
+demo 和其他工作文件按需创建。
 
 对于编码和架构工作，DDev 强依赖两个 rule：写、改、审代码前读取
 `code-style`；模块设计、边界重构、依赖变更或有架构影响的行为变更前读取
@@ -54,10 +59,11 @@ npx skills add https://github.com/deweyou/agents --skill ddev
 
 ```bash
 npm install -g deweyou-cli
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli agent init --skills ddev --mode link --yes
 deweyou-cli dev install
 deweyou-cli dev doctor
+deweyou-cli dev session start --title "第一个任务"
 ```
 
 模块 skills 位于 `~/.deweyou/agents/assets/skills/<skill>/SKILL.md`；强依赖 rules
@@ -67,7 +73,9 @@ deweyou-cli dev doctor
 ## 特点
 
 - 一个 owner 管理 framing、UI、编码、证据、交付和记忆的完整生命周期。
-- 分支级、人可读的临时工作状态放在项目源码之外。
+- task 级、人可读的临时工作状态放在项目源码之外，仓库身份跨 worktree 稳定。
+- 正常结束使用 `close`，保留使用 `archive`；永久 `clean` 必须显式 `--force`，且不能
+  删除 active session。
 - 按操作强制读取缓存中的 `code-style` 和 `engineering-principles`。
 - 新功能、用户可见行为变化和模糊产品请求在源码编辑前进入
   `spec-driven-coding`。
@@ -83,7 +91,8 @@ deweyou-cli dev doctor
 ## SOP
 
 1. 显式触发 DDev 或通过项目指令启用，并运行 `deweyou-cli dev doctor`。
-2. 分类请求、捕获必要状态并识别项目 harness。
+2. 实现任务用 `deweyou-cli dev session start --title "..."` 启动 task session；
+   只读检查默认不创建 session。
 3. 在对应编码或架构操作前读取强依赖 rules；文件缺失时刷新 cache，仍缺失则停止。
 4. 新功能或模糊产品工作提前加载 `spec-driven-coding`，只询问会改变结果的关键问题，
    并形成简短 spec。
@@ -91,9 +100,12 @@ deweyou-cli dev doctor
 6. 按需加载其他能力 modules，执行有边界的实现和验证循环并记录证据；非平凡任务用
    `deweyou-cli dev record` 记录关键事实，并用 `deweyou-cli dev summary` 汇总。
 7. 把失败分类、Review verdict 和 `restart_from` 当作显式事实，不自动调度或重试。
-8. 仅在任务需要时路由交付或长期记忆。
+8. 正常完成时 close session；需要本地保留时 archive；只有明确确认永久删除时才使用
+   带 `--force` 的 clean。
+9. 仅在任务需要时路由交付或长期记忆。
 
 ## Source
 
 This skill is maintained in `deweyou/agents` and indexed by
-`deweyou-cli agent update`.
+`deweyou-cli update --agents-only`。机器可读的 runtime 与模块契约位于
+`skills/ddev/runtime.json`。

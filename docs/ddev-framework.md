@@ -1,5 +1,15 @@
 # DDev Framework Technical Plan
 
+```mermaid
+flowchart LR
+    Update["deweyou-cli update"] --> Cache["CLI and agent cache"]
+    Cache --> Install["dev install"]
+    Install --> Session["explicit task session"]
+    Session --> Close["close"]
+    Close --> Archive["archive"]
+    Close --> Clean["clean --force"]
+```
+
 *Status: MVP implementation plan*
 
 DDev is Dewey's personal cross-repository development harness. It is not a
@@ -22,7 +32,8 @@ Per-repo state:   ~/.deweyou/dev/repos/<repo-id>/
 
 - Provide one default personal development workflow across repositories.
 - Keep task context current, thin, and inspectable.
-- Make branch-scoped work resumable without committing runtime state.
+- Make task-scoped work resumable across branches and worktrees without
+  committing runtime state.
 - Make verification evidence explicit before completion or delivery claims.
 - Make brainstorming concrete by comparing options, stress-testing tradeoffs,
   and turning selected ideas into local HTML demos when useful.
@@ -36,7 +47,8 @@ Per-repo state:   ~/.deweyou/dev/repos/<repo-id>/
 ## Non-goals
 
 - Do not build a general DAG/node runtime in the MVP.
-- Do not create machine `state.json`, schedulers, review nodes, or subagent
+- Keep machine state limited to identity, lifecycle, compatibility, and
+  append-only evidence. Do not add schedulers, review nodes, or subagent
   bindings yet.
 - Do not require repositories to commit DDev runtime state.
 - Do not replace project tests, CI, lint, browser checks, or review.
@@ -52,7 +64,7 @@ Per-repo state:   ~/.deweyou/dev/repos/<repo-id>/
 flowchart TD
     User["User request"] --> DDev["ddev skill"]
     CLI["deweyou-cli dev"] --> Runtime["~/.deweyou/dev"]
-    Runtime --> State["~/.deweyou/dev/repos/<repo-id>/sessions/<branch>"]
+    Runtime --> State["~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>"]
     DDev --> State
     Cache["~/.deweyou/agents/assets/skills"] --> Modules["global module skills"]
     RuleCache["~/.deweyou/agents/assets/rules"] --> Rules["mandatory operation-scoped rules"]
@@ -72,13 +84,25 @@ flowchart TD
 
 The CLI owns deterministic local infrastructure:
 
-- `install`: create manual runtime files and global per-repository session
-  files.
-- `status`: show runtime, repo state, and current branch session.
-- `doctor`: diagnose runtime, global module skill cache, session files, legacy
+- [`cli/src/cli/dev-session.ts#L1`](../cli/src/cli/dev-session.ts#L1) owns the
+  task-session lifecycle and cleanup safety.
+- [`cli/src/cli/dev-manifest.ts#L1`](../cli/src/cli/dev-manifest.ts#L1) owns the
+  runtime compatibility handshake.
+- [`skills/ddev/runtime.json#L1`](../skills/ddev/runtime.json#L1) is the
+  machine-readable module and schema registry.
+
+- `install`: initialize manual runtime and per-repository configuration without
+  creating a task session.
+- `session start|list|status|close|archive|clean`: manage explicit task
+  lifecycles. Normal completion uses `close`; permanent cleanup requires
+  `--force` and refuses active sessions.
+- `status`: show runtime and repository state.
+- `doctor`: diagnose runtime/CLI compatibility, the manifest-backed module
+  cache, session state, legacy
   repo-local state, legacy git excludes, and absence of old DDev passive hooks.
-- `clean`: remove DDev-owned state.
-- `demo`: create the branch-session `demo/index.html` file and optionally serve
+- `clean`: legacy compatibility for session cleanup, with the same `--force`
+  requirement.
+- `demo`: create the task-session `demo/index.html` file and optionally serve
   it over a local static HTTP server.
 - `record`: validate and append one requirement, node, evidence, failure,
   review, recovery, or delivery event.
@@ -120,17 +144,9 @@ Orient
   -> Retrospect and cleanup
 ```
 
-Other skills are global modules under `~/.deweyou/agents/assets/skills/`. They
-return control to `ddev` after their domain work:
-
-| Situation | Module |
-| --- | --- |
-| Grilling, brainstorming, critique, recommendation | `problem-framing/SKILL.md` |
-| Product scope and tradeoffs | `product-design/SKILL.md` |
-| UI requirement prototypes, interaction, visual evidence | `ui-design/SKILL.md` |
-| Requirement alignment, coding, debugging, TDD, verification | `spec-driven-coding/SKILL.md` |
-| Commit, push, PR, CI | `git-delivery/SKILL.md` |
-| Durable repo knowledge | `repo-memory/SKILL.md` |
+Other skills are global modules under `~/.deweyou/agents/assets/skills/`. The
+authoritative list comes from `skills/ddev/runtime.json`; DDev reads the selected
+module's own trigger contract and returns control to `ddev` after domain work.
 
 `product-notes` and `skill-eval` stay independent and explicit.
 
@@ -142,7 +158,12 @@ changes, it reads
 `~/.deweyou/agents/assets/rules/engineering-principles.md`. These files are read
 from the asset cache even when the user has not installed the rules globally or
 in the repository. If an applicable file remains missing after
-`deweyou-cli agent update`, the affected operation stops as blocked.
+`deweyou-cli update --agents-only`, the affected operation stops as blocked.
+
+The module list and runtime/event schema handshake come from
+`skills/ddev/runtime.json` in the asset cache. The CLI validates the manifest's
+minimum version and required capabilities during install and doctor. Runtime
+config is a materialized view, not a second registry.
 
 ## Local State Contract
 
@@ -153,45 +174,44 @@ in the repository. If an applicable file remains missing after
     <repo-id>/
       config.json
       sessions/
-        <branch>/
+        <session-id>/
+          session.json
           task.md
-          brainstorm.md
-          context.md
-          graph.md
-          decisions.md
-          verification.md
-          evidence.md
-          demo.md
-          demo/
-            index.html
-          retrospective.md
           events.jsonl
           summary.md
-          stop-issues.txt
+          demo/              # optional
+            index.html
+          <other-artifacts>  # optional
+      archives/
+        <session-id>/
+      checkouts/
+        <checkout-id>.json
 ```
 
-File roles:
+Core file roles:
 
-- `task.md`: goal, scope, non-goals, acceptance criteria, acceptance source,
-  alignment status, unresolved decisions, and current status.
-- `brainstorm.md`: frame, divergent options, critiques, tradeoffs, recommendation.
-- `context.md`: files, commands, docs, constraints, and relevant facts.
-- `graph.md`: lightweight dependency graph or step checklist.
-- `decisions.md`: decisions that changed the path and why.
-- `verification.md`: planned checks and live evidence gates.
-- `evidence.md`: claims, commands, screenshots, artifacts, live checks, gaps.
-- `demo.md`: demo path, local URL, visual checks, and demo evidence.
-- `demo/index.html`: branch-session static HTML demo workspace.
-- `retrospective.md`: candidates for repo-memory or DDev improvement.
+- `session.json`: task identity and active/closed/archived lifecycle state;
+  branch and head are metadata only.
+- `task.md`: concise task intent, acceptance, alignment, and status.
 - `events.jsonl`: append-only schema-versioned protocol events.
 - `summary.md`: generated single-session view of latest nodes, claims, failures,
   reviews, recovery hints, delivery, and open issues.
-- `stop-issues.txt`: findings from earlier or explicit diagnostics; the MVP does
-  not install a passive Stop hook.
+
+Demo, graph, context, decision, evidence, and retrospective files are created
+only when the task needs them. Directories are private (`0700`), files are
+private (`0600`), metadata and summaries use atomic replacement, and event
+validation plus append is serialized with a lock. Payload and log sizes are
+bounded; event JSON may come from `--data`, `--data-file`, or stdin.
 
 This state is local working memory outside project source. New DDev installs do
 not write project `.gitignore` or `.git/info/exclude`; project-local
 `.deweyou/dev/` is treated only as legacy state.
+
+Repository ids prefer a normalized origin remote and otherwise use the Git
+common directory or absolute path fallback. This lets worktrees share repository
+state while keeping a separate current-session pointer per checkout. Existing
+path-identified repo roots and branch-named session directories remain visible
+as legacy state; install and list never move or delete them implicitly.
 
 ## Artifact / Claim / Evidence In MVP
 
@@ -207,7 +227,7 @@ Use `evidence.md` like this:
 ```markdown
 ## Claims
 
-- [verified] CLI install creates branch session files.
+- [verified] Explicit session start creates the four core task files.
 - [verified] DDev install leaves passive Codex hooks absent.
 
 ## Evidence
@@ -228,9 +248,12 @@ deweyou-cli dev record --kind evidence --data \
 deweyou-cli dev summary --format markdown
 ```
 
-`record` validates before appending. `summary` rejects malformed persisted
-events instead of silently dropping evidence. A failure or review event may
-carry `restart_from`; it is a recovery hint, not an automatic retry.
+`record` validates duplicate ids, ISO timestamps, session identity, references,
+state transitions, and delivery consistency before appending under a file lock.
+`summary` rejects malformed or semantically inconsistent persisted events
+instead of silently dropping evidence. An empty log is reported as incomplete,
+not as “no open issues.” A failure or review event may carry `restart_from`; it
+is a recovery hint, not an automatic retry.
 
 ## Lightweight DAG In MVP
 
@@ -306,7 +329,7 @@ deweyou-cli dev demo --port 4173
 ```
 
 The demo lives at
-`~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/demo/index.html` and is local
+`~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/demo/index.html` and is local
 working state. It is useful for product sketches, UI states, interaction
 prototypes, and comparing brainstormed options before touching product code.
 DDev should record the prototype path, local URL, visual check, or explicit gap
@@ -316,19 +339,25 @@ in `demo.md` and `evidence.md`.
 
 ```bash
 deweyou-cli dev install [--dry-run]
+deweyou-cli dev session start --title "task"
+deweyou-cli dev session list
+deweyou-cli dev session status [--id id]
+deweyou-cli dev session close [--id id]
+deweyou-cli dev session archive [--id id]
+deweyou-cli dev session clean [--id id|--all] [--dry-run] --force
 deweyou-cli dev status
 deweyou-cli dev doctor
-deweyou-cli dev clean [--branch name|--all] [--dry-run]
-deweyou-cli dev demo [--branch name] [--host host] [--port port] [--no-server] [--dry-run]
-deweyou-cli dev record [--branch name] --kind kind --data json
-deweyou-cli dev summary [--branch name] [--format markdown|json]
+deweyou-cli dev clean [--branch name|--all] [--dry-run] --force
+deweyou-cli dev demo [--id id|--branch name] [--host host] [--port port] [--no-server] [--dry-run]
+deweyou-cli dev record [--id id|--branch name] --kind kind (--data json|--data-file path)
+deweyou-cli dev summary [--id id|--branch name] [--format markdown|json]
 deweyou-cli dev uninstall [--dry-run]
 ```
 
 Recommended repository setup:
 
 ```bash
-deweyou-cli agent update
+deweyou-cli update --agents-only
 deweyou-cli agent init \
   --skills ddev \
   --rules ddev-local-state,verification-evidence,loop-boundaries \
@@ -372,4 +401,4 @@ Adoption triggers and boundaries live in
 when repeated session evidence shows the lightweight protocol is insufficient.
 
 ---
-*Last updated: 2026-07-21 | Reason: Added validated session events, summaries, and evidence-based future capability triggers.*
+*Last updated: 2026-07-22 | Reason: Added explicit task sessions, runtime compatibility handshake, and safe lifecycle cleanup.*

@@ -12,7 +12,8 @@ commits DDev runtime state.
 
 - DDev local state lives under `~/.deweyou/dev/`.
 - Per-repository sessions live under
-  `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/`.
+  `~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/`; branch, worktree,
+  and head are metadata rather than session identity.
 - Treat DDev state as local working memory, not project source.
 - Do not create project-local `.deweyou/dev/` state.
 - Create or update DDev state only when DDev is explicitly invoked, when the
@@ -25,17 +26,22 @@ commits DDev runtime state.
   global-state installs.
 - When DDev creates local state, make it visible in `doctor`, `status`, or the
   final handoff. Do not leave mysterious runtime directories unexplained.
-- `clean` must remove only DDev-owned state and must explain what it removed.
+- Normal completion uses `session close`; local retention uses `session archive`.
+- Permanent `clean` requires explicit `--force`, must refuse active sessions,
+  and must remove only DDev-owned state while explaining what it removed.
 - `uninstall` must remove only the current repository's global DDev state,
   legacy repo-local DDev state, exact legacy DDev git exclude lines, old
   DDev-owned passive hooks, and the runtime root when no other repository state
   remains. Leave unrelated harness agents and hooks untouched.
 
-## Branch Sessions
+## Task Sessions
 
 - Store task state under
-  `~/.deweyou/dev/repos/<repo-id>/sessions/<branch>/`.
-- Keep branch session files short and temporary.
+  `~/.deweyou/dev/repos/<repo-id>/sessions/<session-id>/`.
+- Keep the four core session files short and temporary; create other artifacts
+  only when they help recovery, review, or evidence.
+- Keep old branch-named session directories and path-identified repo roots as
+  visible legacy state. Do not migrate or delete them implicitly.
 - Route durable knowledge to repository docs or `repo-memory`; do not keep it
   only in DDev session files.
 - Use `graph.md` for lightweight dependency notes and `evidence.md` for claims,

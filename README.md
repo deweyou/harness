@@ -33,7 +33,7 @@ Install it globally:
 
 ```bash
 npm install -g deweyou-cli
-deweyou-cli agent update
+deweyou-cli update
 ```
 
 By default, `agent update` clones or pulls
@@ -42,7 +42,7 @@ local development against a specific checkout, set:
 
 ```bash
 export DEWEYOU_AGENTS_SOURCE=/path/to/deweyou/agents
-deweyou-cli agent update
+deweyou-cli update --agents-only
 ```
 
 Initialize another repository:
@@ -59,6 +59,7 @@ deweyou-cli agent context --format markdown
 deweyou-cli dev install
 deweyou-cli dev status
 deweyou-cli dev doctor
+deweyou-cli dev session start --title "first task"
 ```
 
 For scripted setup:
@@ -75,16 +76,18 @@ deweyou-cli agent init --dry-run
 
 | Command | Purpose |
 |---------|---------|
+| `deweyou-cli update` | Update the global CLI and refresh agent assets with the updated binary. |
 | `deweyou-cli agent update` | Refresh the local asset cache and generated registry. |
 | `deweyou-cli agent init` | Add selected skills, rules, and an optional `DESIGN.md` to the current repository, or use `--global` for user-level installs. |
 | `deweyou-cli agent context --format markdown` | Print the active agent instructions for the current repository. |
 | `deweyou-cli agent context --format json` | Print structured context for tooling. |
 | `deweyou-cli agent doctor` | Check cache, manifest, symlinks, selected assets, and hash consistency. |
-| `deweyou-cli dev install` | Initialize manual DDev runtime, global per-repository state under `~/.deweyou/dev/`, global module registry, and remove old DDev passive hooks. |
-| `deweyou-cli dev status` | Print DDev runtime, repo state, and branch session status. |
-| `deweyou-cli dev doctor` | Diagnose DDev runtime, global per-repo session files, legacy repo-local state, and passive-hook absence. |
-| `deweyou-cli dev clean` | Remove DDev-owned global per-repository state by branch or for the whole repo. |
-| `deweyou-cli dev demo` | Create and serve the branch-session static HTML demo workspace. |
+| `deweyou-cli dev install` | Validate the DDev manifest and initialize runtime/repository config without creating a task session. |
+| `deweyou-cli dev session ...` | Start, list, inspect, close, archive, or explicitly clean task sessions. |
+| `deweyou-cli dev status` | Print DDev runtime and repo state. |
+| `deweyou-cli dev doctor` | Diagnose runtime schemas, CLI capabilities, manifest modules, legacy state, and passive-hook absence. |
+| `deweyou-cli dev clean` | Compatibility cleanup for legacy branch sessions; permanent deletion requires `--force`. |
+| `deweyou-cli dev demo` | Create and serve the active task-session static HTML demo workspace. |
 | `deweyou-cli dev uninstall` | Remove current repo DDev state, legacy local state and excludes, old DDev passive hooks, and the runtime only when no other repo state remains. |
 
 ### Install Modes

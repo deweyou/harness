@@ -76,12 +76,14 @@ export function createDevEvent(
   branch: string,
   payload: Record<string, unknown>,
   occurredAt = new Date(),
+  sessionId = `legacy:${branch}`,
 ): DevEvent {
   return {
     schema_version: 1,
     event_id: `evt_${occurredAt.getTime()}_${randomUUID()}`,
     occurred_at: occurredAt.toISOString(),
     kind,
+    session_id: sessionId,
     branch,
     payload,
   }
@@ -98,6 +100,7 @@ export function parseDevEventLog(value: string): DevEvent[] {
     try {
       const event: unknown = JSON.parse(line)
       if (!isDevEvent(event)) throw new Error('event envelope does not match schema version 1')
+      if (!event.session_id) event.session_id = `legacy:${event.branch}`
       validatePayload(event.kind, event.payload)
       events.push(event)
     } catch (error) {
@@ -106,6 +109,131 @@ export function parseDevEventLog(value: string): DevEvent[] {
   }
 
   return events
+}
+
+export function validateDevEventSequence(
+  events: DevEvent[],
+  {
+    expectedBranch,
+    expectedSessionId,
+  }: { expectedBranch?: string, expectedSessionId?: string } = {},
+): void {
+  const eventIds = new Set<string>()
+  const nodeStatuses = new Map<string, string>()
+  const evidenceStatuses = new Map<string, string>()
+  const requirementStatuses = new Map<string, string>()
+  const reviewStatuses = new Map<string, string>()
+  const recoveryStatuses = new Map<string, string>()
+  const deliveryStatuses = new Map<string, string>()
+
+  for (const event of events) {
+    if (!isIsoTimestamp(event.occurred_at)) {
+      throw new Error(`DDev event ${event.event_id} has an invalid ISO timestamp: ${event.occurred_at}`)
+    }
+    if (eventIds.has(event.event_id)) {
+      throw new Error(`Duplicate DDev event id: ${event.event_id}`)
+    }
+    if (expectedBranch && event.branch !== expectedBranch) {
+      throw new Error(
+        `DDev event ${event.event_id} belongs to branch ${event.branch}, expected ${expectedBranch}`,
+      )
+    }
+    if (expectedSessionId && event.session_id !== expectedSessionId) {
+      throw new Error(
+        `DDev event ${event.event_id} belongs to session ${event.session_id}, expected ${expectedSessionId}`,
+      )
+    }
+
+    const payload = event.payload
+    if (event.kind === 'requirement') {
+      validateTransition(
+        'requirement',
+        'requirement',
+        requirementStatuses.get('requirement'),
+        stringValue(payload.status),
+        REQUIREMENT_TRANSITIONS,
+      )
+      requirementStatuses.set('requirement', stringValue(payload.status))
+    }
+    if (event.kind === 'node') {
+      const id = stringValue(payload.node_id)
+      validateReferences('node dependency', stringArray(payload.depends_on), nodeStatuses)
+      validateReferences('node evidence', stringArray(payload.evidence_ids), evidenceStatuses)
+      validateTransition('node', id, nodeStatuses.get(id), stringValue(payload.status), NODE_TRANSITIONS)
+      nodeStatuses.set(id, stringValue(payload.status))
+    }
+    if (event.kind === 'evidence') {
+      const id = stringValue(payload.evidence_id)
+      validateTransition(
+        'evidence',
+        id,
+        evidenceStatuses.get(id),
+        stringValue(payload.status),
+        EVIDENCE_TRANSITIONS,
+      )
+      evidenceStatuses.set(id, stringValue(payload.status))
+    }
+    if (event.kind === 'failure') {
+      validateReferences('failure node', [stringValue(payload.node_id)], nodeStatuses)
+      validateReferences('failure evidence', stringArray(payload.evidence_ids), evidenceStatuses)
+      if (payload.restart_from) {
+        validateReferences('failure restart node', [stringValue(payload.restart_from)], nodeStatuses)
+      }
+    }
+    if (event.kind === 'review') {
+      const id = stringValue(payload.review_id)
+      validateReferences('review evidence', stringArray(payload.evidence_ids), evidenceStatuses)
+      if (payload.restart_from) {
+        validateReferences('review restart node', [stringValue(payload.restart_from)], nodeStatuses)
+      }
+      validateTransition('review', id, reviewStatuses.get(id), stringValue(payload.verdict), REVIEW_TRANSITIONS)
+      reviewStatuses.set(id, stringValue(payload.verdict))
+    }
+    if (event.kind === 'recovery') {
+      const id = stringValue(payload.recovery_id)
+      validateReferences('recovery source event', [stringValue(payload.source_event_id)], eventIds)
+      validateReferences('recovery restart node', [stringValue(payload.restart_from)], nodeStatuses)
+      validateTransition(
+        'recovery',
+        id,
+        recoveryStatuses.get(id),
+        stringValue(payload.status),
+        RECOVERY_TRANSITIONS,
+      )
+      recoveryStatuses.set(id, stringValue(payload.status))
+    }
+    if (event.kind === 'delivery') {
+      const id = stringValue(payload.delivery_id)
+      const status = stringValue(payload.status)
+      const evidenceIds = stringArray(payload.evidence_ids)
+      validateReferences('delivery evidence', evidenceIds, evidenceStatuses)
+      validateTransition('delivery', id, deliveryStatuses.get(id), status, DELIVERY_TRANSITIONS)
+      if (status === 'completed') {
+        const incompleteNodes = [...nodeStatuses].filter(([, nodeStatus]) =>
+          nodeStatus !== 'completed' && nodeStatus !== 'skipped'
+        )
+        const unverifiedEvidence = evidenceIds.filter((evidenceId) =>
+          evidenceStatuses.get(evidenceId) !== 'verified'
+        )
+        const requirementStatus = requirementStatuses.get('requirement')
+        if (requirementStatus !== 'confirmed' && requirementStatus !== 'confirmation_not_required') {
+          throw new Error('Completed DDev delivery requires confirmed requirement alignment')
+        }
+        if (incompleteNodes.length > 0) {
+          throw new Error(
+            `Completed DDev delivery has incomplete nodes: ${incompleteNodes.map(([nodeId]) => nodeId).join(', ')}`,
+          )
+        }
+        if (unverifiedEvidence.length > 0) {
+          throw new Error(
+            `Completed DDev delivery has unverified evidence: ${unverifiedEvidence.join(', ')}`,
+          )
+        }
+      }
+      deliveryStatuses.set(id, status)
+    }
+    eventIds.add(event.event_id)
+  }
 }
 
 export function summarizeDevEvents(
@@ -396,6 +524,10 @@ function openIssues(
   deliveries: DevSessionSummary['deliveries'],
 ): string[] {
   const issues: string[] = []
+  if (!requirement && nodes.length === 0 && claims.length === 0 && reviews.length === 0
+    && recoveries.length === 0 && deliveries.length === 0) {
+    issues.push('No events recorded; session evidence is incomplete.')
+  }
   if (requirement?.status === 'alignment_required') {
     issues.push('Requirement alignment is still required.')
   }
@@ -432,10 +564,79 @@ function isDevEvent(value: unknown): value is DevEvent {
     && value.schema_version === 1
     && typeof value.event_id === 'string'
     && typeof value.occurred_at === 'string'
+    && (value.session_id === undefined || typeof value.session_id === 'string')
     && typeof value.branch === 'string'
     && typeof value.kind === 'string'
     && EVENT_KINDS.has(value.kind as DevEventKind)
     && isRecord(value.payload)
+}
+
+const REQUIREMENT_TRANSITIONS = transitions({
+  alignment_required: ['alignment_required', 'confirmed', 'confirmation_not_required'],
+  confirmed: ['confirmed'],
+  confirmation_not_required: ['confirmation_not_required'],
+})
+const NODE_TRANSITIONS = transitions({
+  pending: ['pending', 'running', 'blocked', 'skipped'],
+  running: ['running', 'completed', 'failed', 'blocked'],
+  completed: ['completed'],
+  failed: ['failed', 'running', 'blocked'],
+  blocked: ['blocked', 'running', 'skipped'],
+  skipped: ['skipped'],
+})
+const EVIDENCE_TRANSITIONS = transitions({
+  unverified: ['unverified', 'verified', 'failed', 'blocked'],
+  failed: ['failed', 'verified', 'blocked'],
+  blocked: ['blocked', 'verified', 'failed'],
+  verified: ['verified'],
+})
+const REVIEW_TRANSITIONS = transitions({
+  changes_requested: ['changes_requested', 'approved', 'blocked'],
+  blocked: ['blocked', 'changes_requested', 'approved'],
+  approved: ['approved'],
+})
+const RECOVERY_TRANSITIONS = transitions({
+  planned: ['planned', 'resumed', 'abandoned'],
+  resumed: ['resumed', 'completed', 'abandoned'],
+  completed: ['completed'],
+  abandoned: ['abandoned'],
+})
+const DELIVERY_TRANSITIONS = transitions({
+  pending: ['pending', 'completed', 'blocked', 'not_requested'],
+  blocked: ['blocked', 'pending', 'completed', 'not_requested'],
+  completed: ['completed'],
+  not_requested: ['not_requested'],
+})
+
+function transitions(value: Record<string, string[]>): Map<string, Set<string>> {
+  return new Map(Object.entries(value).map(([from, targets]) => [from, new Set(targets)]))
+}
+
+function validateTransition(
+  kind: string,
+  id: string,
+  previous: string | undefined,
+  next: string,
+  allowed: Map<string, Set<string>>,
+): void {
+  if (!previous) return
+  if (!allowed.get(previous)?.has(next)) {
+    throw new Error(`Invalid DDev ${kind} ${id} transition: ${previous} -> ${next}`)
+  }
+}
+
+function validateReferences(
+  label: string,
+  ids: string[],
+  known: Set<string> | Map<string, unknown>,
+): void {
+  const missing = ids.filter((id) => !known.has(id))
+  if (missing.length > 0) throw new Error(`Unknown DDev ${label}: ${missing.join(', ')}`)
+}
+
+function isIsoTimestamp(value: string): boolean {
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value
 }
 
 function requireString(payload: Record<string, unknown>, key: string): void {

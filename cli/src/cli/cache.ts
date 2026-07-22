@@ -8,8 +8,8 @@ import { loadRegistry } from './registry.ts'
 import { writeJson } from './manifest.ts'
 import { resolveSourceRoot } from './source.ts'
 import type { CacheManifest, CacheOptions, CachePaths, SourceSnapshot } from './types.ts'
+import { CLI_CAPABILITIES, CLI_VERSION } from './version-contract.ts'
 
-const CLI_VERSION = '0.1.0'
 const execFileAsync = promisify(execFile)
 
 export function cachePaths({ homeDir = homedir() } = {}): CachePaths {
@@ -26,6 +26,7 @@ export async function updateCache({
   homeDir = homedir(),
   sourceRoot,
   cliVersion = CLI_VERSION,
+  capabilities = CLI_CAPABILITIES,
 }: CacheOptions = {}): Promise<CacheManifest> {
   if (!sourceRoot) {
     throw new Error('sourceRoot is required to update the Dewey assets cache')
@@ -38,6 +39,12 @@ export async function updateCache({
     paths.root,
     `assets.tmp-${process.pid}-${Date.now()}`,
   )
+  const backupAssetsRoot = join(
+    paths.root,
+    `assets.backup-${process.pid}-${Date.now()}`,
+  )
+  let movedExistingAssets = false
+  let installedReplacement = false
 
   try {
     await mkdir(paths.root, { recursive: true })
@@ -48,20 +55,35 @@ export async function updateCache({
     await copyAssetDirectory(sourceRoot, tempAssetsRoot, 'rules')
     await copyAssetDirectory(sourceRoot, tempAssetsRoot, 'design')
 
-    await rm(paths.assetsRoot, { recursive: true, force: true })
+    await rm(backupAssetsRoot, { recursive: true, force: true })
+    if (await pathExists(paths.assetsRoot)) {
+      await rename(paths.assetsRoot, backupAssetsRoot)
+      movedExistingAssets = true
+    }
     await rename(tempAssetsRoot, paths.assetsRoot)
+    installedReplacement = true
 
     const manifest: CacheManifest = {
       source,
       cliVersion,
+      capabilities: [...capabilities],
       updatedAt: new Date().toISOString(),
     }
 
     await writeJson(paths.manifestPath, manifest)
+    await rm(backupAssetsRoot, { recursive: true, force: true }).catch(() => {})
 
     return manifest
   } catch (error) {
     await rm(tempAssetsRoot, { recursive: true, force: true })
+    if (movedExistingAssets) {
+      if (installedReplacement) {
+        await rm(paths.assetsRoot, { recursive: true, force: true })
+      }
+      await rename(backupAssetsRoot, paths.assetsRoot)
+    } else if (installedReplacement) {
+      await rm(paths.assetsRoot, { recursive: true, force: true })
+    }
     throw error
   }
 }
@@ -122,4 +144,15 @@ async function copyAssetDirectory(
   }
 
   await cp(source, join(assetsRoot, name), { recursive: true })
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false
+    /* v8 ignore next -- unexpected stat errors should surface unchanged */
+    throw error
+  }
 }
