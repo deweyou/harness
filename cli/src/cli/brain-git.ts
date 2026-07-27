@@ -7,6 +7,12 @@ import { loadBrainConfig } from './brain-config.ts'
 import { compileWiki } from './brain-wiki.ts'
 
 const execFileAsync = promisify(execFile)
+const BRAIN_GIT_IDENTITY = [
+  '-c',
+  'user.name=Deweyou Brain',
+  '-c',
+  'user.email=brain@localhost',
+]
 const DURABLE_PATHS = [
   '.gitignore',
   'AGENTS.md',
@@ -108,7 +114,11 @@ async function rebaseWithGeneratedArtifactRecovery(
   repoRoot: string,
   upstream: string,
 ): Promise<void> {
-  const result = await gitResult(repoRoot, ['rebase', upstream])
+  const result = await gitResult(repoRoot, [
+    ...BRAIN_GIT_IDENTITY,
+    'rebase',
+    upstream,
+  ])
   if (result.ok) return
   const conflicts = (
     await git(repoRoot, ['diff', '--name-only', '--diff-filter=U'])
@@ -133,9 +143,11 @@ async function rebaseWithGeneratedArtifactRecovery(
     }
     await git(repoRoot, ['add', '--', path])
   }
-  const continued = await gitResult(repoRoot, ['rebase', '--continue'], {
-    GIT_EDITOR: 'true',
-  })
+  const continued = await gitResult(
+    repoRoot,
+    [...BRAIN_GIT_IDENTITY, 'rebase', '--continue'],
+    { GIT_EDITOR: 'true' },
+  )
   if (!continued.ok) {
     await gitResult(repoRoot, ['rebase', '--abort'])
     throw new Error(`Brain generated-Wiki rebase recovery failed: ${continued.stderr}`)
@@ -241,10 +253,7 @@ async function assertGitRepository(repoRoot: string): Promise<void> {
 
 async function commit(repoRoot: string, message: string): Promise<void> {
   await git(repoRoot, [
-    '-c',
-    'user.name=Deweyou Brain',
-    '-c',
-    'user.email=brain@localhost',
+    ...BRAIN_GIT_IDENTITY,
     'commit',
     '-m',
     message,

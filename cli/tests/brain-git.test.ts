@@ -88,6 +88,8 @@ describe('brain Git transport', () => {
     const repoB = join(root, 'repo-b')
     await git(root, ['clone', remote, repoB])
     await initBrain({ homeDir: homeB, repoPath: repoB, deviceId: 'device-b' })
+    await git(repoB, ['config', 'user.name', ''])
+    await git(repoB, ['config', 'user.email', ''])
 
     await writeFile(
       join(repoA, 'claims', 'claim-a.md'),

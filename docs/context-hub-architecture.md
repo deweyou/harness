@@ -204,6 +204,10 @@ No long-lived compiler leader or distributed lock is required. Concurrent
 devices converge through immutable ids, deterministic jobs, Git history, and
 bounded retry.
 
+Runtime-created commits and rebase continuations use the stable local identity
+`Deweyou Brain <brain@localhost>`, so a newly provisioned device does not need a
+personal global Git identity before it can synchronize.
+
 ## Current V1 constraints
 
 - Node.js 22.5 or newer is required for built-in `node:sqlite`.

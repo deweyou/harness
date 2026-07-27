@@ -99,6 +99,10 @@ Push 竞态会做有界重试。
 
 SQLite、FTS、队列、锁和缓存永远不会进入 Git。
 
+Runtime 创建的提交与 rebase continuation 使用稳定的本地身份
+`Deweyou Brain <brain@localhost>`，因此新设备不需要预先配置个人全局 Git identity
+也能完成同步。
+
 ## V1 边界
 
 - Node.js 需要 22.5 或以上。
