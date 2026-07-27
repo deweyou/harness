@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, utimes, writeFile } from 'node:fs/promises'
-import { platform, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'vitest'
+import { afterEach, describe, it, vi } from 'vitest'
+
+const mockedPlatform = vi.hoisted(() => ({
+  value: process.platform as NodeJS.Platform,
+}))
+
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>()
+  return {
+    ...actual,
+    platform: () => mockedPlatform.value,
+  }
+})
 
 import {
   installBrainSchedule,
@@ -12,8 +24,12 @@ import {
 } from '../src/cli/brain-schedule.ts'
 
 describe('brain scheduled worker', () => {
+  afterEach(() => {
+    mockedPlatform.value = process.platform
+  })
+
   it('reports unsupported platforms without mutating state', async () => {
-    if (platform() === 'darwin') return
+    mockedPlatform.value = 'linux'
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-schedule-'))
     const status = await scheduleStatus(root, false)
     assert.equal(status.supported, false)
@@ -24,7 +40,7 @@ describe('brain scheduled worker', () => {
   })
 
   it('writes a reversible launchd job without invoking launchctl in tests', async () => {
-    if (platform() !== 'darwin') return
+    mockedPlatform.value = 'darwin'
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-schedule-'))
     const command = ['/usr/local/bin/deweyou-cli', 'brain', 'worker']
     const plan = await installBrainSchedule({
