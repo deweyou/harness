@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.1 - 2026-07-27
+
+### Fixed
+
+- cli: trigger release automation
 ## 1.5.0 - 2026-07-27
 
 ### Added
