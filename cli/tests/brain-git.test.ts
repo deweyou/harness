@@ -17,7 +17,7 @@ describe('brain Git transport', () => {
   it('converges append-only device namespaces and never syncs local indexes', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-git-'))
     const remote = join(root, 'brain.git')
-    await git(root, ['init', '--bare', remote])
+    await git(root, ['init', '--bare', '--initial-branch=main', remote])
 
     const homeA = join(root, 'home-a')
     const repoA = join(root, 'repo-a')
@@ -73,7 +73,7 @@ describe('brain Git transport', () => {
   it('regenerates generated Wiki conflicts while preserving both claim ledgers', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-wiki-conflict-'))
     const remote = join(root, 'brain.git')
-    await git(root, ['init', '--bare', remote])
+    await git(root, ['init', '--bare', '--initial-branch=main', remote])
     const homeA = join(root, 'home-a')
     const repoA = join(root, 'repo-a')
     await initBrain({
@@ -134,7 +134,7 @@ Never publish ${['sk', '-123456789012345678901234567890'].join('')}.
   it('aborts and reports canonical ledger conflicts without discarding local work', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-canonical-conflict-'))
     const remote = join(root, 'brain.git')
-    await git(root, ['init', '--bare', remote])
+    await git(root, ['init', '--bare', '--initial-branch=main', remote])
     const homeA = join(root, 'home-a')
     const repoA = join(root, 'repo-a')
     await initBrain({
@@ -169,7 +169,7 @@ Never publish ${['sk', '-123456789012345678901234567890'].join('')}.
   it('retries a push race after another device advances the remote', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-push-race-'))
     const remote = join(root, 'brain.git')
-    await git(root, ['init', '--bare', remote])
+    await git(root, ['init', '--bare', '--initial-branch=main', remote])
     const homeA = join(root, 'home-a')
     const repoA = join(root, 'repo-a')
     await initBrain({
@@ -216,7 +216,7 @@ Never publish ${['sk', '-123456789012345678901234567890'].join('')}.
   it('deterministically selects one canonical proposal for a concurrent job', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-resolution-race-'))
     const remote = join(root, 'brain.git')
-    await git(root, ['init', '--bare', remote])
+    await git(root, ['init', '--bare', '--initial-branch=main', remote])
     const homeA = join(root, 'home-a')
     const repoA = join(root, 'repo-a')
     await initBrain({

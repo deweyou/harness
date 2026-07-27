@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { platform, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'vitest'
 
@@ -462,14 +462,16 @@ The public Brain CLI routes every command.
           '--dry-run',
         ])
         await main(['brain', 'schedule', 'status'])
-        await main([
-          'brain',
-          'schedule',
-          'install',
-          '--interval',
-          '300',
-          '--dry-run',
-        ])
+        if (platform() === 'darwin') {
+          await main([
+            'brain',
+            'schedule',
+            'install',
+            '--interval',
+            '300',
+            '--dry-run',
+          ])
+        }
         await assert.rejects(main(['brain', 'unknown']))
       })
     } finally {
