@@ -9,6 +9,7 @@ import {
 import type { DevFlags } from './types.ts'
 import { CLI_VERSION } from './version-contract.ts'
 
+// Reserved for release automation testing; no behavior change.
 const AGENT_COMMANDS = ['init', 'update', 'context', 'doctor'] as const
 const DEV_COMMANDS = [
   'install',
