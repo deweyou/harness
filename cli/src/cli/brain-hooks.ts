@@ -9,6 +9,7 @@ import yaml from 'js-yaml'
 import { loadBrainConfig } from './brain-config.ts'
 import { captureBrainEvent } from './brain.ts'
 import { indexBrain } from './brain-index.ts'
+import { prepareBrainMaintenance } from './brain-maintain.ts'
 import { recallBrain } from './brain-recall.ts'
 import {
   BRAIN_AGENTS,
@@ -157,8 +158,21 @@ export async function runBrainHook(
       sessionId: stringValue(payload.session_id),
       cwd: stringValue(payload.cwd),
       payload,
+      queueMaintenance: isMaintenanceEvent(flags.event),
     })
+    if (isMaintenanceEvent(flags.event)) {
+      const prepared = await prepareBrainMaintenance({
+        homeDir: flags.homeDir,
+        agent: flags.agent,
+        sessionId: stringValue(payload.session_id) ?? undefined,
+      })
+      return hookContextResult(flags.event, prepared.prompt)
+    }
     if (!isContextEvent(flags.event)) return {}
+    const prepared = await prepareBrainMaintenance({
+      homeDir: flags.homeDir,
+      agent: flags.agent,
+    })
     await indexBrain({ homeDir: flags.homeDir })
     const config = await loadBrainConfig({ homeDir: flags.homeDir })
     const context = await recallBrain({
@@ -169,14 +183,10 @@ export async function runBrainHook(
         `device/${config.device_id}`,
       ],
     })
-    const markdown = renderHookContext(context)
-    return {
-      additionalContext: markdown,
-      hookSpecificOutput: {
-        hookEventName: flags.event,
-        additionalContext: markdown,
-      },
-    }
+    const markdown = [renderHookContext(context), prepared.prompt]
+      .filter(Boolean)
+      .join('\n\n')
+    return hookContextResult(flags.event, markdown)
   } catch {
     return {}
   }
@@ -558,7 +568,43 @@ function normalizeEventType(value: string): string {
 }
 
 function isContextEvent(value: string): boolean {
-  return value === 'SessionStart' || value === 'UserPromptSubmit'
+  return [
+    'SessionStart',
+    'UserPromptSubmit',
+    'on_session_start',
+    'pre_llm_call',
+    'before_prompt_build',
+    'session_start',
+  ].includes(value)
+}
+
+function isMaintenanceEvent(value: string): boolean {
+  return [
+    'Stop',
+    'stop',
+    'post_llm_call',
+    'post-llm-call',
+    'agent_end',
+    'agent-end',
+    'session_end',
+    'session-end',
+    'on_session_end',
+    'on-session-end',
+  ].includes(value)
+}
+
+function hookContextResult(
+  event: string,
+  additionalContext: string,
+): Record<string, unknown> {
+  if (!additionalContext) return {}
+  return {
+    additionalContext,
+    hookSpecificOutput: {
+      hookEventName: event,
+      additionalContext,
+    },
+  }
 }
 
 function hookQuery(payload: Record<string, unknown>): string {
@@ -608,16 +654,20 @@ def main():
         payload = json.load(sys.stdin)
     except Exception:
         payload = {}
-    event = str(payload.get("hook_event_name", "event")).replace("_", "-")
-    run(["brain", "capture", "--agent", "hermes", "--event", event], payload)
-    if payload.get("hook_event_name") == "pre_llm_call":
-        extra = payload.get("extra") or {}
-        query = str(extra.get("user_message", "current context"))
-        recalled = run(["brain", "recall", "--query", query, "--format", "markdown"])
-        context = recalled.stdout if recalled and recalled.returncode == 0 else ""
+    event = str(payload.get("hook_event_name", "event"))
+    result = run(
+        ["brain", "hook", "run", "--agent", "hermes", "--event", event],
+        payload,
+    )
+    try:
+        hook_output = json.loads(result.stdout) if result and result.returncode == 0 else {}
+    except Exception:
+        hook_output = {}
+    context = str(hook_output.get("additionalContext", ""))
+    if event == "pre_llm_call" and context:
         sys.stdout.write(json.dumps({"context": context}) + "\\n")
     else:
-        sys.stdout.write("{}\\n")
+        sys.stdout.write(json.dumps(hook_output) + "\\n")
 
 if __name__ == "__main__":
     main()
@@ -650,8 +700,16 @@ function cli(args, payload, timeoutMs = 4000) {
   });
 }
 
-function capture(event, payload) {
-  void cli(["brain", "capture", "--agent", "openclaw", "--event", event], payload);
+async function hook(event, payload) {
+  const output = await cli(
+    ["brain", "hook", "run", "--agent", "openclaw", "--event", event],
+    payload,
+  );
+  try {
+    return JSON.parse(output || "{}");
+  } catch {
+    return {};
+  }
 }
 
 export default definePluginEntry({
@@ -660,14 +718,14 @@ export default definePluginEntry({
   description: "Cross-agent personal Context Hub adapter.",
   register(api) {
     api.on("before_prompt_build", async (event) => {
-      capture("before-prompt-build", event);
-      const query = String(event?.prompt ?? "current context");
-      const context = await cli(["brain", "recall", "--query", query, "--format", "markdown"]);
-      return context ? { prependContext: context } : undefined;
+      const result = await hook("before_prompt_build", event);
+      return result.additionalContext
+        ? { prependContext: result.additionalContext }
+        : undefined;
     });
-    api.on("agent_end", async (event) => capture("agent-end", event));
-    api.on("session_start", async (event) => capture("session-start", event));
-    api.on("session_end", async (event) => capture("session-end", event));
+    api.on("agent_end", async (event) => hook("agent_end", event));
+    api.on("session_start", async (event) => hook("session_start", event));
+    api.on("session_end", async (event) => hook("session_end", event));
   },
 });
 `

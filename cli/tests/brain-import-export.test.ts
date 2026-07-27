@@ -14,6 +14,7 @@ import { describe, it } from 'vitest'
 import { exportBrainProjection } from '../src/cli/brain-export.ts'
 import { importBrainHistory } from '../src/cli/brain-import.ts'
 import { initBrain } from '../src/cli/brain.ts'
+import { brainPaths } from '../src/cli/brain-config.ts'
 import { compileWiki } from '../src/cli/brain-wiki.ts'
 
 describe('brain historical import and filtered export', () => {
@@ -145,7 +146,11 @@ describe('brain historical import and filtered export', () => {
       now: new Date('2026-07-27T00:00:00.000Z'),
     })
     assert.equal(result.captured, 2)
-    const sourceRoot = join(repoPath, 'sources', 'sessions', 'hermes')
+    const sourceRoot = join(
+      brainPaths(homeDir).rawSourcesRoot,
+      'sessions',
+      'hermes',
+    )
     const sourceFiles = (
       await readdir(sourceRoot, { recursive: true, withFileTypes: true })
     )

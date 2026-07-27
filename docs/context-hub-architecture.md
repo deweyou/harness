@@ -2,13 +2,15 @@
 
 ```mermaid
 flowchart LR
-  A["Codex / Claude / Hermes / OpenClaw / Trae"] -->|"fail-open hooks"| B["Local capture"]
+  A["Codex / Claude / Hermes / OpenClaw / Trae"] -->|"start or prompt hook"| R["Local recall + pending maintenance"]
+  A -->|"stop or end hook"| B["Local capture"]
   A -->|"explicit native history import"| M["Read-only discovery + normalization"]
   M --> C
-  B --> C["Immutable Event + Source"]
+  B --> C["Immutable Event + Source manifest"]
+  B --> Q["Local raw source"]
   C --> D["Local queue"]
   D --> E["Observation"]
-  E --> F["Structured resolver"]
+  E -->|"prompt in active agent"| F["Structured resolver"]
   F --> G["Claim / Resolution / Decision"]
   G --> H["Compiled Markdown Wiki"]
   C --> I["Local SQLite + FTS5"]
@@ -28,10 +30,16 @@ repository configured at `~/.deweyou/brain/config.yaml`.
 
 ## System boundary
 
-The active agent path performs only local capture and optional local recall.
-Remote Git operations, model compilation, and Wiki rebuilding run through
-`brain worker`, normally launched by a macOS LaunchAgent. A failed hook returns
-an empty response and does not block the agent task.
+The active agent path performs local capture, local recall, and semantic
+governance using the model already serving that agent turn. Start and prompt
+hooks optimistically use the local index without waiting for Git. Stop and end
+hooks prepare structured maintenance work. If a hook cannot complete the model
+step, the pending job is replayed on the next context hook.
+
+`brain worker`, normally launched by a macOS LaunchAgent, is deterministic: it
+rebuilds the Wiki and index and synchronizes Git. It never starts a model
+process. A failed hook returns an empty response and does not block the agent
+task.
 
 Historical import is a separate, user-triggered path. Native Codex and Hermes
 stores are discovered read-only, normalized before capture, and assigned
@@ -53,7 +61,7 @@ schemas/
 policy/
 devices/
 events/<device-id>/
-sources/sessions/<agent>/
+sources/manifests/<agent>/
 observations/
 claims/
 resolutions/
@@ -61,8 +69,9 @@ decisions/
 wiki/
 ```
 
-Sources and events are evidence. Claims, resolutions, and decisions are the
-governed ledger. The Wiki is a deterministic view and can be regenerated.
+Source manifests and events are portable evidence. Claims, resolutions, and
+decisions are the governed ledger. Raw transcript bodies stay local. The Wiki
+is a deterministic view and can be regenerated.
 
 ### Local runtime
 
@@ -75,6 +84,7 @@ brain.sqlite-wal
 brain.sqlite-shm
 queue/
 quarantine/
+raw-sources/
 locks/
 context-packs/
 adapters/
@@ -82,7 +92,8 @@ schedule.json
 ```
 
 This directory is the single cleanup boundary. SQLite, FTS, queues, locks,
-quarantine, adapter source, and caches are never synchronized through Git.
+quarantine, raw transcript bodies, adapter source, and caches are never
+synchronized through Git.
 
 ### Consumer projection
 
@@ -100,7 +111,7 @@ Source -> Event -> Observation -> Resolution -> Claim -> Wiki
                                       +-> Human Decision
 ```
 
-- **Source**: normalized session or imported material.
+- **Source**: a portable manifest whose raw body is stored locally.
 - **Event**: immutable agent lifecycle fact in a device namespace.
 - **Observation**: provisional candidate knowledge.
 - **Claim**: atomic, sourced, scoped knowledge.
@@ -178,9 +189,12 @@ provider/model and prompt versions, policy version, and device id. Validation
 rejects malformed operations and classification downgrades before any canonical
 resolution is written.
 
-The default compiler provider is `none`: maintenance creates provisional
-Observations but does not invent Claims. Set `compiler.provider: command` and
-provide a JSON stdin/stdout command to attach a model resolver.
+`brain maintain` deterministically materializes provisional Observations and
+prints a prompt for the current agent model. The model can submit only a
+schema-valid `ResolutionProposal` through `brain apply`. The proposal must
+match the pending job's device, policy, classification, inputs, and evidence
+before any canonical resolution is written. Legacy `compiler.command`
+configuration is retained for config compatibility but is never executed.
 
 ## Git convergence
 
@@ -212,9 +226,9 @@ personal global Git identity before it can synchronize.
 
 - Node.js 22.5 or newer is required for built-in `node:sqlite`.
 - FTS5 is the only search backend; vectors and a graph database are deferred.
-- Scheduled workers use macOS LaunchAgents.
+- Scheduled deterministic workers use macOS LaunchAgents.
 - Only plaintext Git sync is implemented.
-- The resolver is an external command contract, not a bundled model service.
+- Semantic resolution requires an active supported agent turn.
 - Hook configuration status is not proof that an agent runtime reloaded it;
   use the adapter-specific runtime checks in the operations guide.
 

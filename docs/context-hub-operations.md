@@ -2,10 +2,10 @@
 
 ```mermaid
 flowchart LR
-  A["init once per device"] --> B["install hooks + worker"]
-  B --> C["capture locally"]
-  C --> D["maintain + index"]
-  D --> E["fetch / rebase / push"]
+  A["attach once per device"] --> B["run agent bootstrap prompt"]
+  B --> C["hooks capture and recall locally"]
+  C --> D["active agent applies structured maintenance"]
+  D --> E["deterministic worker syncs and rebuilds"]
   E --> F["recall or filtered export"]
 ```
 
@@ -13,7 +13,8 @@ flowchart LR
 
 - Node.js 22.5 or newer
 - Git
-- a private, preferably empty, remote repository for personal knowledge
+- a private remote repository for personal knowledge; it may already contain
+  knowledge
 - `deweyou-cli` installed globally
 
 The remote may contain plaintext in V1. Do not store credentials even in a
@@ -27,12 +28,9 @@ For a guided setup, run:
 deweyou-cli brain init
 ```
 
-The wizard collects the local knowledge repository, device id, optional private
-Git remote, and branch. It can also import discovered Codex/Hermes history,
-install global Codex/Claude/Hermes/OpenClaw adapters, and install the macOS
-worker. History import, hooks, and scheduling are all opt-in and unselected by
-default. Trae remains a separate repository-local install because it requires
-an explicit project path.
+The wizard collects only the local knowledge repository, device id, optional
+private Git remote, and branch. It does not discover or import sessions, install
+hooks, install a worker, commit, or push.
 
 For scripts or unattended setup, pass the repository explicitly:
 
@@ -43,9 +41,25 @@ deweyou-cli brain init \
   --remote git@github.com:YOUR_NAME/personal-brain.git
 ```
 
-If the remote `main` branch already exists, `brain init` clones it before
-adding missing templates. If the remote is empty, it initializes a new local
-repository and binds `origin`.
+If the remote branch already exists, `brain init` clones it into an empty path
+or safely fast-forwards a clean matching checkout before adding only missing
+Deweyou templates. Existing files are never reset or overwritten. Init refuses
+dirty worktrees, a different branch or origin, diverged history, and a
+non-empty non-Git target when the remote branch already contains history. If
+the remote is empty, it preserves existing local files, initializes the local
+Git repository when needed, and binds `origin`.
+
+Init then prints one bootstrap command per agent. Run the one for the active
+agent and give its output back to that same agent:
+
+```bash
+deweyou-cli brain bootstrap --agent codex
+```
+
+The prompt tells the current model to inspect the attached repository, install
+only its own adapter, capture a concise summary of the current useful context,
+apply schema-valid knowledge operations, verify recall, and synchronize. It
+does not bulk-import historical sessions.
 
 Inspect the result:
 
@@ -135,8 +149,9 @@ deweyou-cli brain schedule install --interval 300
 deweyou-cli brain schedule status
 ```
 
-The LaunchAgent runs `brain worker`, which uses a local overlap lock, maintains
-the queue, compiles the Wiki, and synchronizes Git. Remove it with:
+The LaunchAgent runs `brain worker`, which uses a local overlap lock, compiles
+the Wiki, refreshes SQLite/FTS, and synchronizes Git. It never invokes a model
+or turns an Observation into a Claim. Remove it with:
 
 ```bash
 deweyou-cli brain schedule uninstall --dry-run
@@ -178,7 +193,8 @@ and also recognizes legacy `sessions/*.jsonl` exports. An unreadable or
 incompatible native store is reported as a warning without blocking discovery
 of the other stores.
 
-Native import normalizes user messages and user-visible assistant message
+Native import is explicit and is never part of `brain init`. It normalizes user
+messages and user-visible assistant message
 content; Codex imports only `final_answer` messages when that phase is present.
 It does not copy system/developer prompts, reasoning, tool output, or Codex
 workspace metadata. Discovered history defaults to `private` classification
@@ -202,18 +218,19 @@ are skipped. Secret-like chunks go to local quarantine instead of Git. This
 explicit-path mode preserves the supplied source content and should therefore
 be used only for exports you intend to retain.
 
-Import writes immutable Sources/Events and queues maintenance. If the
-background worker is not installed, materialize Observations and refresh the
-local index, then synchronize:
+Import stores raw normalized source bodies only under
+`~/.deweyou/brain/raw-sources/`. Git receives an immutable source manifest and
+Event, then a maintenance job is queued. Run maintenance inside an active agent
+so that model can inspect the local evidence path:
 
 ```bash
-deweyou-cli brain worker --no-push
+deweyou-cli brain maintain --agent codex
+# Follow the printed instructions and submit each proposal with brain apply.
 deweyou-cli brain sync
 ```
 
-With the default `compiler.provider: none`, the imported material remains a
-provisional Observation until a configured resolver or user decision promotes
-it to governed Claims.
+Until a matching `brain apply` succeeds, the imported material remains a
+provisional Observation.
 
 ## Capture, maintain, recall, and sync
 
@@ -227,7 +244,9 @@ deweyou-cli brain capture \
   --classification private \
   --data '{"summary":"Use append-only device events."}'
 
-deweyou-cli brain maintain
+deweyou-cli brain maintain --agent codex
+# The active model follows the printed prompt:
+deweyou-cli brain apply --data '<proposal-json>'
 deweyou-cli brain index
 deweyou-cli brain recall \
   --query "append-only events" \
@@ -237,10 +256,11 @@ deweyou-cli brain recall \
 deweyou-cli brain sync
 ```
 
-With `compiler.provider: none`, `maintain` creates provisional Observations and
-leaves jobs pending. Configure `compiler.provider: command` to emit governed
-Claims. The command receives one JSON request on stdin and must return one JSON
-object containing `model`, `prompt_version`, `confidence`, and `operations`.
+`maintain` creates provisional Observations, filters jobs to the current agent
+and optional session, and prints a model-facing prompt. Only `brain apply`
+accepts the resulting structured operations. It validates the proposal against
+the still-pending job before writing a Resolution or Claim. A background
+process never performs this semantic step.
 
 ## Soft deletion, archive, and restore
 

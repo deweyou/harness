@@ -95,9 +95,11 @@ deweyou-cli agent init --dry-run
 | `deweyou-cli dev demo` | Create and serve the active task-session static HTML demo workspace. |
 | `deweyou-cli dev uninstall` | Remove current repo DDev state, legacy local state and excludes, old DDev passive hooks, and the runtime only when no other repo state remains. |
 | `deweyou-cli brain init` | Interactively bind a separate personal knowledge Git repository, or pass `--repo` for scripts. |
+| `deweyou-cli brain bootstrap` | Print the model-driven setup prompt to run inside one supported agent. |
 | `deweyou-cli brain import` | Discover and idempotently import native Codex/Hermes history, or import an explicit session export. |
 | `deweyou-cli brain recall` | Build a classification- and scope-filtered, token-budgeted Context Pack. |
-| `deweyou-cli brain maintain` | Materialize observations, apply structured governance, and compile the Wiki. |
+| `deweyou-cli brain maintain` | Materialize observations and print a maintenance prompt for the active agent model. |
+| `deweyou-cli brain apply` | Validate and apply one structured proposal against its pending job. |
 | `deweyou-cli brain sync` | Reconcile the append-only ledger through bounded Git fetch/rebase/push. |
 | `deweyou-cli brain hook ...` | Install, inspect, or remove agent capture/context adapters. |
 | `deweyou-cli brain schedule ...` | Manage the local macOS background worker. |

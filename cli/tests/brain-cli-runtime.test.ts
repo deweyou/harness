@@ -6,6 +6,8 @@ import { describe, it } from 'vitest'
 
 import {
   runBrainCapture,
+  runBrainApply,
+  runBrainBootstrap,
   runBrainExport,
   runBrainHookCommand,
   runBrainImport,
@@ -22,7 +24,7 @@ import {
 import type { BrainInitPrompt } from '../src/cli/brain-cli.ts'
 
 describe('brain CLI runtime commands', () => {
-  it('initializes interactively and optionally imports discovered history', async () => {
+  it('initializes interactively without discovering or importing history', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-cli-interactive-'))
     const homeDir = join(root, 'home')
     const repoPath = join(root, 'knowledge')
@@ -44,15 +46,12 @@ describe('brain CLI runtime commands', () => {
       ].join('\n'),
     )
     const prompt: BrainInitPrompt = async (input) => {
-      assert.equal(input.discovery.records, 1)
+      assert.equal('discovery' in input, false)
       return {
         repo: repoPath,
         device: 'interactive-device',
         remote: undefined,
         branch: 'main',
-        importAgents: ['codex'],
-        hookAgents: ['codex'],
-        installSchedule: false,
       }
     }
 
@@ -61,8 +60,8 @@ describe('brain CLI runtime commands', () => {
     )
 
     assert.equal(initialized.config.device_id, 'interactive-device')
-    assert.equal(initialized.historyImport?.totals.captured, 1)
-    assert.equal(initialized.hookInstalls.length, 1)
+    assert.equal('historyImport' in initialized, false)
+    assert.equal('hookInstalls' in initialized, false)
   })
 
   it('runs the local Brain lifecycle through CLI wrappers', async () => {
@@ -183,7 +182,7 @@ Keep a short reading queue.
       assert.equal(state.previousStatus, 'active')
       assert.equal((await runBrainMaintain({ homeDir })).pending, 3)
       assert.equal((await runBrainSync({ homeDir })).status, 'local-only')
-      assert.ok('maintenance' in await runBrainWorker({ homeDir, noPush: true }))
+      assert.ok('derived' in await runBrainWorker({ homeDir, noPush: true }))
       assert.ok('sync' in await runBrainWorker({ homeDir }))
       const status = await runBrainStatus({ homeDir })
       assert.equal(status.ok, true)
@@ -236,23 +235,23 @@ Keep a short reading queue.
         agent: 'codex',
       })
       assert.equal(Array.isArray(status), true)
-      assert.deepEqual(
-        await runBrainHookCommand('run', {
+      assert.match(
+        JSON.stringify(await runBrainHookCommand('run', {
           homeDir,
           agent: 'codex',
           event: 'Stop',
           dataFile,
-        }),
-        {},
+        })),
+        /Agent Memory Maintenance/,
       )
-      assert.deepEqual(
-        await runBrainHookCommand('run', {
+      assert.match(
+        JSON.stringify(await runBrainHookCommand('run', {
           homeDir,
           agent: 'codex',
           event: 'Stop',
           data: '{"summary":"inline hook data"}',
-        }),
-        {},
+        })),
+        /Agent Memory Maintenance/,
       )
       const removed = await runBrainHookCommand('uninstall', {
         homeDir,
@@ -262,6 +261,27 @@ Keep a short reading queue.
     })
 
     await assert.rejects(runBrainInit({ homeDir }), /requires --repo/)
+    await assert.rejects(runBrainBootstrap({ homeDir }), /requires one --agent/)
+    await assert.rejects(
+      runBrainBootstrap({ homeDir, agent: 'all' }),
+      /requires one --agent/,
+    )
+    await assert.rejects(
+      runBrainBootstrap({ homeDir, agent: 'unknown' }),
+      /must be one of/,
+    )
+    await assert.rejects(
+      runBrainMaintain({ homeDir, agent: 'unknown' }),
+      /must be one of/,
+    )
+    await assert.rejects(
+      runBrainApply({ homeDir, data: 'not-json' }),
+      /valid proposal JSON/,
+    )
+    await assert.rejects(
+      runBrainApply({ homeDir, data: '{}', dataFile }),
+      /cannot be used together/,
+    )
     await assert.rejects(runBrainCapture({ homeDir }), /requires --agent/)
     await assert.rejects(runBrainImport({ homeDir }), /requires --agent/)
     await assert.rejects(

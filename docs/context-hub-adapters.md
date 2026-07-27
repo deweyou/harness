@@ -5,6 +5,7 @@ flowchart LR
   A["Agent-native event"] --> B["Deweyou adapter"]
   B --> C["normalized local capture"]
   B --> D["clearance + scope recall"]
+  B --> P["agent maintenance prompt"]
   C --> E["shared Brain Core"]
   D --> A
 ```
@@ -24,12 +25,16 @@ clearance/scope filter and includes the current `device/<id>` scope.
 ## Common behavior
 
 - Hooks call `deweyou-cli brain capture` or `brain hook run`.
-- `transcript` and `transcript_path` are moved into normalized Source records.
+- `transcript` and `transcript_path` are moved into local raw Source records;
+  Git receives only their manifests.
 - Secret-like payload or transcript content is quarantined before a Git path is
   written.
 - A payload containing `cwd` becomes device-scoped evidence.
 - `SessionStart`, `UserPromptSubmit`, Hermes `pre_llm_call`, and OpenClaw
-  `before_prompt_build` can retrieve context.
+  `before_prompt_build` retrieve context and replay unfinished maintenance.
+- `Stop`, Hermes `post_llm_call`/`on_session_end`, and OpenClaw
+  `agent_end`/`session_end` queue and expose semantic maintenance to the active
+  agent model.
 - Any capture, index, or recall error returns an empty hook result.
 
 ## Codex, Claude Code, and Trae
@@ -149,9 +154,10 @@ deweyou-cli brain import --agent <agent> --path <file-or-directory>
 ```
 
 Historical import is also the recovery path after an adapter was disabled. It
-preserves the supplied source content and lets the same maintenance pipeline
-govern it. This mode supports Codex, Claude Code, Hermes, OpenClaw, and Trae,
-but unlike native discovery it does not remove framework-specific metadata.
+preserves the supplied source content in the local raw-source store and lets
+the same agent-driven maintenance pipeline govern it. This mode supports
+Codex, Claude Code, Hermes, OpenClaw, and Trae, but unlike native discovery it
+does not remove framework-specific metadata.
 
 Implementation reference:
 [adapter installation and normalization](../cli/src/cli/brain-hooks.ts#L1) and

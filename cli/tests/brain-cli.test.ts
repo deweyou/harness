@@ -35,6 +35,22 @@ describe('brain CLI routing', () => {
       },
     )
     assert.deepEqual(
+      parseArgs(['brain', 'bootstrap', '--agent', 'codex']),
+      {
+        topic: 'brain',
+        command: 'bootstrap',
+        flags: { agent: 'codex' },
+      },
+    )
+    assert.deepEqual(
+      parseArgs(['brain', 'apply', '--data-file', '/tmp/proposal.json']),
+      {
+        topic: 'brain',
+        command: 'apply',
+        flags: { dataFile: '/tmp/proposal.json' },
+      },
+    )
+    assert.deepEqual(
       parseArgs([
         'brain',
         'recall',
@@ -322,10 +338,13 @@ describe('brain CLI routing', () => {
       await main(['brain', 'schedule', 'uninstall', '--help'])
       for (const command of [
         'init',
+        'bootstrap',
         'capture',
         'import',
         'export',
         'state',
+        'maintain',
+        'apply',
         'status',
         'unknown',
       ]) {
@@ -385,6 +404,7 @@ describe('brain CLI routing', () => {
           '--device',
           'cli-device',
         ])
+        await main(['brain', 'bootstrap', '--agent', 'codex'])
         await main(['brain', 'status'])
         await main([
           'brain',

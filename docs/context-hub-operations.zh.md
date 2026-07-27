@@ -2,10 +2,10 @@
 
 ```mermaid
 flowchart LR
-  A["每台设备初始化"] --> B["安装 Hook 与 Worker"]
-  B --> C["本地采集"]
-  C --> D["治理与索引"]
-  D --> E["fetch / rebase / push"]
+  A["每台设备安全绑定"] --> B["在 Agent 中执行 Bootstrap Prompt"]
+  B --> C["Hook 本地采集与召回"]
+  C --> D["当前 Agent 提交结构化维护"]
+  D --> E["确定性 Worker 编译与同步"]
   E --> F["召回或过滤导出"]
 ```
 
@@ -13,7 +13,7 @@ flowchart LR
 
 - Node.js 22.5 或以上
 - Git
-- 一个 private、最好为空的个人知识远端仓库
+- 一个 private 个人知识远端仓库；仓库可以已有内容
 - 全局安装 `deweyou-cli`
 
 V1 可以在 private Git 仓库中存明文，但任何等级都禁止凭证、Cookie、Token 和
@@ -27,10 +27,8 @@ V1 可以在 private Git 仓库中存明文，但任何等级都禁止凭证、C
 deweyou-cli brain init
 ```
 
-向导会收集个人知识仓库的本地路径、设备 ID、可选的 private Git 远端和分支；
-还可以显式选择导入已发现的 Codex/Hermes 历史、安装
-Codex/Claude/Hermes/OpenClaw 全局适配器，以及安装 macOS Worker。历史导入、
-Hook 和定时任务默认都不勾选。Trae 需要明确项目路径，因此继续单独按项目安装。
+向导只收集个人知识仓库的本地路径、设备 ID、可选的 private Git 远端和分支。
+它不会发现或导入 Session，不会安装 Hook 或 Worker，也不会 commit/push。
 
 脚本或无人值守环境需要显式传入仓库：
 
@@ -41,8 +39,21 @@ deweyou-cli brain init \
   --remote git@github.com:YOUR_NAME/personal-brain.git
 ```
 
-如果远端 `main` 已存在，会先 clone 再补齐模板；空远端则初始化本地仓库并绑定
+如果远端分支已存在，空路径会先 clone；已有且匹配的干净 Checkout 会先做安全
+fast-forward，再仅补齐缺失模板。任何已有文件都不会被重置或覆盖。Dirty
+Worktree、分支或 Origin 不匹配、历史分叉都会直接拒绝；远端已有历史时，也拒绝
+非 Git 的非空目录。空远端会保留现有本地文件，必要时初始化 Git 并绑定
 `origin`。
+
+初始化后，在当前 Agent 中执行它对应的 Bootstrap Prompt：
+
+```bash
+deweyou-cli brain bootstrap --agent codex
+```
+
+Prompt 会要求当前模型检查现有知识、只安装自己的 Hook、提取当前会话中值得长期
+保留的简要知识、通过 `brain apply` 提交结构化操作、验证 Recall 并同步。它不会
+批量搬运历史 Session。
 
 ```bash
 deweyou-cli brain status
@@ -102,8 +113,9 @@ deweyou-cli brain schedule install --interval 300
 deweyou-cli brain schedule status
 ```
 
-LaunchAgent 周期执行 `brain worker`。Worker 使用本地锁避免重入，然后处理
-Observation、编译 Wiki、fetch/rebase/push。手动运行：
+LaunchAgent 周期执行 `brain worker`。Worker 使用本地锁避免重入，只编译 Wiki、
+刷新索引并 fetch/rebase/push；它不会调用模型或处理 Observation 的语义晋升。
+手动运行：
 
 ```bash
 deweyou-cli brain worker
@@ -142,7 +154,8 @@ Codex 会扫描 `~/.codex/sessions/`、`~/.codex/archived_sessions/`，或
 `~/.hermes/state.db` 与 profile 数据库，也兼容旧版 `sessions/*.jsonl`。某个原生
 数据源无法读取或 Schema 不兼容时会输出 warning，但不会阻断其他数据源的发现。
 
-原生导入保留用户消息与用户可见的 Agent 消息；Codex 在存在 phase 标记时只导入
+原生导入必须显式执行，绝不是 `brain init` 的一部分。它保留用户消息与用户可见
+的 Agent 消息；Codex 在存在 phase 标记时只导入
 `final_answer`。它不会复制 system/developer prompt、reasoning、工具输出或
 Codex 工作区元数据。默认使用 `private` 保密等级与 `device/<device-id>` Scope。
 ID 是确定性的，重复执行只会报告已存在记录，不会重复写入。
@@ -159,24 +172,26 @@ deweyou-cli brain import \
 
 支持 JSON、JSONL、Markdown、文本和 YAML。文件会按确定性 ID 分块导入；空文件、
 不支持的格式和超过 100 MiB 的文件会跳过；疑似 Secret 进入本地隔离区。显式路径
-模式会保留所提供的源内容，因此只应导入你确实希望长期保存的导出文件。
+模式会把所提供的源内容保存在当前设备的
+`~/.deweyou/brain/raw-sources/`，因此只应导入你确实需要的导出文件。
 
-导入会写入不可变 Source/Event，并进入维护队列。如果没有安装后台 Worker，可手动
-生成 Observation、刷新本地索引，再同步到 Git：
+Git 只接收 Source Manifest 与不可变 Event。导入后，在当前 Agent 中生成
+Observation、检查本地 Source 并提交结构化操作，再同步：
 
 ```bash
-deweyou-cli brain worker --no-push
+deweyou-cli brain maintain --agent codex
+# 按输出 Prompt 操作，并对每个 Job 执行 brain apply。
 deweyou-cli brain sync
 ```
 
-默认 `compiler.provider: none` 时，导入内容会先停留在临时 Observation；只有配置
-Resolver 或追加用户 Decision 后，才会晋升为治理后的 Claim。
+在匹配的 `brain apply` 成功前，导入内容只会停留在临时 Observation。
 
 ## 日常命令
 
 ```bash
 deweyou-cli brain status
-deweyou-cli brain maintain
+deweyou-cli brain maintain --agent codex
+deweyou-cli brain apply --data '<proposal-json>'
 deweyou-cli brain index
 deweyou-cli brain recall \
   --query "LLM Wiki" \
@@ -186,9 +201,9 @@ deweyou-cli brain recall \
 deweyou-cli brain sync
 ```
 
-默认 `compiler.provider: none`，所以 `maintain` 只生成临时 Observation，不会擅自
-创造 Claim。需要自动治理时，把配置改为 `command` Provider；命令从 stdin 接收
-JSON，并返回包含 `model`、`prompt_version`、`confidence`、`operations` 的 JSON。
+`maintain` 只生成临时 Observation，并为当前 Agent 模型打印维护 Prompt。
+`brain apply` 是模型提交结果的唯一入口，会校验 pending Job、设备、策略、保密
+等级、输入和证据引用。后台进程不会执行语义治理。
 
 ## 过期、归档、删除与恢复
 
