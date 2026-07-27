@@ -394,7 +394,7 @@ and rules are source assets and must not be bundled into the CLI package.
 ### GitHub Release Flow
 
 Merging CLI package changes into `main` triggers
-[`.github/workflows/cli-release.yml`](../.github/workflows/cli-release.yml).
+[`cli-release.yml`](../.github/workflows/cli-release.yml).
 The workflow:
 
 1. Installs dependencies in `cli/`.
@@ -424,6 +424,12 @@ before installing CLI dependencies. The CLI package metadata must include a
 `git+https://github.com/deweyou/agents.git`, which npm uses when matching the
 trusted publisher. It skips release commits whose message starts with
 `chore(release):` to avoid publish loops.
+
+There is also a dedicated manual entry point:
+[`cli-release-manual.yml`](../.github/workflows/cli-release-manual.yml),
+triggered via GitHub Actions UI with `workflow_dispatch`. It uses the same release
+pipeline, but allows forcing a release level (`patch/minor/major`), picking a
+base ref, and choosing a target push branch.
 
 ### Version Rules
 

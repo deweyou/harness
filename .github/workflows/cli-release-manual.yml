@@ -1,0 +1,147 @@
+name: CLI Release (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_bump:
+        description: "Release bump level for manual trigger."
+        required: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      base_ref:
+        description: "Optional git ref for manual range base. Defaults to merge-base origin/main."
+        required: false
+        type: string
+        default: ""
+      target_branch:
+        description: "Optional branch to push release commit and tag. Defaults to main."
+        required: false
+        type: string
+        default: main
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@^11.5.1
+
+      - name: Install dependencies
+        working-directory: cli
+        run: npm install --no-package-lock --ignore-scripts
+
+      - name: Typecheck
+        working-directory: cli
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: cli
+        run: npm test
+
+      - name: Coverage
+        working-directory: cli
+        run: npm run test:coverage
+
+      - name: Pack dry run
+        working-directory: cli
+        run: npm pack --dry-run
+
+      - name: Prepare release
+        id: release
+        working-directory: cli
+        run: |
+          CHANGE_BASE="${{ github.event.inputs.base_ref }}"
+          if [[ -z "$CHANGE_BASE" ]]; then
+            CHANGE_BASE="$(git -C .. merge-base origin/main ${GITHUB_SHA})"
+          fi
+          CHANGE_RANGE="${CHANGE_BASE}..${GITHUB_SHA}"
+
+          changed_files="$(git -C .. diff --name-only $CHANGE_RANGE | while read -r file; do
+            case "$file" in
+              cli/*) echo "${file#cli/}" ;;
+              *) echo "$file" ;;
+            esac
+          done | tr '\n' ' ')"
+
+          commits_file="$(mktemp)"
+          case "${{ github.event.inputs.release_bump }}" in
+            major) echo "feat!: manual release trigger" > "$commits_file" ;;
+            minor) echo "feat: manual release trigger" > "$commits_file" ;;
+            *) echo "fix: manual release trigger" > "$commits_file" ;;
+          esac
+          changed_files="src/cli/init.ts ${changed_files}"
+
+          version="$(npx tsx scripts/prepare-release.ts --commits-file "$commits_file" $changed_files)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit release files
+        if: ${{ steps.release.outputs.released == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cli/package.json cli/CHANGELOG.md
+          git commit -m "chore(release): cli v${{ steps.release.outputs.version }}"
+          git tag -a "cli-v${{ steps.release.outputs.version }}" -m "cli v${{ steps.release.outputs.version }}"
+
+      - name: Verify trusted publishing environment
+        if: ${{ steps.release.outputs.released == 'true' }}
+        working-directory: cli
+        run: |
+          npm --version
+          node --version
+          node -e "const pkg = require('./package.json'); console.log('repository.url=' + pkg.repository?.url)"
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+            echo "::error::ACTIONS_ID_TOKEN_REQUEST_URL is not set; npm cannot use GitHub OIDC trusted publishing."
+            exit 1
+          fi
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error::ACTIONS_ID_TOKEN_REQUEST_TOKEN is not set; npm cannot use GitHub OIDC trusted publishing."
+            exit 1
+          fi
+          echo "GitHub OIDC request environment is available."
+
+      - name: Publish npm package
+        if: ${{ steps.release.outputs.released == 'true' }}
+        working-directory: cli
+        run: |
+          if [[ -n "${NPM_CONFIG_USERCONFIG:-}" ]]; then
+            rm -f "$NPM_CONFIG_USERCONFIG"
+            unset NPM_CONFIG_USERCONFIG
+          fi
+          unset NODE_AUTH_TOKEN
+          npm publish --access public
+
+      - name: Push release commit and tag
+        if: ${{ steps.release.outputs.released == 'true' }}
+        run: |
+          TARGET_BRANCH="${{ github.event.inputs.target_branch }}"
+          if [[ -z "$TARGET_BRANCH" ]]; then
+            TARGET_BRANCH="main"
+          fi
+          git push origin "HEAD:${TARGET_BRANCH}"
+          git push origin "cli-v${{ steps.release.outputs.version }}"
