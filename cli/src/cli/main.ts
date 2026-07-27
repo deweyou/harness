@@ -22,6 +22,7 @@ const DEV_COMMANDS = [
 ] as const
 const BRAIN_COMMANDS = [
   'init',
+  'bootstrap',
   'status',
   'capture',
   'import',
@@ -30,6 +31,7 @@ const BRAIN_COMMANDS = [
   'export',
   'state',
   'maintain',
+  'apply',
   'sync',
   'worker',
 ] as const
@@ -85,6 +87,7 @@ export async function main(argv: string[]): Promise<void> {
   if (parsed.topic === 'brain') {
     const brain = await import('./brain-cli.ts')
     if (parsed.command === 'init') await brain.runBrainInit(parsed.flags)
+    else if (parsed.command === 'bootstrap') await brain.runBrainBootstrap(parsed.flags)
     else if (parsed.command === 'status') await brain.runBrainStatus(parsed.flags)
     else if (parsed.command === 'capture') await brain.runBrainCapture(parsed.flags)
     else if (parsed.command === 'import') await brain.runBrainImport(parsed.flags)
@@ -93,6 +96,7 @@ export async function main(argv: string[]): Promise<void> {
     else if (parsed.command === 'export') await brain.runBrainExport(parsed.flags)
     else if (parsed.command === 'state') await brain.runBrainState(parsed.flags)
     else if (parsed.command === 'maintain') await brain.runBrainMaintain(parsed.flags)
+    else if (parsed.command === 'apply') await brain.runBrainApply(parsed.flags)
     else if (parsed.command === 'sync') await brain.runBrainSync(parsed.flags)
     else if (parsed.command === 'worker') await brain.runBrainWorker(parsed.flags)
     else printUsageAndThrow()
@@ -205,12 +209,14 @@ Commands:
   dev summary     Summarize task-session events and update summary.md.
   dev uninstall   Remove repo state, legacy state, old hooks, and unused runtime.
   brain init      Bind a separate personal knowledge repository.
+  brain bootstrap Print a model-driven setup prompt for one agent.
   brain capture   Capture one normalized agent lifecycle event.
   brain import    Import historical agent session files.
   brain recall    Build a scoped, token-budgeted Context Pack.
   brain export    Create a classification-filtered projection.
   brain state     Record an auditable soft lifecycle decision.
-  brain maintain  Govern queued observations and compile the Wiki.
+  brain maintain  Print an agent-driven maintenance prompt.
+  brain apply     Validate and apply one agent proposal.
   brain sync      Reconcile and synchronize the Git knowledge ledger.
   brain hook      Install, inspect, run, or remove agent adapters.
   brain schedule  Install, inspect, or remove the local worker schedule.
@@ -260,6 +266,7 @@ Run \`deweyou-cli dev <command> -h\` for command-specific help.`
 function brainUsage(): string {
   return `Usage:
   deweyou-cli brain init [--repo <path>] [--device id] [--remote url]
+  deweyou-cli brain bootstrap --agent agent
   deweyou-cli brain status
   deweyou-cli brain capture --agent agent --event event [--data json|--data-file path]
   deweyou-cli brain import --discover [--agent codex|hermes|all] [--dry-run]
@@ -268,7 +275,8 @@ function brainUsage(): string {
   deweyou-cli brain recall --query text [--scope a,b] [--clearance level] [--budget tokens]
   deweyou-cli brain export --output path [--clearance level] [--scope a,b]
   deweyou-cli brain state --id artifact-id --status state --reason text
-  deweyou-cli brain maintain
+  deweyou-cli brain maintain [--agent agent] [--session id]
+  deweyou-cli brain apply (--data json|--data-file path)
   deweyou-cli brain sync
   deweyou-cli brain worker [--no-push]
   deweyou-cli brain hook install|status|uninstall --agent agent|all [--repo path]
@@ -305,7 +313,11 @@ function brainCommandUsage(command: BrainCommand): string {
   if (command === 'init') {
     return `Usage:
   deweyou-cli brain init
-  deweyou-cli brain init --repo <path> [--device id] [--remote url] [--branch name] [--dry-run] [--force]`
+  deweyou-cli brain init --repo <path> [--device id] [--remote url] [--branch name] [--dry-run]`
+  }
+  if (command === 'bootstrap') {
+    return `Usage:
+  deweyou-cli brain bootstrap --agent codex|claude|hermes|openclaw|trae`
   }
   if (command === 'capture') {
     return `Usage:
@@ -327,6 +339,14 @@ function brainCommandUsage(command: BrainCommand): string {
   if (command === 'state') {
     return `Usage:
   deweyou-cli brain state --id artifact-id --status active|stale|archived|deleted --reason text`
+  }
+  if (command === 'maintain') {
+    return `Usage:
+  deweyou-cli brain maintain [--agent codex|claude|hermes|openclaw|trae] [--session id]`
+  }
+  if (command === 'apply') {
+    return `Usage:
+  deweyou-cli brain apply (--data json|--data-file path)`
   }
   return `Usage:
   deweyou-cli brain ${command}`

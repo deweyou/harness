@@ -280,23 +280,23 @@ Prefer deterministic context injection.
       }),
     })
     assert.match(JSON.stringify(context), /Hook preference/)
-    assert.deepEqual(
-      await runBrainHook({
+    assert.match(
+      JSON.stringify(await runBrainHook({
         homeDir,
         agent: 'claude',
         event: 'Stop',
         data: 'plain text payload',
-      }),
-      {},
+      })),
+      /Agent Memory Maintenance/,
     )
-    assert.deepEqual(
-      await runBrainHook({
+    assert.match(
+      JSON.stringify(await runBrainHook({
         homeDir,
         agent: 'trae',
         event: 'Stop',
         data: '[]',
-      }),
-      {},
+      })),
+      /Agent Memory Maintenance/,
     )
     assert.match(
       JSON.stringify(await runBrainHook({

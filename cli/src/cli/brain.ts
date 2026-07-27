@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { chmod, mkdir, readFile, stat } from 'node:fs/promises'
+import { chmod, mkdir, readFile, readdir, stat } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -17,6 +17,7 @@ import {
   type BrainConfig,
   type BrainEvent,
   type BrainInitOptions,
+  type BrainLocalSource,
   type BrainSource,
 } from './brain-types.ts'
 import {
@@ -29,6 +30,18 @@ import {
 const { dump: dumpYaml } = yaml
 const execFileAsync = promisify(execFile)
 const MAX_CAPTURE_BYTES = 10 * 1024 * 1024
+const SESSION_CONTENT_KEYS = [
+  'transcript',
+  'prompt',
+  'user_prompt',
+  'user_message',
+  'message',
+  'messages',
+  'conversation',
+  'last_assistant_message',
+  'raw',
+  'value',
+] as const
 
 export { loadBrainConfig } from './brain-config.ts'
 
@@ -37,6 +50,14 @@ export async function initBrain(options: BrainInitOptions): Promise<{
   configPath: string
   repoPath: string
   files: string[]
+  gitSync:
+    | 'planned'
+    | 'local-only'
+    | 'remote-empty'
+    | 'cloned'
+    | 'up-to-date'
+    | 'local-ahead'
+    | 'fast-forwarded'
   dryRun: boolean
 }> {
   const now = options.now ?? new Date()
@@ -54,13 +75,26 @@ export async function initBrain(options: BrainInitOptions): Promise<{
   const files = [paths.configPath, ...Object.keys(templates).map((path) => join(repoPath, path))]
 
   if (options.dryRun) {
-    return { config, configPath: paths.configPath, repoPath, files, dryRun: true }
+    return {
+      config,
+      configPath: paths.configPath,
+      repoPath,
+      files,
+      gitSync: 'planned',
+      dryRun: true,
+    }
   }
 
-  await prepareKnowledgeRepository(repoPath, config.sync.branch, options.remote)
+  const gitSync = await prepareKnowledgeRepository(
+    repoPath,
+    config.sync.branch,
+    options.remote,
+  )
+  await initializeGitRepository(repoPath, config.sync.branch, options.remote)
   await mkdirPrivate(paths.runtimeRoot)
   await mkdirPrivate(paths.queueRoot)
   await mkdirPrivate(paths.quarantineRoot)
+  await mkdirPrivate(paths.rawSourcesRoot)
   await mkdirPrivate(paths.contextPackRoot)
   await mkdirPrivate(paths.locksRoot)
   await writeFileAtomic(
@@ -69,11 +103,17 @@ export async function initBrain(options: BrainInitOptions): Promise<{
   )
 
   for (const [path, content] of Object.entries(templates)) {
-    await writeKnowledgeFile(join(repoPath, path), content, options.force === true)
+    await writeKnowledgeFile(join(repoPath, path), content)
   }
-  await initializeGitRepository(repoPath, config.sync.branch, options.remote)
 
-  return { config, configPath: paths.configPath, repoPath, files, dryRun: false }
+  return {
+    config,
+    configPath: paths.configPath,
+    repoPath,
+    files,
+    gitSync,
+    dryRun: false,
+  }
 }
 
 export async function captureBrainEvent(
@@ -107,6 +147,7 @@ export async function captureBrainEvent(
       created,
       eventPath: null,
       sourcePath: null,
+      localSourcePath: null,
       jobPath: null,
       quarantinePath,
       event: null,
@@ -125,7 +166,7 @@ export async function captureBrainEvent(
   )
   const sourceId = sourceContent === null ? null : `source_${id}`
   const eventPayload = structuredClone(payload)
-  delete eventPayload.transcript
+  stripSessionContent(eventPayload)
   delete eventPayload.transcript_path
   delete eventPayload.cwd
   if (sourceId) eventPayload.transcript_ref = sourceId
@@ -154,7 +195,9 @@ export async function captureBrainEvent(
     `${safeSegment(id)}.json`,
   )
   let sourcePath: string | null = null
+  let localSourcePath: string | null = null
   if (sourceId && sourceContent !== null) {
+    const serializedContent = JSON.stringify(sourceContent)
     const source: BrainSource = {
       schema_version: 1,
       source_id: sourceId,
@@ -165,42 +208,60 @@ export async function captureBrainEvent(
       session_id: event.session_id,
       scopes,
       classification,
-      content: sourceContent,
+      storage: 'local',
+      content_hash: createHash('sha256').update(serializedContent).digest('hex'),
+      content_bytes: Buffer.byteLength(serializedContent),
     }
     sourcePath = join(
       config.knowledge_repo,
       'sources',
+      'manifests',
+      agent,
+      partition,
+      `${safeSegment(id)}.json`,
+    )
+    localSourcePath = join(
+      paths.rawSourcesRoot,
       'sessions',
       agent,
       partition,
       `${safeSegment(id)}.json`,
     )
+    const localSource: BrainLocalSource = {
+      ...source,
+      content: sourceContent,
+    }
+    await writeImmutableJson(localSourcePath, localSource)
     await writeImmutableJson(sourcePath, source)
   }
   const created = await writeImmutableJson(eventPath, event)
 
-  const jobId = createHash('sha256')
-    .update(`${event.event_id}:${sourceId ?? ''}:${config.compiler.policy_version}`)
-    .digest('hex')
-  const jobPath = join(paths.queueRoot, `${jobId}.json`)
-  await writeJsonAtomic(jobPath, {
-    schema_version: 1,
-    job_id: jobId,
-    kind: 'maintain-event',
-    created_at: occurredAt.toISOString(),
-    event_id: event.event_id,
-    event_path: relative(config.knowledge_repo, eventPath),
-    source_id: sourceId,
-    source_path: sourcePath ? relative(config.knowledge_repo, sourcePath) : null,
-    policy_version: config.compiler.policy_version,
-    attempts: 0,
-  })
+  let jobPath: string | null = null
+  if (options.queueMaintenance !== false) {
+    const jobId = createHash('sha256')
+      .update(`${event.event_id}:${sourceId ?? ''}:${config.compiler.policy_version}`)
+      .digest('hex')
+    jobPath = join(paths.queueRoot, `${jobId}.json`)
+    await writeJsonAtomic(jobPath, {
+      schema_version: 1,
+      job_id: jobId,
+      kind: 'maintain-event',
+      created_at: occurredAt.toISOString(),
+      event_id: event.event_id,
+      event_path: relative(config.knowledge_repo, eventPath),
+      source_id: sourceId,
+      source_path: sourcePath ? relative(config.knowledge_repo, sourcePath) : null,
+      policy_version: config.compiler.policy_version,
+      attempts: 0,
+    })
+  }
 
   return {
     status: 'captured',
     created,
     eventPath,
     sourcePath,
+    localSourcePath,
     jobPath,
     quarantinePath: null,
     event,
@@ -231,9 +292,36 @@ async function resolveCapturePayload(
 async function extractSourceContent(
   payload: Record<string, unknown>,
 ): Promise<unknown | null> {
-  if (payload.transcript !== undefined) return payload.transcript
-  if (typeof payload.transcript_path !== 'string') return null
-  return readTextLimited(payload.transcript_path, MAX_CAPTURE_BYTES)
+  if (typeof payload.transcript_path === 'string') {
+    return readTextLimited(payload.transcript_path, MAX_CAPTURE_BYTES)
+  }
+
+  const content: Record<string, unknown> = {}
+  for (const key of SESSION_CONTENT_KEYS) {
+    if (payload[key] !== undefined) content[key] = payload[key]
+  }
+  if (isPlainRecord(payload.extra)) {
+    for (const key of SESSION_CONTENT_KEYS) {
+      if (payload.extra[key] !== undefined) {
+        content[`extra.${key}`] = payload.extra[key]
+      }
+    }
+  }
+  const entries = Object.entries(content)
+  if (entries.length === 0) return null
+  return entries.length === 1 ? entries[0][1] : content
+}
+
+function stripSessionContent(payload: Record<string, unknown>): void {
+  for (const key of SESSION_CONTENT_KEYS) delete payload[key]
+  if (isPlainRecord(payload.extra)) {
+    for (const key of SESSION_CONTENT_KEYS) delete payload.extra[key]
+    if (Object.keys(payload.extra).length === 0) delete payload.extra
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function findSecrets(value: string): string[] {
@@ -277,9 +365,8 @@ function secretScanText(...values: unknown[]): string {
 async function writeKnowledgeFile(
   path: string,
   content: string,
-  force: boolean,
 ): Promise<void> {
-  if (!force && await exists(path)) return
+  if (await exists(path)) return
   await mkdir(dirname(path), { recursive: true })
   await writeFileAtomic(path, content)
   await chmod(path, 0o600)
@@ -290,7 +377,7 @@ async function initializeGitRepository(
   branch: string,
   remote?: string,
 ): Promise<void> {
-  if (!await exists(join(repoPath, '.git'))) {
+  if (!await isGitWorkTree(repoPath)) {
     await execFileAsync('git', ['-C', repoPath, 'init', '-b', branch])
   }
   if (remote) {
@@ -307,10 +394,12 @@ async function prepareKnowledgeRepository(
   repoPath: string,
   branch: string,
   remote?: string,
-): Promise<void> {
-  if (!remote || await exists(join(repoPath, '.git'))) {
+): Promise<
+  'local-only' | 'remote-empty' | 'cloned' | 'up-to-date' | 'local-ahead' | 'fast-forwarded'
+> {
+  if (!remote) {
     await mkdir(repoPath, { recursive: true })
-    return
+    return 'local-only'
   }
   const remoteBranch = await commandResult('git', [
     'ls-remote',
@@ -323,9 +412,21 @@ async function prepareKnowledgeRepository(
       `Unable to inspect Brain remote ${remote}: ${remoteBranch.stderr.trim()}`,
     )
   }
+  const isRepository = await isGitWorkTree(repoPath)
+  if (isRepository) {
+    await assertAttachableRepository(repoPath, branch, remote)
+  }
   if (!remoteBranch.stdout.trim()) {
     await mkdir(repoPath, { recursive: true })
-    return
+    return 'remote-empty'
+  }
+  if (isRepository) {
+    return fastForwardKnowledgeRepository(repoPath, branch, remote)
+  }
+  if (await directoryHasEntries(repoPath)) {
+    throw new Error(
+      `Knowledge repository path is non-empty and is not a Git work tree: ${repoPath}`,
+    )
   }
   const cloned = await commandResult('git', [
     'clone',
@@ -339,6 +440,138 @@ async function prepareKnowledgeRepository(
     throw new Error(
       `Unable to clone Brain remote into ${repoPath}: ${cloned.stderr.trim()}`,
     )
+  }
+  return 'cloned'
+}
+
+async function assertAttachableRepository(
+  repoPath: string,
+  branch: string,
+  remote: string,
+): Promise<void> {
+  const existingRemote = await gitOutput(repoPath, [
+    'remote',
+    'get-url',
+    'origin',
+  ])
+  if (existingRemote && existingRemote !== remote) {
+    throw new Error(
+      `Knowledge repository origin already points to ${existingRemote}`,
+    )
+  }
+  const currentBranch = await gitOutput(repoPath, ['branch', '--show-current'])
+  if (currentBranch !== branch) {
+    throw new Error(
+      `Knowledge repository is on branch ${currentBranch || '(detached)'}, expected ${branch}`,
+    )
+  }
+  const status = await gitOutput(repoPath, [
+    'status',
+    '--porcelain',
+    '--untracked-files=all',
+  ])
+  if (status) {
+    throw new Error(
+      `Knowledge repository has uncommitted changes; commit or stash them before init: ${repoPath}`,
+    )
+  }
+}
+
+async function fastForwardKnowledgeRepository(
+  repoPath: string,
+  branch: string,
+  remote: string,
+): Promise<'up-to-date' | 'local-ahead' | 'fast-forwarded'> {
+  const existingRemote = await gitOutput(repoPath, [
+    'remote',
+    'get-url',
+    'origin',
+  ])
+  const remoteRef = `refs/remotes/origin/${branch}`
+  const fetched = await commandResult('git', [
+    '-C',
+    repoPath,
+    'fetch',
+    '--prune',
+    existingRemote ? 'origin' : remote,
+    `+refs/heads/${branch}:${remoteRef}`,
+  ])
+  if (!fetched.ok) {
+    throw new Error(
+      `Unable to fetch Brain remote ${remote}: ${fetched.stderr.trim()}`,
+    )
+  }
+  const head = await commandResult('git', [
+    '-C',
+    repoPath,
+    'rev-parse',
+    '--verify',
+    'HEAD',
+  ])
+  if (!head.ok) {
+    throw new Error(
+      'Knowledge repository has no local commit; clone the existing remote into an empty path',
+    )
+  }
+  const remoteIsAncestor = await commandResult('git', [
+    '-C',
+    repoPath,
+    'merge-base',
+    '--is-ancestor',
+    remoteRef,
+    'HEAD',
+  ])
+  const localIsAncestor = await commandResult('git', [
+    '-C',
+    repoPath,
+    'merge-base',
+    '--is-ancestor',
+    'HEAD',
+    remoteRef,
+  ])
+  if (remoteIsAncestor.ok) {
+    return head.stdout.trim() === await gitOutput(repoPath, ['rev-parse', remoteRef])
+      ? 'up-to-date'
+      : 'local-ahead'
+  }
+  if (!localIsAncestor.ok) {
+    throw new Error(
+      `Knowledge repository branch ${branch} has diverged from origin/${branch}; reconcile it before init`,
+    )
+  }
+  const merged = await commandResult('git', [
+    '-C',
+    repoPath,
+    'merge',
+    '--ff-only',
+    remoteRef,
+  ])
+  if (!merged.ok) {
+    throw new Error(
+      `Unable to fast-forward Brain branch ${branch}: ${merged.stderr.trim()}`,
+    )
+  }
+  return 'fast-forwarded'
+}
+
+async function isGitWorkTree(repoPath: string): Promise<boolean> {
+  const result = await commandResult('git', [
+    '-C',
+    repoPath,
+    'rev-parse',
+    '--is-inside-work-tree',
+  ])
+  return result.ok && result.stdout.trim() === 'true'
+}
+
+async function directoryHasEntries(path: string): Promise<boolean> {
+  try {
+    return (await readdir(path)).length > 0
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return false
+    }
+    throw error
   }
 }
 

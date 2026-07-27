@@ -60,17 +60,18 @@ Context Hub quick start:
 
 ```bash
 deweyou-cli brain init
-deweyou-cli brain import --discover --dry-run
-deweyou-cli brain import --discover
-deweyou-cli brain worker --no-push
+deweyou-cli brain bootstrap --agent codex
+deweyou-cli brain maintain --agent codex
+# Follow the prompt, then submit proposals through brain apply.
 deweyou-cli brain sync
 deweyou-cli brain recall --query "current project decisions" --clearance private
 ```
 
-`brain init` is interactive when `--repo` is omitted. The wizard can
-optionally import discovered Codex/Hermes history, install global hooks, and
-install the macOS worker; all three are unselected by default. Scripts should
-pass `--repo`.
+`brain init` is interactive when `--repo` is omitted. It only attaches the
+local repository and optional remote, safely fast-forwards matching existing
+content, and writes missing templates. It never imports history, installs
+hooks/workers, commits, pushes, resets, or overwrites existing knowledge.
+Scripts should pass `--repo`.
 
 The Context Hub requires Node.js 22.5 or newer. See the
 [architecture](../docs/context-hub-architecture.md),
@@ -81,13 +82,15 @@ The Context Hub requires Node.js 22.5 or newer. See the
 
 ```text
 deweyou-cli brain init [--repo <path>] [--device id] [--remote url]
+deweyou-cli brain bootstrap --agent agent
 deweyou-cli brain status
 deweyou-cli brain capture --agent agent --event event [--data json]
 deweyou-cli brain import --discover [--dry-run] [--agent codex|hermes|all]
 deweyou-cli brain import --agent agent --path file-or-directory
 deweyou-cli brain index
 deweyou-cli brain recall --query text [--scope a,b] [--clearance level] [--budget tokens]
-deweyou-cli brain maintain
+deweyou-cli brain maintain [--agent agent] [--session id]
+deweyou-cli brain apply (--data json|--data-file path)
 deweyou-cli brain sync
 deweyou-cli brain worker [--no-push]
 deweyou-cli brain state --id id --status active|stale|archived|deleted --reason text
@@ -96,9 +99,10 @@ deweyou-cli brain hook install|status|uninstall --agent agent|all [--repo path]
 deweyou-cli brain schedule install|status|uninstall [--interval seconds]
 ```
 
-The separate knowledge repository commits Sources, Events, Observations,
-Claims, Resolutions, Decisions, policies, schemas, and the compiled Wiki.
-SQLite, FTS, queues, locks, quarantine, and adapter state stay local.
+The separate knowledge repository commits Source manifests, Events,
+Observations, Claims, Resolutions, Decisions, policies, schemas, and the
+compiled Wiki. Raw session bodies, SQLite, FTS, queues, locks, quarantine, and
+adapter state stay local under `~/.deweyou/brain/`.
 Classification is `public < private < confidential < restricted`; export and
 recall filter before exposing content.
 

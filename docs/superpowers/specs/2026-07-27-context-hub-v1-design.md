@@ -1,5 +1,9 @@
 # Context Hub V1 Design
 
+> Lifecycle update: repository attachment, local raw sources, agent-driven
+> semantic maintenance, and deterministic background workers are superseded by
+> [Context Hub Agent Lifecycle](./2026-07-27-context-hub-agent-lifecycle.md).
+
 ```mermaid
 flowchart LR
   A["Agent activity"] --> B["immutable evidence"]

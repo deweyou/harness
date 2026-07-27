@@ -142,7 +142,7 @@ describe('brain core', () => {
     )
   })
 
-  it('captures immutable device events and normalized session sources without network work', async () => {
+  it('captures immutable events, local transcripts, and portable source manifests', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-capture-'))
     const homeDir = join(root, 'home')
     const repoPath = join(root, 'knowledge')
@@ -168,7 +168,11 @@ describe('brain core', () => {
 
     assert.equal(result.status, 'captured')
     assert.match(result.eventPath ?? '', /events\/studio-mac\/2026\/07\/01-event\.json$/)
-    assert.match(result.sourcePath ?? '', /sources\/sessions\/codex\/2026\/07\//)
+    assert.match(result.sourcePath ?? '', /sources\/manifests\/codex\/2026\/07\//)
+    assert.match(
+      result.localSourcePath ?? '',
+      /\.deweyou\/brain\/raw-sources\/sessions\/codex\/2026\/07\//,
+    )
     const event = JSON.parse(await readFile(result.eventPath!, 'utf8'))
     assert.deepEqual(event.scopes, ['device/studio-mac'])
     assert.equal(event.classification, 'private')
@@ -241,7 +245,7 @@ describe('brain core', () => {
     assert.match(quarantine, /private-key/)
   })
 
-  it('scans transcript files before copying them into the knowledge repository', async () => {
+  it('scans transcript files before storing them in the local raw-source store', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-transcript-secret-'))
     const homeDir = join(root, 'home')
     const repoPath = join(root, 'knowledge')
@@ -268,7 +272,7 @@ describe('brain core', () => {
     )
   })
 
-  it('copies safe transcript files into device-scoped source records', async () => {
+  it('stores safe transcript files locally and commits only a manifest', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-transcript-safe-'))
     const homeDir = join(root, 'home')
     const repoPath = join(root, 'knowledge')
@@ -285,9 +289,12 @@ describe('brain core', () => {
     })
 
     assert.equal(result.status, 'captured')
-    const source = JSON.parse(await readFile(result.sourcePath!, 'utf8'))
-    assert.equal(source.content.includes('safe memory'), true)
-    assert.deepEqual(source.scopes, ['device/macbook-a'])
+    const manifest = JSON.parse(await readFile(result.sourcePath!, 'utf8'))
+    const localSource = JSON.parse(await readFile(result.localSourcePath!, 'utf8'))
+    assert.equal(manifest.content, undefined)
+    assert.equal(manifest.storage, 'local')
+    assert.equal(localSource.content.includes('safe memory'), true)
+    assert.deepEqual(manifest.scopes, ['device/macbook-a'])
   })
 
   it('validates frontmatter and never permits automatic classification downgrade', () => {

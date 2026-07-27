@@ -63,8 +63,9 @@
   decisions
 - add Codex, Claude Code, Hermes Agent, OpenClaw, and Trae adapters plus a
   macOS scheduled worker
-- add guided `brain init` with opt-in history/hooks/scheduling and read-only,
-  idempotent native Codex/Hermes history discovery
+- add read-only, idempotent native Codex/Hermes history discovery
+- add `brain bootstrap` and `brain apply` for model work inside the active
+  agent turn
 
 ### Changed
 
@@ -72,6 +73,13 @@
 - delegate `agent init` skill installs to `npx skills` and remove the extra
   Dewey skills wrapper commands
 - require Node.js 22.5 or newer for the built-in SQLite runtime
+- make `brain init` a non-destructive repository attachment only; it safely
+  fast-forwards before adding missing files and never imports sessions or
+  installs hooks/workers
+- keep raw session content under `~/.deweyou/brain/raw-sources/` and commit
+  only Source manifests
+- restrict the background Brain worker to deterministic Wiki, index, and Git
+  operations; semantic maintenance now runs through agent hooks
 
 ## 0.5.0 - 2026-05-17
 

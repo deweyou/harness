@@ -2,13 +2,15 @@
 
 ```mermaid
 flowchart LR
-  A["Codex / Claude / Hermes / OpenClaw / Trae"] -->|"fail-open Hook"| B["本地采集"]
+  A["Codex / Claude / Hermes / OpenClaw / Trae"] -->|"开始或提示 Hook"| R["本地召回 + 待处理维护"]
+  A -->|"结束 Hook"| B["本地采集"]
   A -->|"显式原生历史导入"| M["只读发现与归一化"]
   M --> C
-  B --> C["不可变 Event + Source"]
+  B --> C["不可变 Event + Source Manifest"]
+  B --> Q["本地 Raw Source"]
   C --> D["本地队列"]
   D --> E["Observation"]
-  E --> F["结构化 Resolver"]
+  E -->|"当前 Agent 内的 Prompt"| F["结构化 Resolver"]
   F --> G["Claim / Resolution / Decision"]
   G --> H["编译后的 Markdown Wiki"]
   C --> I["本地 SQLite + FTS5"]
@@ -27,8 +29,12 @@ Deweyou Context Hub 是一套本地优先、跨设备、跨 Agent 的个人知�
 
 ## 总体链路
 
-Hook 主链只做本地采集和可选的本地 Recall，不等待 Git 或模型。后台
-`brain worker` 负责知识治理、Wiki 编译和同步；任一步失败都不会阻塞当前 Agent。
+Hook 在开始/提示阶段乐观使用本地索引，不等待 Git；在结束阶段完成本地采集并把
+结构化维护任务交给当前 Agent 已有的模型。若结束 Hook 无法完成语义维护，待处理
+Job 会在下一次上下文 Hook 中重放。
+
+后台 `brain worker` 只负责编译 Wiki、刷新 SQLite/FTS 和同步 Git，绝不会启动
+模型或把 Observation 自动晋升成 Claim。任一步失败都不会阻塞当前 Agent。
 
 历史导入是独立且必须由用户显式触发的链路。Codex/Hermes 原生数据源只读打开，
 归一化后再进入 Capture，默认标记为 `private` 和当前 `device/<id>` Scope。归一化
@@ -37,11 +43,12 @@ reasoning、工具输出和设备元数据。稳定的 Source/Session ID 保证�
 
 ## 三层存储
 
-个人知识仓库保存可同步的耐久数据：Source、Event、Observation、Claim、
-Resolution、Decision、Wiki、Schema 与 Policy。
+个人知识仓库保存可同步的耐久数据：Source Manifest、Event、Observation、
+Claim、Resolution、Decision、Wiki、Schema 与 Policy。原始会话正文不进 Git。
 
 `~/.deweyou/brain/` 保存单机派生状态：配置、SQLite、FTS、队列、隔离区、
-锁、Context Pack 缓存、适配器源码和定时任务信息。这也是统一清理边界。
+Raw Source、锁、Context Pack 缓存、适配器源码和定时任务信息。这也是统一清理
+边界。
 
 `brain export` 生成按保密等级和 Scope 过滤后的消费投影，用于 Bot 或静态
 Wiki；不会直接发布完整的私人仓库。
@@ -109,7 +116,8 @@ Runtime 创建的提交与 rebase continuation 使用稳定的本地身份
 - 当前使用 SQLite FTS5，不使用 Vector DB 或 Graph DB。
 - 定时 Worker 当前使用 macOS LaunchAgent。
 - Git 远端加密尚未实现。
-- Resolver 通过外部 JSON stdin/stdout 命令接入。
+- Resolver 使用当前支持 Agent 的模型，通过 `brain maintain` 取得 Prompt，并
+  仅通过 `brain apply` 提交结构化操作；后台不会执行旧的 command provider。
 - `brain hook status` 只能证明配置/安装状态；仍需按运维文档验证 Agent
   Runtime 已重新加载。
 

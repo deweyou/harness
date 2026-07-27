@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process'
 import { readFile, readdir, stat } from 'node:fs/promises'
-import { homedir, platform } from 'node:os'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { usageError } from './args.ts'
+import { renderBrainBootstrapPrompt } from './brain-bootstrap.ts'
 import {
   captureBrainEvent,
   defaultBrainDeviceId,
@@ -12,10 +13,7 @@ import {
 } from './brain.ts'
 import { brainPaths, loadBrainConfig } from './brain-config.ts'
 import { syncBrain } from './brain-git.ts'
-import {
-  discoverBrainHistory,
-  importDiscoveredBrainHistory,
-} from './brain-history.ts'
+import { importDiscoveredBrainHistory } from './brain-history.ts'
 import {
   brainHookStatus,
   installBrainHooks,
@@ -29,7 +27,10 @@ import {
 } from './brain-lifecycle.ts'
 import { exportBrainProjection } from './brain-export.ts'
 import { importBrainHistory } from './brain-import.ts'
-import { maintainBrain } from './brain-maintain.ts'
+import {
+  applyBrainMaintenanceProposal,
+  prepareBrainMaintenance,
+} from './brain-maintain.ts'
 import { recallBrain } from './brain-recall.ts'
 import { parseClassification } from './brain-schema.ts'
 import {
@@ -38,17 +39,20 @@ import {
   uninstallBrainSchedule,
   withBrainWorkerLock,
 } from './brain-schedule.ts'
-import type {
-  BrainAgent,
-  BrainHookFlags,
-  BrainHookResult,
-  BrainInitPromptInput,
-  BrainInitPromptResult,
-  BrainInitOptions,
-  Classification,
-  ContextPack,
-  DiscoverableBrainAgent,
+import {
+  BRAIN_AGENTS,
+  type BrainAgent,
+  type BrainHookFlags,
+  type BrainHookResult,
+  type BrainInitPromptInput,
+  type BrainInitPromptResult,
+  type BrainInitOptions,
+  type Classification,
+  type ContextPack,
+  type DiscoverableBrainAgent,
+  type ResolutionProposal,
 } from './brain-types.ts'
+import { compileWiki } from './brain-wiki.ts'
 
 const execFileAsync = promisify(execFile)
 
@@ -93,21 +97,12 @@ export async function runBrainInit(
   dependencies: { promptForBrainInit?: BrainInitPrompt } = {},
 ) {
   const userHome = flags.homeDir ?? homedir()
-  let interactiveImportAgents: DiscoverableBrainAgent[] = []
-  let interactiveHookAgents: Array<
-    'codex' | 'claude' | 'hermes' | 'openclaw'
-  > = []
-  let installInteractiveSchedule = false
   if (!flags.repo) {
     if (!dependencies.promptForBrainInit && !process.stdin.isTTY) {
       throw usageError(
         'brain init requires --repo <path> in a non-interactive shell',
       )
     }
-    const discovery = await discoverBrainHistory({
-      homeDir: userHome,
-      agent: 'all',
-    })
     const prompt =
       dependencies.promptForBrainInit ??
       (await import('./brain-prompts.ts')).promptForBrainInit
@@ -115,8 +110,6 @@ export async function runBrainInit(
       homeDir: userHome,
       defaultRepo: join(userHome, 'Documents', 'personal-brain'),
       defaultDevice: defaultBrainDeviceId(),
-      discovery,
-      supportsSchedule: platform() === 'darwin',
     })
     flags = {
       ...flags,
@@ -125,9 +118,6 @@ export async function runBrainInit(
       remote: prompted.remote,
       branch: prompted.branch,
     }
-    interactiveImportAgents = prompted.importAgents
-    interactiveHookAgents = prompted.hookAgents
-    installInteractiveSchedule = prompted.installSchedule
   }
   const options: BrainInitOptions = {
     homeDir: flags.homeDir,
@@ -135,7 +125,6 @@ export async function runBrainInit(
     deviceId: flags.device,
     remote: flags.remote,
     branch: flags.branch,
-    force: flags.force,
     dryRun: flags.dryRun,
   }
   const result = await initBrain(options)
@@ -143,42 +132,24 @@ export async function runBrainInit(
   console.log(`Runtime config: ${result.configPath}`)
   console.log(`Knowledge repository: ${result.repoPath}`)
   console.log(`Device: ${result.config.device_id}`)
-  const historyImport =
-    !flags.dryRun && interactiveImportAgents.length > 0
-      ? await importDiscoveredBrainHistory({
-          homeDir: flags.homeDir,
-          agent: interactiveImportAgents.length === 2
-            ? 'all'
-            : interactiveImportAgents[0],
-        })
-      : undefined
-  if (historyImport) {
-    console.log(
-      `History import: ${historyImport.totals.captured} captured, ` +
-      `${historyImport.totals.deduplicated} already present, ` +
-      `${historyImport.totals.quarantined} quarantined`,
-    )
+  console.log(`Git attachment: ${result.gitSync}`)
+  console.log('Next: print a model-driven bootstrap prompt in your agent:')
+  for (const agent of BRAIN_AGENTS) {
+    console.log(`  deweyou-cli brain bootstrap --agent ${agent}`)
   }
-  const hookInstalls = []
-  for (const agent of interactiveHookAgents) {
-    hookInstalls.push(await installBrainHooks({
-      homeDir: flags.homeDir,
-      agent,
-      dryRun: flags.dryRun,
-    }))
+  return result
+}
+
+export async function runBrainBootstrap(flags: BrainCliFlags = {}) {
+  if (!flags.agent || flags.agent === 'all') {
+    throw usageError('brain bootstrap requires one --agent')
   }
-  const scheduleInstall = installInteractiveSchedule
-    ? await installBrainSchedule({
-        homeDir: flags.homeDir,
-        dryRun: flags.dryRun,
-      })
-    : undefined
-  return {
-    ...result,
-    historyImport,
-    hookInstalls,
-    scheduleInstall,
-  }
+  const prompt = await renderBrainBootstrapPrompt({
+    homeDir: flags.homeDir,
+    agent: flags.agent,
+  })
+  console.log(prompt)
+  return prompt
 }
 
 export async function runBrainStatus(flags: BrainCliFlags = {}) {
@@ -329,7 +300,29 @@ export async function runBrainState(flags: BrainCliFlags = {}) {
 }
 
 export async function runBrainMaintain(flags: BrainCliFlags = {}) {
-  const result = await maintainBrain({ homeDir: flags.homeDir })
+  const agent = flags.agent ? parseBrainAgent(flags.agent, 'maintain') : undefined
+  const result = await prepareBrainMaintenance({
+    homeDir: flags.homeDir,
+    agent,
+    sessionId: flags.session,
+  })
+  console.log(result.prompt || '# Deweyou Agent Memory Maintenance\n\nNo pending jobs.\n')
+  return result
+}
+
+export async function runBrainApply(flags: BrainCliFlags = {}) {
+  const data = await resolveInput(flags)
+  if (!data) throw usageError('brain apply requires --data or --data-file')
+  let proposal: ResolutionProposal
+  try {
+    proposal = JSON.parse(data) as ResolutionProposal
+  } catch {
+    throw usageError('brain apply requires valid proposal JSON')
+  }
+  const result = await applyBrainMaintenanceProposal({
+    homeDir: flags.homeDir,
+    proposal,
+  })
   console.log(JSON.stringify(result, null, 2))
   return result
 }
@@ -342,12 +335,22 @@ export async function runBrainSync(flags: BrainCliFlags = {}) {
 
 export async function runBrainWorker(flags: BrainCliFlags = {}) {
   const result = await withBrainWorkerLock(flags.homeDir, async () => {
-    const maintenance = await maintainBrain({ homeDir: flags.homeDir })
+    const wiki = await compileWiki({ homeDir: flags.homeDir })
+    const index = await indexBrain({ homeDir: flags.homeDir })
     const sync = flags.noPush ? null : await syncBrain({ homeDir: flags.homeDir })
-    return { maintenance, sync }
+    return { derived: { wiki, index }, sync }
   })
   console.log(JSON.stringify(result, null, 2))
   return result
+}
+
+function parseBrainAgent(value: string, command: string): BrainAgent {
+  if (!BRAIN_AGENTS.includes(value as BrainAgent)) {
+    throw usageError(
+      `brain ${command} --agent must be one of ${BRAIN_AGENTS.join(', ')}`,
+    )
+  }
+  return value as BrainAgent
 }
 
 export async function runBrainScheduleCommand(

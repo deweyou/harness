@@ -57,6 +57,7 @@ export interface BrainPaths {
   databasePath: string
   queueRoot: string
   quarantineRoot: string
+  rawSourcesRoot: string
   contextPackRoot: string
   locksRoot: string
   scheduleManifestPath: string
@@ -103,6 +104,12 @@ export interface BrainSource {
   session_id: string | null
   scopes: string[]
   classification: Classification
+  storage: 'local'
+  content_hash: string
+  content_bytes: number
+}
+
+export interface BrainLocalSource extends BrainSource {
   content: unknown
 }
 
@@ -111,6 +118,7 @@ export interface BrainCaptureResult {
   created: boolean
   eventPath: string | null
   sourcePath: string | null
+  localSourcePath: string | null
   jobPath: string | null
   quarantinePath: string | null
   event: BrainEvent | null
@@ -162,7 +170,6 @@ export interface BrainInitOptions {
   deviceId?: string
   remote?: string
   branch?: string
-  force?: boolean
   dryRun?: boolean
   now?: Date
 }
@@ -177,6 +184,7 @@ export interface BrainCaptureOptions {
   classification?: Classification
   payload?: Record<string, unknown>
   data?: string
+  queueMaintenance?: boolean
   now?: Date
   idFactory?: () => string
 }
@@ -361,8 +369,6 @@ export interface BrainInitPromptInput {
   homeDir: string
   defaultRepo: string
   defaultDevice: string
-  discovery: BrainHistoryDiscovery
-  supportsSchedule: boolean
 }
 
 export interface BrainInitPromptResult {
@@ -370,9 +376,25 @@ export interface BrainInitPromptResult {
   device: string
   remote?: string
   branch: string
-  importAgents: DiscoverableBrainAgent[]
-  hookAgents: Exclude<BrainAgent, 'trae'>[]
-  installSchedule: boolean
+}
+
+export interface BrainMaintenanceJob {
+  job_id: string
+  event_id: string
+  observation_id: string
+  source_id: string | null
+  local_source_path: string | null
+  agent: BrainAgent
+  session_id: string | null
+  classification: Classification
+  scopes: string[]
+}
+
+export interface BrainMaintenancePreparation {
+  observed: number
+  pending: number
+  jobs: BrainMaintenanceJob[]
+  prompt: string
 }
 
 export interface BrainExportOptions {

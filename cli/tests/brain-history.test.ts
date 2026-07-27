@@ -10,6 +10,7 @@ import {
   importDiscoveredBrainHistory,
 } from '../src/cli/brain-history.ts'
 import { initBrain } from '../src/cli/brain.ts'
+import { brainPaths } from '../src/cli/brain-config.ts'
 
 describe('brain native history discovery and import', () => {
   it('discovers Codex JSONL and Hermes SQLite plus legacy sessions', async () => {
@@ -91,7 +92,9 @@ describe('brain native history discovery and import', () => {
     assert.equal(second.totals.captured, 0)
     assert.equal(second.totals.deduplicated, 2)
 
-    const sourceFiles = await findJsonFiles(join(repoPath, 'sources', 'sessions'))
+    const sourceFiles = await findJsonFiles(
+      join(brainPaths(homeDir).rawSourcesRoot, 'sessions'),
+    )
     const sourceRecords = await Promise.all(
       sourceFiles.map(async (path) => JSON.parse(await readFile(path, 'utf8'))),
     )
@@ -187,7 +190,9 @@ describe('brain native history discovery and import', () => {
     })
 
     assert.equal(result.totals.captured, 1)
-    const sourceFiles = await findJsonFiles(join(repoPath, 'sources', 'sessions'))
+    const sourceFiles = await findJsonFiles(
+      join(brainPaths(homeDir).rawSourcesRoot, 'sessions'),
+    )
     const imported = await readFile(sourceFiles[0], 'utf8')
     assert.match(imported, /Fallback user message/)
     assert.match(imported, /Fallback final answer/)

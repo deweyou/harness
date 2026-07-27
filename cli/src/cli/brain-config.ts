@@ -22,6 +22,7 @@ export function brainPaths(homeDir = homedir()): BrainPaths {
     databasePath: join(runtimeRoot, 'brain.sqlite'),
     queueRoot: join(runtimeRoot, 'queue'),
     quarantineRoot: join(runtimeRoot, 'quarantine'),
+    rawSourcesRoot: join(runtimeRoot, 'raw-sources'),
     contextPackRoot: join(runtimeRoot, 'context-packs'),
     locksRoot: join(runtimeRoot, 'locks'),
     scheduleManifestPath: join(runtimeRoot, 'schedule.json'),

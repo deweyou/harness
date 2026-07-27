@@ -27,7 +27,8 @@ This repository is a Deweyou Context Hub knowledge repository.
 3. Use \`deweyou-cli brain recall\` for scope-filtered, token-budgeted context.
 4. Filter by both consumer clearance and allowed scopes before showing content.
 5. Never bypass artifact \`classification\`, \`scope\`, or \`status\`.
-6. Treat \`sources/\` and \`events/\` as immutable evidence.
+6. Treat \`sources/\` manifests and \`events/\` as immutable evidence. Raw
+   session bodies stay in the local Deweyou runtime.
 7. Treat \`claims/\`, \`resolutions/\`, and \`decisions/\` as governed history.
 8. Treat \`wiki/\` as a compiled view that may be regenerated.
 9. Never store credentials, tokens, cookies, private keys, or authentication
@@ -35,7 +36,7 @@ This repository is a Deweyou Context Hub knowledge repository.
 
 ## Repository map
 
-- \`sources/\`: normalized source material and imported sessions.
+- \`sources/\`: portable manifests for local raw evidence.
 - \`events/<device-id>/\`: append-only lifecycle facts written by one device.
 - \`observations/\`: provisional information awaiting semantic governance.
 - \`claims/\`: atomic, sourced, governed knowledge.
@@ -183,6 +184,11 @@ If multiple devices resolve the same deterministic job while offline, Git
 keeps every device proposal and selects the lexicographically smallest proposal
 path as the canonical resolution. Claims emitted only by a losing proposal are
 retained for provenance but become ineffective in local indexes and Wiki views.
+
+Semantic governance runs in the active Codex, Claude, Hermes, OpenClaw, or Trae
+turn. \`brain maintain\` prepares a prompt and \`brain apply\` is the only path
+that accepts the model's structured proposal. Background workers never invoke
+a model.
 `,
     'schemas/README.md': `---
 id: schema-index
@@ -250,10 +256,11 @@ status: active
 
 # Sources
 
-Sources are normalized evidence, not conclusions. Session sources are stored
-under \`sources/sessions/<agent>/<year>/<month>/\`. Keep source ids stable and
-reference them from observations, claims, and resolutions. Do not commit local
-cache paths or authentication material.
+Sources are evidence manifests, not conclusions. Portable manifests are stored
+under \`sources/manifests/<agent>/<year>/<month>/\`; raw session bodies remain
+under \`~/.deweyou/brain/raw-sources/\` on the capturing device. Keep source ids
+stable and reference them from observations, claims, and resolutions. Never
+commit raw transcripts, local cache paths, or authentication material.
 `,
     'wiki/README.md': `---
 id: wiki-readme
@@ -287,7 +294,8 @@ updated_at: ${createdAt}
 
 # Personal Context Hub
 
-The Wiki has not been compiled yet. Run \`deweyou-cli brain maintain\`.
+The Wiki has not been compiled yet. Run \`deweyou-cli brain worker --no-push\`
+or apply an agent-generated maintenance proposal.
 `,
     'wiki/domains/personal/purpose.md': `---
 id: purpose-personal
@@ -330,7 +338,7 @@ scope:
   - device/${config.device_id}
 `,
     'events/.gitkeep': '',
-    'sources/sessions/.gitkeep': '',
+    'sources/manifests/.gitkeep': '',
     'observations/.gitkeep': '',
     'claims/.gitkeep': '',
     'resolutions/proposals/.gitkeep': '',

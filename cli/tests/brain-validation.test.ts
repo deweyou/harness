@@ -143,7 +143,7 @@ Body.
     )
   })
 
-  it('rejects malformed capture input and preserves existing templates unless forced', async () => {
+  it('rejects malformed capture input and always preserves existing templates', async () => {
     const root = await mkdtemp(join(tmpdir(), 'deweyou-brain-capture-invalid-'))
     const homeDir = join(root, 'home')
     const repoPath = join(root, 'knowledge')

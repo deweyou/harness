@@ -88,7 +88,8 @@ const FLAGS_BY_TOPIC_COMMAND: Record<string, Record<string, Set<string>>> = {
     uninstall: new Set(['dry-run']),
   },
   brain: {
-    init: new Set(['repo', 'device', 'remote', 'branch', 'dry-run', 'force']),
+    init: new Set(['repo', 'device', 'remote', 'branch', 'dry-run']),
+    bootstrap: new Set(['agent']),
     status: new Set(),
     capture: new Set([
       'agent',
@@ -126,7 +127,8 @@ const FLAGS_BY_TOPIC_COMMAND: Record<string, Record<string, Set<string>>> = {
       'dry-run',
     ]),
     state: new Set(['id', 'status', 'reason']),
-    maintain: new Set(),
+    maintain: new Set(['agent', 'session']),
+    apply: new Set(['data', 'data-file']),
     sync: new Set(),
     worker: new Set(['no-push']),
   },
