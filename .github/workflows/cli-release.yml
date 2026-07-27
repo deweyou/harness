@@ -6,6 +6,27 @@ on:
     paths:
       - "cli/**"
       - ".github/workflows/cli-release.yml"
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: "Force a release even when commits have no releasable semantic type."
+        required: false
+        type: boolean
+        default: false
+      release_bump:
+        description: "Bump level when forcing release."
+        required: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      base_ref:
+        description: "Optional git ref for manual range base. Defaults to merge-base origin/main."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -13,7 +34,7 @@ permissions:
 
 jobs:
   publish:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'chore(release):') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -55,14 +76,36 @@ jobs:
         id: release
         working-directory: cli
         run: |
-          changed_files="$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | while read -r file; do
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            CHANGE_BASE="${{ github.event.inputs.base_ref }}"
+            if [[ -z "$CHANGE_BASE" ]]; then
+              CHANGE_BASE="$(git -C .. merge-base origin/main ${GITHUB_SHA})"
+            fi
+            CHANGE_RANGE="${CHANGE_BASE}..${GITHUB_SHA}"
+          else
+            CHANGE_RANGE="${{ github.event.before }}..${{ github.sha }}"
+          fi
+
+          changed_files="$(git -C .. diff --name-only $CHANGE_RANGE | while read -r file; do
             case "$file" in
               cli/*) echo "${file#cli/}" ;;
               *) echo "$file" ;;
             esac
           done | tr '\n' ' ')"
+
           commits_file="$(mktemp)"
-          git -C .. log --format=%s --no-merges ${{ github.event.before }}..${{ github.sha }} -- cli .github/workflows/cli-release.yml > "$commits_file"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force_release }}" == "true" ]]; then
+            case "${{ github.event.inputs.release_bump }}" in
+              major) echo "feat!: manual release trigger" > "$commits_file" ;;
+              minor) echo "feat: manual release trigger" > "$commits_file" ;;
+              *) echo "fix: manual release trigger" > "$commits_file" ;;
+            esac
+            changed_files="src/cli/init.ts ${changed_files}"
+          else
+            git -C .. log --format=%s --no-merges "$CHANGE_RANGE" -- cli .github/workflows/cli-release.yml > "$commits_file"
+          fi
+
           version="$(npx tsx scripts/prepare-release.ts --commits-file "$commits_file" $changed_files)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -111,5 +154,9 @@ jobs:
       - name: Push release commit and tag
         if: ${{ steps.release.outputs.released == 'true' }}
         run: |
-          git push origin HEAD:main
+          TARGET_BRANCH="${GITHUB_REF_NAME}"
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TARGET_BRANCH="main"
+          fi
+          git push origin "HEAD:${TARGET_BRANCH}"
           git push origin "cli-v${{ steps.release.outputs.version }}"
