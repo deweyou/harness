@@ -23,6 +23,7 @@ import {
 } from '../src/cli/dev-session.ts'
 import { runDevInstall, runDevRecord } from '../src/cli/dev.ts'
 import { main } from '../src/cli/main.ts'
+import { CLI_VERSION } from '../src/cli/version-contract.ts'
 import {
   appendFileLocked,
   ensurePrivateFile,
@@ -91,9 +92,14 @@ describe('DDev runtime hardening', () => {
       await assert.rejects(() => loadDdevManifest(homeDir), /manifest is invalid/)
     }
 
+    const futureCliVersion =
+      `${Number(CLI_VERSION.split('.')[0]) + 1}.0.0`
     assert.throws(
-      () => assertDdevCompatibility({ ...valid, minimum_cli_version: '1.3.1' }),
-      /requires deweyou-cli >= 1.3.1/,
+      () => assertDdevCompatibility({
+        ...valid,
+        minimum_cli_version: futureCliVersion,
+      }),
+      new RegExp(`requires deweyou-cli >= ${futureCliVersion}`),
     )
     assert.throws(
       () => assertDdevCompatibility({

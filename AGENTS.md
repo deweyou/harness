@@ -12,6 +12,10 @@ rules, and the `deweyou-cli` package that installs them into other repos.
 - Before evolving DDev beyond its manual structured-session protocol, read
   [docs/ddev-evolution.md](./docs/ddev-evolution.md) for adoption triggers and
   boundaries.
+- Before changing Context Hub storage, governance, sync, recall, or adapters,
+  read [docs/context-hub-architecture.md](./docs/context-hub-architecture.md),
+  [docs/context-hub-operations.md](./docs/context-hub-operations.md), and
+  [docs/context-hub-adapters.md](./docs/context-hub-adapters.md).
 - `CLAUDE.md` should remain a symlink to this file.
 
 ## Asset Map

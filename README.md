@@ -22,6 +22,11 @@ in [`docs/asset-workflow.md`](./docs/asset-workflow.md). DDev technical and
 daily-operations docs live in [`docs/ddev-framework.md`](./docs/ddev-framework.md)
 and [`docs/ddev-operations.md`](./docs/ddev-operations.md).
 
+The personal Context Hub architecture and operating guides live in
+[`docs/context-hub-architecture.md`](./docs/context-hub-architecture.md),
+[`docs/context-hub-operations.md`](./docs/context-hub-operations.md), and
+[`docs/context-hub-adapters.md`](./docs/context-hub-adapters.md).
+
 ## deweyou-cli
 
 `deweyou-cli` bootstraps reusable agent workflows into any local repository. It
@@ -89,6 +94,14 @@ deweyou-cli agent init --dry-run
 | `deweyou-cli dev clean` | Compatibility cleanup for legacy branch sessions; permanent deletion requires `--force`. |
 | `deweyou-cli dev demo` | Create and serve the active task-session static HTML demo workspace. |
 | `deweyou-cli dev uninstall` | Remove current repo DDev state, legacy local state and excludes, old DDev passive hooks, and the runtime only when no other repo state remains. |
+| `deweyou-cli brain init` | Interactively bind a separate personal knowledge Git repository, or pass `--repo` for scripts. |
+| `deweyou-cli brain import` | Discover and idempotently import native Codex/Hermes history, or import an explicit session export. |
+| `deweyou-cli brain recall` | Build a classification- and scope-filtered, token-budgeted Context Pack. |
+| `deweyou-cli brain maintain` | Materialize observations, apply structured governance, and compile the Wiki. |
+| `deweyou-cli brain sync` | Reconcile the append-only ledger through bounded Git fetch/rebase/push. |
+| `deweyou-cli brain hook ...` | Install, inspect, or remove agent capture/context adapters. |
+| `deweyou-cli brain schedule ...` | Manage the local macOS background worker. |
+| `deweyou-cli brain export` | Generate a filtered consumer projection for a bot or Wiki. |
 
 ### Install Modes
 

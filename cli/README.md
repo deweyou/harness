@@ -14,6 +14,8 @@ The v0 scope is intentionally small:
 - diagnose whether the current repository is wired correctly
 - initialize, inspect, diagnose, clean, uninstall, serve, record, and summarize
   global DDev per-repository state under `~/.deweyou/dev/`
+- run a local-first personal Context Hub under `~/.deweyou/brain/` while the
+  canonical knowledge content remains in a separately configured Git repository
 
 ## Install
 
@@ -53,6 +55,57 @@ deweyou-cli dev session start --title "first task"
 deweyou-cli agent -h
 deweyou-cli -v
 ```
+
+Context Hub quick start:
+
+```bash
+deweyou-cli brain init
+deweyou-cli brain import --discover --dry-run
+deweyou-cli brain import --discover
+deweyou-cli brain worker --no-push
+deweyou-cli brain sync
+deweyou-cli brain recall --query "current project decisions" --clearance private
+```
+
+`brain init` is interactive when `--repo` is omitted. The wizard can
+optionally import discovered Codex/Hermes history, install global hooks, and
+install the macOS worker; all three are unselected by default. Scripts should
+pass `--repo`.
+
+The Context Hub requires Node.js 22.5 or newer. See the
+[architecture](../docs/context-hub-architecture.md),
+[operations](../docs/context-hub-operations.md), and
+[adapter reference](../docs/context-hub-adapters.md).
+
+### `deweyou-cli brain`
+
+```text
+deweyou-cli brain init [--repo <path>] [--device id] [--remote url]
+deweyou-cli brain status
+deweyou-cli brain capture --agent agent --event event [--data json]
+deweyou-cli brain import --discover [--dry-run] [--agent codex|hermes|all]
+deweyou-cli brain import --agent agent --path file-or-directory
+deweyou-cli brain index
+deweyou-cli brain recall --query text [--scope a,b] [--clearance level] [--budget tokens]
+deweyou-cli brain maintain
+deweyou-cli brain sync
+deweyou-cli brain worker [--no-push]
+deweyou-cli brain state --id id --status active|stale|archived|deleted --reason text
+deweyou-cli brain export --output path [--clearance level] [--scope a,b]
+deweyou-cli brain hook install|status|uninstall --agent agent|all [--repo path]
+deweyou-cli brain schedule install|status|uninstall [--interval seconds]
+```
+
+The separate knowledge repository commits Sources, Events, Observations,
+Claims, Resolutions, Decisions, policies, schemas, and the compiled Wiki.
+SQLite, FTS, queues, locks, quarantine, and adapter state stay local.
+Classification is `public < private < confidential < restricted`; export and
+recall filter before exposing content.
+
+Native Codex/Hermes discovery is read-only. It imports user messages and
+user-visible assistant message content under `private` and
+`device/<device-id>` by default, and is safe to rerun without creating
+duplicate records.
 
 For standalone or non-DDev asset setup, select the skills and rules you want:
 

@@ -446,6 +446,19 @@ export interface ParsedArgs {
   flags: Record<string, boolean | string | string[]>
 }
 
+export interface ParsedBrainHookArgs {
+  command: import('./brain-types.ts').BrainHookCommand
+  flags: import('./brain-types.ts').BrainHookFlags
+}
+
+export interface ParsedBrainScheduleArgs {
+  command: 'install' | 'status' | 'uninstall'
+  flags: {
+    interval?: string
+    dryRun?: boolean
+  }
+}
+
 export type UsageError = Error & {
   exitCode: number
   silent: boolean
