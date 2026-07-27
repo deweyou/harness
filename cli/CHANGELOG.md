@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0 - 2026-07-27
+
+### Added
+
+- brain: add personal context hub
+
+### Fixed
+
+- brain: use stable identity for rebases
 ## 1.4.0 - 2026-07-22
 
 ### Added
