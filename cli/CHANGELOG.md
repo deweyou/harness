@@ -48,12 +48,21 @@
 
 - add `--global` shortcut for global skill and rule installs
 - add validated DDev protocol events and generated branch-session summaries
+- add the local-first personal Context Hub with a separate Git knowledge
+  repository, local SQLite FTS index, structured governance, compiled Wiki,
+  filtered Context Packs, historical import, safe export, and soft lifecycle
+  decisions
+- add Codex, Claude Code, Hermes Agent, OpenClaw, and Trae adapters plus a
+  macOS scheduled worker
+- add guided `brain init` with opt-in history/hooks/scheduling and read-only,
+  idempotent native Codex/Hermes history discovery
 
 ### Changed
 
 - clarify global init success output and help text
 - delegate `agent init` skill installs to `npx skills` and remove the extra
   Dewey skills wrapper commands
+- require Node.js 22.5 or newer for the built-in SQLite runtime
 
 ## 0.5.0 - 2026-05-17
 

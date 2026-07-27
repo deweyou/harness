@@ -21,6 +21,11 @@
 手册分别记录在 [`docs/ddev-framework.zh.md`](./docs/ddev-framework.zh.md) 和
 [`docs/ddev-operations.zh.md`](./docs/ddev-operations.zh.md)。
 
+个人 Context Hub 的架构、运维和适配器文档分别位于
+[`docs/context-hub-architecture.zh.md`](./docs/context-hub-architecture.zh.md)、
+[`docs/context-hub-operations.zh.md`](./docs/context-hub-operations.zh.md) 和
+[`docs/context-hub-adapters.md`](./docs/context-hub-adapters.md)。
+
 ## deweyou-cli
 
 `deweyou-cli` 用来把可复用 agent 工作流引入任意本地仓库。它会从这个资产中心刷新本地 skills、rules 和 design contracts 缓存，给仓库初始化选中的资产，渲染当前仓库启用的 agent context，并诊断仓库接入是否正常。
@@ -84,6 +89,14 @@ deweyou-cli agent init --dry-run
 | `deweyou-cli dev clean` | 兼容旧 branch session 的清理命令；永久删除必须带 `--force`。 |
 | `deweyou-cli dev demo` | 创建并启动 active task session 的静态 HTML demo 工作台。 |
 | `deweyou-cli dev uninstall` | 删除当前仓库 DDev 状态、旧仓库本地状态和 exclude、旧版 DDev 被动 hooks；仅当没有其他 repo state 时删除 runtime。 |
+| `deweyou-cli brain init` | 交互式绑定独立的个人知识 Git 仓库；脚本可显式传入 `--repo`。 |
+| `deweyou-cli brain import` | 发现并幂等导入 Codex/Hermes 原生历史，或导入显式会话导出文件。 |
+| `deweyou-cli brain recall` | 按保密等级、Scope 和 Token Budget 生成 Context Pack。 |
+| `deweyou-cli brain maintain` | 生成 Observation、执行结构化治理并编译 Wiki。 |
+| `deweyou-cli brain sync` | 通过有界 Git fetch/rebase/push 收敛不可变知识账本。 |
+| `deweyou-cli brain hook ...` | 安装、检查或移除 Agent 采集与上下文适配器。 |
+| `deweyou-cli brain schedule ...` | 管理 macOS 本地后台 Worker。 |
+| `deweyou-cli brain export` | 为 Bot 或 Wiki 生成过滤后的消费投影。 |
 
 ### 安装模式
 

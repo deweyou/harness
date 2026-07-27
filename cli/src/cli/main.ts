@@ -1,4 +1,11 @@
-import { parseArgs, parseDevSessionArgs, parseUpdateArgs, usageError } from './args.ts'
+import {
+  parseArgs,
+  parseBrainHookArgs,
+  parseBrainScheduleArgs,
+  parseDevSessionArgs,
+  parseUpdateArgs,
+  usageError,
+} from './args.ts'
 import type { DevFlags } from './types.ts'
 import { CLI_VERSION } from './version-contract.ts'
 
@@ -13,8 +20,22 @@ const DEV_COMMANDS = [
   'summary',
   'uninstall',
 ] as const
+const BRAIN_COMMANDS = [
+  'init',
+  'status',
+  'capture',
+  'import',
+  'index',
+  'recall',
+  'export',
+  'state',
+  'maintain',
+  'sync',
+  'worker',
+] as const
 type AgentCommand = (typeof AGENT_COMMANDS)[number]
 type DevCommand = (typeof DEV_COMMANDS)[number]
+type BrainCommand = (typeof BRAIN_COMMANDS)[number]
 
 export async function main(argv: string[]): Promise<void> {
   const help = helpFor(argv)
@@ -38,11 +59,44 @@ export async function main(argv: string[]): Promise<void> {
     await runDevSessionCommand(argv.slice(2))
     return
   }
+  if (argv[0] === 'brain' && argv[1] === 'hook') {
+    const parsed = parseBrainHookArgs(argv.slice(2))
+    const brain = await import('./brain-cli.ts')
+    await brain.runBrainHookCommand(parsed.command, parsed.flags)
+    return
+  }
+  if (argv[0] === 'brain' && argv[1] === 'schedule') {
+    const parsed = parseBrainScheduleArgs(argv.slice(2))
+    const brain = await import('./brain-cli.ts')
+    await brain.runBrainScheduleCommand(parsed.command, parsed.flags)
+    return
+  }
 
   const parsed = parseArgs(argv)
 
-  if (parsed.topic !== 'agent' && parsed.topic !== 'dev') {
+  if (
+    parsed.topic !== 'agent' &&
+    parsed.topic !== 'dev' &&
+    parsed.topic !== 'brain'
+  ) {
     printUsageAndThrow()
+  }
+
+  if (parsed.topic === 'brain') {
+    const brain = await import('./brain-cli.ts')
+    if (parsed.command === 'init') await brain.runBrainInit(parsed.flags)
+    else if (parsed.command === 'status') await brain.runBrainStatus(parsed.flags)
+    else if (parsed.command === 'capture') await brain.runBrainCapture(parsed.flags)
+    else if (parsed.command === 'import') await brain.runBrainImport(parsed.flags)
+    else if (parsed.command === 'index') await brain.runBrainIndex(parsed.flags)
+    else if (parsed.command === 'recall') await brain.runBrainRecall(parsed.flags)
+    else if (parsed.command === 'export') await brain.runBrainExport(parsed.flags)
+    else if (parsed.command === 'state') await brain.runBrainState(parsed.flags)
+    else if (parsed.command === 'maintain') await brain.runBrainMaintain(parsed.flags)
+    else if (parsed.command === 'sync') await brain.runBrainSync(parsed.flags)
+    else if (parsed.command === 'worker') await brain.runBrainWorker(parsed.flags)
+    else printUsageAndThrow()
+    return
   }
 
   if (parsed.topic === 'dev') {
@@ -133,6 +187,7 @@ function rootUsage(): string {
   deweyou-cli update [--dry-run] [--cli-only|--agents-only]
   deweyou-cli agent <command> [options]
   deweyou-cli dev <command> [options]
+  deweyou-cli brain <command> [options]
 
 Commands:
   update          Update the global CLI and refresh Dewey agent assets.
@@ -149,6 +204,16 @@ Commands:
   dev record      Append a validated protocol event to a task session.
   dev summary     Summarize task-session events and update summary.md.
   dev uninstall   Remove repo state, legacy state, old hooks, and unused runtime.
+  brain init      Bind a separate personal knowledge repository.
+  brain capture   Capture one normalized agent lifecycle event.
+  brain import    Import historical agent session files.
+  brain recall    Build a scoped, token-budgeted Context Pack.
+  brain export    Create a classification-filtered projection.
+  brain state     Record an auditable soft lifecycle decision.
+  brain maintain  Govern queued observations and compile the Wiki.
+  brain sync      Reconcile and synchronize the Git knowledge ledger.
+  brain hook      Install, inspect, run, or remove agent adapters.
+  brain schedule  Install, inspect, or remove the local worker schedule.
 
 Options:
   -h, --help      Show help.
@@ -190,6 +255,81 @@ function devUsage(): string {
   deweyou-cli dev uninstall [--dry-run]
 
 Run \`deweyou-cli dev <command> -h\` for command-specific help.`
+}
+
+function brainUsage(): string {
+  return `Usage:
+  deweyou-cli brain init [--repo <path>] [--device id] [--remote url]
+  deweyou-cli brain status
+  deweyou-cli brain capture --agent agent --event event [--data json|--data-file path]
+  deweyou-cli brain import --discover [--agent codex|hermes|all] [--dry-run]
+  deweyou-cli brain import --agent agent --path file-or-directory
+  deweyou-cli brain index
+  deweyou-cli brain recall --query text [--scope a,b] [--clearance level] [--budget tokens]
+  deweyou-cli brain export --output path [--clearance level] [--scope a,b]
+  deweyou-cli brain state --id artifact-id --status state --reason text
+  deweyou-cli brain maintain
+  deweyou-cli brain sync
+  deweyou-cli brain worker [--no-push]
+  deweyou-cli brain hook install|status|uninstall --agent agent|all [--repo path]
+  deweyou-cli brain schedule install|status|uninstall [--interval seconds]
+
+Run \`deweyou-cli brain <command> -h\` for command-specific help.`
+}
+
+function brainHookUsage(command?: string): string {
+  if (command === 'run') {
+    return 'Usage:\n  deweyou-cli brain hook run --agent agent --event event'
+  }
+  return `Usage:
+  deweyou-cli brain hook install --agent agent|all [--repo path] [--dry-run]
+  deweyou-cli brain hook status [--agent agent|all] [--repo path]
+  deweyou-cli brain hook uninstall --agent agent|all [--repo path] [--dry-run]`
+}
+
+function brainScheduleUsage(command?: string): string {
+  if (command === 'install') {
+    return 'Usage:\n  deweyou-cli brain schedule install [--interval 300] [--dry-run]'
+  }
+  if (command === 'status') return 'Usage:\n  deweyou-cli brain schedule status'
+  if (command === 'uninstall') {
+    return 'Usage:\n  deweyou-cli brain schedule uninstall [--dry-run]'
+  }
+  return `Usage:
+  deweyou-cli brain schedule install [--interval 300] [--dry-run]
+  deweyou-cli brain schedule status
+  deweyou-cli brain schedule uninstall [--dry-run]`
+}
+
+function brainCommandUsage(command: BrainCommand): string {
+  if (command === 'init') {
+    return `Usage:
+  deweyou-cli brain init
+  deweyou-cli brain init --repo <path> [--device id] [--remote url] [--branch name] [--dry-run] [--force]`
+  }
+  if (command === 'capture') {
+    return `Usage:
+  deweyou-cli brain capture --agent agent --event event [--session id] [--cwd path] [--scope a,b] [--classification level] [--data json|--data-file path]`
+  }
+  if (command === 'import') {
+    return `Usage:
+  deweyou-cli brain import --discover [--agent codex|hermes|all] [--scope a,b] [--classification level] [--dry-run]
+  deweyou-cli brain import --agent agent --path file-or-directory [--scope a,b] [--classification level]`
+  }
+  if (command === 'recall') {
+    return `Usage:
+  deweyou-cli brain recall --query text [--scope a,b] [--clearance public|private|confidential|restricted] [--budget tokens] [--format markdown|json] [--include-archived]`
+  }
+  if (command === 'export') {
+    return `Usage:
+  deweyou-cli brain export --output path [--clearance public|private|confidential|restricted] [--scope a,b] [--format wiki|knowledge] [--dry-run]`
+  }
+  if (command === 'state') {
+    return `Usage:
+  deweyou-cli brain state --id artifact-id --status active|stale|archived|deleted --reason text`
+  }
+  return `Usage:
+  deweyou-cli brain ${command}`
 }
 
 function devSessionUsage(command?: string): string {
@@ -350,9 +490,18 @@ function helpFor(argv: string[]): string | null {
   if (isHelpFlag(argv[0])) return rootUsage()
   if (argv[0] === 'update') return updateUsage()
   if (argv[0] === 'dev' && argv[1] === 'session') return devSessionUsage(argv[2])
-  if (argv[0] !== 'agent' && argv[0] !== 'dev') return rootUsage()
+  if (argv[0] === 'brain' && argv[1] === 'hook') return brainHookUsage(argv[2])
+  if (argv[0] === 'brain' && argv[1] === 'schedule') {
+    return brainScheduleUsage(argv[2])
+  }
+  if (argv[0] !== 'agent' && argv[0] !== 'dev' && argv[0] !== 'brain') return rootUsage()
 
   const command = argv[1]
+  if (argv[0] === 'brain') {
+    if (!command || isHelpFlag(command)) return brainUsage()
+    if (isBrainCommand(command)) return brainCommandUsage(command)
+    return brainUsage()
+  }
   if (argv[0] === 'dev') {
     if (!command || isHelpFlag(command)) return devUsage()
     if (isDevCommand(command)) return devCommandUsage(command)
@@ -389,4 +538,8 @@ function isAgentCommand(value: string): value is AgentCommand {
 
 function isDevCommand(value: string): value is DevCommand {
   return DEV_COMMANDS.includes(value as DevCommand)
+}
+
+function isBrainCommand(value: string): value is BrainCommand {
+  return BRAIN_COMMANDS.includes(value as BrainCommand)
 }
