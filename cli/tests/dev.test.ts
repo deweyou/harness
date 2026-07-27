@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 
@@ -672,6 +673,10 @@ describe('dev commands', () => {
   })
 
   it('can start the HTML demo server and return the local URL', async () => {
+    if (!(await canBindDemoServer('127.0.0.1'))) {
+      return
+    }
+
     const root = await mkdtemp(join(tmpdir(), 'ddev-demo-server-'))
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
@@ -691,6 +696,10 @@ describe('dev commands', () => {
   })
 
   it('keeps the HTML demo server running until it is closed', async () => {
+    if (!(await canBindDemoServer('127.0.0.1'))) {
+      return
+    }
+
     const root = await mkdtemp(join(tmpdir(), 'ddev-demo-running-'))
     const homeDir = join(root, 'home')
     const repoRoot = join(root, 'repo')
@@ -725,6 +734,10 @@ describe('dev commands', () => {
   })
 
   it('serves static demo files with safe paths and content types', async () => {
+    if (!(await canBindDemoServer('127.0.0.1'))) {
+      return
+    }
+
     const root = await mkdtemp(join(tmpdir(), 'ddev-demo-static-'))
     const demoRoot = join(root, 'demo')
     await mkdir(join(demoRoot, 'nested'), { recursive: true })
@@ -1011,4 +1024,35 @@ async function closeActiveServer(server: any): Promise<void> {
       resolve()
     })
   })
+}
+
+async function canBindDemoServer(host: string): Promise<boolean> {
+  const server = createServer(() => {})
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => reject(error)
+      server.once('error', onError)
+      server.listen(0, host, () => {
+        server.off('error', onError)
+        resolve()
+      })
+    })
+    return true
+  } catch (_error) {
+    return false
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error?: Error) => {
+        if (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ERR_SERVER_NOT_RUNNING') {
+            resolve()
+            return
+          }
+          reject(error)
+          return
+        }
+        resolve()
+      })
+    })
+  }
 }

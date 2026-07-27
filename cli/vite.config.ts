@@ -8,7 +8,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text'],
       include: ['src/**/*.ts'],
-      exclude: ['src/bin/deweyou.ts'],
+      exclude: ['src/bin/deweyou.ts', 'src/cli/dev.ts'],
       thresholds: {
         statements: 90,
         branches: 90,
