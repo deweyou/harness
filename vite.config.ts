@@ -1,21 +1,20 @@
 import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
-  pack: {
-    dts: {
-      tsgo: true,
-    },
-    exports: true,
-  },
-  lint: {
-    options: {
-      typeAware: true,
-      typeCheck: true,
-    },
-  },
-  fmt: {
-    options: {
-      singleQuote: true,
+  test: {
+    environment: 'node',
+    include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/mcp/server.ts'],
+      thresholds: {
+        statements: 85,
+        branches: 70,
+        functions: 85,
+        lines: 85,
+      },
     },
   },
 });

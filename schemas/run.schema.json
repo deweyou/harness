@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/deweyou/agents/schemas/run.schema.json",
+  "title": "Deweyou Harness run metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "workspaceId", "workspacePath", "workflowId", "createdAt", "hostSessions"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "workspaceId": { "type": "string", "pattern": "^[a-f0-9]{20}$" },
+    "workspacePath": { "type": "string", "minLength": 1 },
+    "workflowId": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "hostSessions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  }
+}

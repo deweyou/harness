@@ -1,215 +1,22 @@
-# Agents
+# Deweyou Harness
 
-[English](./README.md) | [简体中文](./README_ZH.md)
+Deweyou Harness 是一个面向 Codex 的通用工作流插件。插件只提供一个用户入口
+`/dhw`，以及一个本地 MCP Server，用于校验配置、编排 DAG、渐进加载资源并记录
+可重放的 Run 证据。
 
-个人 agent 资产中心。这个仓库集中维护可复用的 **skills**、
-**rules**，以及 `deweyou-cli` 包，用来把这些资产一致地安装或接入到其他仓库。
+Harness Core 不内置 coding、写作、视频、产品或仓库规则。工作区通过
+`harness.yaml` 注入 skills、rules、knowledge、nodes 和 workflows。
 
-## 当前仓库包含什么
-
-| 区域 | 位置 | 用途 |
-|------|------|------|
-| Skills | [`skills/`](./skills/) | 会在特定 agent 任务中主动触发的工作流。 |
-| Rules | [`rules/`](./rules/) | 跨项目复用的被动编码与开发偏好。 |
-| Design | [`design/`](./design/) | 用于 AI 辅助 UI 工作的可复用界面设计契约。 |
-| CLI | [`cli/`](./cli/) | `deweyou-cli` 二进制命令的 TypeScript 包。 |
-| Docs | [`docs/`](./docs/) | 仓库工作流、设计记录和实现计划。 |
-| Tests | [`tests/`](./tests/) | 资产注册表与扫描逻辑测试。 |
-
-`AGENTS.md` 是给 agent 使用的导航页。仓库工作流细节记录在
-[`docs/asset-workflow.md`](./docs/asset-workflow.md)。DDev 技术方案和日常操作
-手册分别记录在 [`docs/ddev-framework.zh.md`](./docs/ddev-framework.zh.md) 和
-[`docs/ddev-operations.zh.md`](./docs/ddev-operations.zh.md)。
-
-个人 Context Hub 的架构、运维和适配器文档分别位于
-[`docs/context-hub-architecture.zh.md`](./docs/context-hub-architecture.zh.md)、
-[`docs/context-hub-operations.zh.md`](./docs/context-hub-operations.zh.md) 和
-[`docs/context-hub-adapters.md`](./docs/context-hub-adapters.md)。
-
-## deweyou-cli
-
-`deweyou-cli` 用来把可复用 agent 工作流引入任意本地仓库。它会从这个资产中心刷新本地 skills、rules 和 design contracts 缓存，给仓库初始化选中的资产，渲染当前仓库启用的 agent context，并诊断仓库接入是否正常。
-
-全局安装：
+## 开发验证
 
 ```bash
-npm install -g deweyou-cli
-deweyou-cli update
+pnpm install
+pnpm run check
+pnpm run test:coverage
+pnpm run validate:plugin
 ```
 
-默认情况下，`agent update` 会把 `https://github.com/deweyou/agents.git`
-克隆或拉取到 `~/.deweyou/agents/source`。如果本地开发时需要使用指定 checkout，可以设置：
+仓库会跟踪打包后的 `dist/server.mjs`，插件安装后不依赖 TypeScript 运行时。
+本项目不再发布公共 CLI，也不迁移旧 DDev/Brain 状态。
 
-```bash
-export DEWEYOU_AGENTS_SOURCE=/path/to/deweyou/agents
-deweyou-cli update --agents-only
-```
-
-初始化另一个仓库：
-
-```bash
-cd /path/to/your/repo
-deweyou-cli agent init \
-  --skills ddev \
-  --rules ddev-local-state,verification-evidence,loop-boundaries \
-  --mode link \
-  --yes
-deweyou-cli agent doctor
-deweyou-cli agent context --format markdown
-deweyou-cli dev install
-deweyou-cli dev status
-deweyou-cli dev doctor
-deweyou-cli dev session start --title "第一个任务"
-```
-
-脚本化初始化示例：
-
-```bash
-deweyou-cli agent init --all --mode link --yes
-deweyou-cli agent init --skills ddev --rules ddev-local-state,verification-evidence,loop-boundaries --mode link --yes
-deweyou-cli agent init --skills ui-design --design dewey-interface
-deweyou-cli agent init --global --tools codex --skills repo-memory,git-delivery --yes
-deweyou-cli agent init --dry-run
-```
-
-### CLI 命令
-
-| 命令 | 用途 |
-|------|------|
-| `deweyou-cli update` | 更新全局 CLI，再用新 CLI 刷新 agent assets。 |
-| `deweyou-cli agent update` | 只刷新本地 asset cache 与 registry。 |
-| `deweyou-cli agent init` | 把选中的 skills、rules 和可选 `DESIGN.md` 加入当前仓库；也可用 `--global` 做用户级安装。 |
-| `deweyou-cli agent context --format markdown` | 输出当前仓库启用的 agent instructions。 |
-| `deweyou-cli agent context --format json` | 输出给工具使用的结构化 context。 |
-| `deweyou-cli agent doctor` | 检查缓存、manifest、符号链接、已选资产和 hash 是否一致。 |
-| `deweyou-cli dev install` | 校验 DDev manifest，并初始化 runtime/repo config；不创建 task session。 |
-| `deweyou-cli dev session ...` | start、list、status、close、archive 或显式 clean task session。 |
-| `deweyou-cli dev status` | 输出 DDev runtime 和仓库状态。 |
-| `deweyou-cli dev doctor` | 诊断 schema、CLI capability、manifest 模块、legacy 状态和被动 hook 缺席。 |
-| `deweyou-cli dev clean` | 兼容旧 branch session 的清理命令；永久删除必须带 `--force`。 |
-| `deweyou-cli dev demo` | 创建并启动 active task session 的静态 HTML demo 工作台。 |
-| `deweyou-cli dev uninstall` | 删除当前仓库 DDev 状态、旧仓库本地状态和 exclude、旧版 DDev 被动 hooks；仅当没有其他 repo state 时删除 runtime。 |
-| `deweyou-cli brain init` | 交互式绑定独立的个人知识 Git 仓库；脚本可显式传入 `--repo`。 |
-| `deweyou-cli brain import` | 发现并幂等导入 Codex/Hermes 原生历史，或导入显式会话导出文件。 |
-| `deweyou-cli brain recall` | 按保密等级、Scope 和 Token Budget 生成 Context Pack。 |
-| `deweyou-cli brain maintain` | 生成 Observation、执行结构化治理并编译 Wiki。 |
-| `deweyou-cli brain sync` | 通过有界 Git fetch/rebase/push 收敛不可变知识账本。 |
-| `deweyou-cli brain hook ...` | 安装、检查或移除 Agent 采集与上下文适配器。 |
-| `deweyou-cli brain schedule ...` | 管理 macOS 本地后台 Worker。 |
-| `deweyou-cli brain export` | 为 Bot 或 Wiki 生成过滤后的消费投影。 |
-
-### 安装模式
-
-| 模式 | 写入仓库的内容 | 适合场景 |
-|------|----------------|----------|
-| `link` | 把选中的资产符号链接到 `.agents/skills/`、`.agents/rules/`，并可选写入根目录 `DESIGN.md`。 | 日常本地开发，希望缓存更新后仓库立即看到变化。 |
-| `copy` | 把选中的资产复制到 `.agents/skills/`、`.agents/rules/`，并可选写入根目录 `DESIGN.md`。 | 希望仓库保留一份已选资产快照。 |
-| `pointer` | 只写入 `.agents/manifest.json` 和 `AGENTS.md`；资产仍保留在全局缓存中。 | 希望仓库占用最少文件。 |
-
-## Skills
-
-Skills 是主动工作流。它们位于 `skills/<name>/SKILL.md`，也可能包含面向人的
-`README.md` 和 `README_ZH.md`、references、scripts、assets、previews 或 eval cases。
-DDev 项目只需要把 `ddev` 入口 skill 安装进目标仓库；模块 skills 由 DDev 从全局
-cache `~/.deweyou/agents/assets/skills/<skill>/SKILL.md` 按绝对路径加载，并从
-`~/.deweyou/agents/assets/rules/` 读取按操作强依赖的 rules。
-
-可执行的 Skill、Rule 和 Design 继续只使用英文，并作为唯一行为来源。每个资产都有
-中文阅读版：Skill 位于 `skills/<name>/README_ZH.md`，Rule 和 Design 的完整中文正文
-位于 `docs/zh/assets/`。`pnpm run lint:assets` 会通过源摘要发现缺失或已经过期的中文版本。
-
-| Skill | 介绍 | 来源 |
-|-------|------|------|
-| `ddev` | DDev 个人跨仓库开发 harness 工作流。它负责任务生命周期、缓存中的编码与工程强依赖 rules、`~/.deweyou/dev/` 下的全局按仓库状态、UI 原型门禁、HTML demo、harness map、有边界循环、证据、交付路由和记忆路由。 | [`skills/ddev/`](./skills/ddev/) |
-| `problem-framing` | Grilling、brainstorming、tradeoff 批判和推荐工作流，用于在实现前澄清模糊请求。 | [`skills/problem-framing/`](./skills/problem-framing/) |
-| `repo-memory` | 仓库长期记忆工作流。它初始化和刷新 durable repo context，运行提交前记忆检查，在工作改变重要知识时更新文档和 UI 设计记忆，并检查本地 skill drift。 | [`skills/repo-memory/`](./skills/repo-memory/) |
-| `git-delivery` | 分支感知的 git 交付工作流，覆盖分支准备、有意 staging、提交、base 分支冲突检查、安全 rebase、push、PR 创建、CI 跟进和明确低风险 CI 失败的自动修复。 | [`skills/git-delivery/`](./skills/git-delivery/) |
-| `spec-driven-coding` | DDev-native coding workflow，用于功能、行为变更、调试、TDD、验证和编码前后的需求对齐。 | [`skills/spec-driven-coding/`](./skills/spec-driven-coding/) |
-| `skill-eval` | 仓库本地的 skill 评测工作流。它可以生成 eval cases，通过 agent CLI 运行 routing 或 execution 测试，给 transcript 打分并汇总触发准确率。 | [`skills/skill-eval/`](./skills/skill-eval/) |
-| `product-notes` | 产品笔记工作流，用于分类并沉淀产品想法、定位变化、迭代规格、决策、洞察和复盘。 | [`skills/product-notes/`](./skills/product-notes/) |
-| `ui-design` | UX/UI 设计和原型工作流，用于跨 Web、移动端、HarmonyOS、小程序、macOS、仪表盘和工具进行模式调研、流程设计、视觉风格、实现、审查和 AI 设计 prompt 生成。 | [`skills/ui-design/`](./skills/ui-design/) |
-| `product-design` | 面向个人产品的产品设计工作流。它在需要时调研现有产品，避免企业级流程表演，并给出合适深度的方向、版本或验证步骤建议。 | [`skills/product-design/`](./skills/product-design/) |
-
-### 直接安装 Skills
-
-用 Skills CLI 安装单个 skill：
-
-```bash
-npx skills add deweyou/agents --skill repo-memory
-```
-
-按需替换 skill 名称：
-
-```bash
-npx skills add deweyou/agents --skill ddev
-npx skills add deweyou/agents --skill problem-framing
-npx skills add deweyou/agents --skill git-delivery
-npx skills add deweyou/agents --skill spec-driven-coding
-npx skills add deweyou/agents --skill skill-eval
-npx skills add deweyou/agents --skill product-notes
-npx skills add deweyou/agents --skill ui-design
-npx skills add deweyou/agents --skill product-design
-```
-
-如果要给仓库接入 DDev，更推荐使用
-`deweyou-cli agent init --skills ddev --mode link --yes`，让仓库只有一个
-DDev 入口。只有当你想在 DDev 外单独使用某个 skill 时，才需要显式安装其他
-skills。
-
-## Rules
-
-Rules 是被动偏好和约束。它们位于 `rules/<name>.md`，并通过 `deweyou-cli` 按仓库选择启用。
-DDev 还会在对应操作前直接从全局 asset cache 读取 `code-style` 和
-`engineering-principles`，因此这两个 rules 是否安装不影响 DDev。
-
-| Rule | 介绍 | 来源 |
-|------|------|------|
-| `collaboration-defaults` | 默认 agent 协作行为，覆盖语言、歧义、上下文、任务顺序、并行工作、证据、安全和交付。 | [`rules/collaboration-defaults.md`](./rules/collaboration-defaults.md) |
-| `code-style` | 命名、函数、注释、错误处理和测试的局部代码表达偏好。 | [`rules/code-style.md`](./rules/code-style.md) |
-| `engineering-principles` | 模块边界、抽象、依赖、状态和易删除代码的设计偏好。 | [`rules/engineering-principles.md`](./rules/engineering-principles.md) |
-| `ddev-local-state` | `~/.deweyou/dev` 下全局 DDev 本地状态的归属、可见性、清理和提交边界。 | [`rules/ddev-local-state.md`](./rules/ddev-local-state.md) |
-| `verification-evidence` | 完成声明、跳过检查、UI/runtime 现场证明和验证缺口的证据要求。 | [`rules/verification-evidence.md`](./rules/verification-evidence.md) |
-| `loop-boundaries` | 约束实现、调试、验证和 CI 修复循环，明确什么时候继续、停止或提问。 | [`rules/loop-boundaries.md`](./rules/loop-boundaries.md) |
-
-## Design
-
-设计契约在这个资产中心里放在 [`design/`](./design/) 下。它们是项目级设计契约：
-一部分是设计规则，一部分是 token map，一部分是组件指导。`ui-design` 会优先读取
-项目本地的 `DESIGN.md`；`deweyou-cli agent init --design dewey-interface`
-会把 [`design/dewey-interface.md`](./design/dewey-interface.md) 安装到目标仓库根目录为
-`DESIGN.md`。
-
-| Design Contract | 介绍 | 来源 |
-|-----------------|------|------|
-| `dewey-interface` | 面向个人产品的克制、排版驱动、组件化界面风格。 | [`design/dewey-interface.md`](./design/dewey-interface.md) |
-
-## 开发
-
-修改 skills 或 rules 后运行：
-
-```bash
-pnpm run lint:assets
-```
-
-修改资产扫描行为后运行：
-
-```bash
-pnpm test
-pnpm run coverage
-```
-
-修改 CLI 行为后运行：
-
-```bash
-pnpm run typecheck:cli
-pnpm run test:cli
-pnpm run coverage:cli
-cd cli && npm pack --dry-run
-```
-
-每个新增或修改过的 skill 都必须更新 `skills/<name>/evals/evals.json`
-中的 eval cases。执行 LLM-backed evals 是单独步骤，只有在用户明确要求时才运行。
-
-每个 skill 目录都必须包含 `README.md` 和 `README_ZH.md`，说明概括、安装方式、
-特点、SOP，并在有帮助时加入 Mermaid 图。每次 skill 工作流变化时都要同步更新两份
-README。
+完整契约见 [Harness Core](docs/harness-core.md)。

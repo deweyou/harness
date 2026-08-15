@@ -1,26 +1,18 @@
 {
   "compilerOptions": {
-    "target": "esnext",
-    "lib": [
-      "es2023"
-    ],
-    "moduleDetection": "force",
-    "module": "preserve",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "types": [
-      "node"
-    ],
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node", "vitest/globals"],
     "strict": true,
     "noUnusedLocals": true,
-    "declaration": true,
-    "emitDeclarationOnly": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "include": [
-    "cli"
-  ]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vite.config.ts"]
 }

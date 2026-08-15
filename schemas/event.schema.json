@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/deweyou/agents/schemas/event.schema.json",
+  "title": "Deweyou Harness event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "runId", "sequence", "timestamp", "type", "traceId", "spanId", "payload", "previousHash", "hash"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "type": {
+      "enum": ["run.created", "workflow.selected", "stage.started", "stage.completed", "node.ready", "node.started", "node.succeeded", "node.failed", "node.blocked", "node.cancelled", "node.skipped", "node.interrupted", "resource.activated", "evidence.recorded", "decision.recorded", "run.completed"]
+    },
+    "traceId": { "type": "string", "minLength": 1 },
+    "spanId": { "type": "string", "minLength": 1 },
+    "parentSpanId": { "type": "string", "minLength": 1 },
+    "idempotencyKey": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" },
+    "previousHash": { "type": ["string", "null"] },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}
