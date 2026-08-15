@@ -83,6 +83,7 @@ describe('stage DAG and runtime', () => {
       nodeStatuses: {},
       activatedResources: [],
       evidenceIds: [],
+      resourceProposals: {},
       lastSequence: 1,
       updatedAt: '2026-08-16T00:00:00.000Z',
       timing: { wallTimeMs: 0, executionTimeMs: 0, retryTimeMs: 0, reworkTimeMs: 0, criticalPathMs: 0 },

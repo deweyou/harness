@@ -163,6 +163,8 @@ workspaces/<workspace-id>/runs/<run-id>/
   state.json
   evidence/<sha256>
   artifacts.json
+  retrospective.json
+  proposals/<proposal-id>.json
 ```
 
 `workspace-id` hashes the canonical workspace path and does not require Git.
@@ -178,6 +180,23 @@ not store secrets, environment dumps, unrelated raw conversations, or large raw
 logs in events. Store content-addressed evidence and keep structured event
 summaries redacted.
 
+## Post-delivery Retrospective
+
+Appending `run.completed` triggers a fixed Core hook; it is not a fifth stage
+and adds nothing to `harness.yaml`. The hook analyzes explicit resource
+feedback and resource-attributed failure or verification events. It always
+writes `retrospective.json`, but creates proposals only when evidence identifies
+a specific skill, rule, or knowledge resource.
+
+Each proposal records the resource ID and base digest, evidence event IDs,
+problem categories, a domain-neutral review suggestion, and a replay acceptance
+condition. The controller reads proposals with `retrospective_get` and asks the
+user whether to update now, retain the proposal, or reject it. An accepted
+proposal starts a separate maintenance Run; Core never mutates resources
+directly. Proposal and retrospective formats are defined by
+[resource-proposal.schema.json](../schemas/resource-proposal.schema.json) and
+[retrospective.schema.json](../schemas/retrospective.schema.json).
+
 ## MCP Tools
 
 - `config_inspect`
@@ -188,6 +207,8 @@ summaries redacted.
 - `resources_dispatch`
 - `run_rehydrate`
 - `evidence_record`
+- `retrospective_get`
+- `proposal_decide`
 
 The MCP server does not choose a workflow, launch a subagent, or perform user
 judgment. Those remain controller responsibilities.

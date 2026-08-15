@@ -5,7 +5,18 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { dump as dumpYaml } from 'js-yaml';
 import { invariant } from '../errors.js';
-import type { EventInput, HarnessEvent, ResolvedHarnessConfig, RunMetadata, RunProjection } from '../types.js';
+import { buildRetrospective } from '../retrospective.js';
+import type {
+  EventInput,
+  HarnessEvent,
+  ResolvedHarnessConfig,
+  ResourceKind,
+  ResourceProposal,
+  ResourceProposalStatus,
+  RunMetadata,
+  RunProjection,
+  RunRetrospective,
+} from '../types.js';
 import type { DispatchReceipt } from '../resources.js';
 import { projectRun } from './projection.js';
 
@@ -69,7 +80,10 @@ export class RunStore {
     const workspaceId = createHash('sha256').update(workspacePath).digest('hex').slice(0, 20);
     const runId = `${this.now().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
     const runDirectory = this.runDirectory(workspaceId, runId);
-    await mkdir(join(runDirectory, 'evidence'), { recursive: true, mode: 0o700 });
+    await Promise.all([
+      mkdir(join(runDirectory, 'evidence'), { recursive: true, mode: 0o700 }),
+      mkdir(join(runDirectory, 'proposals'), { recursive: true, mode: 0o700 }),
+    ]);
     const createdAt = this.now().toISOString();
     const metadata: RunMetadata = {
       schemaVersion: 1,
@@ -108,7 +122,7 @@ export class RunStore {
   async appendEvent(workspaceId: string, runId: string, input: EventInput): Promise<HarnessEvent> {
     const directory = this.runDirectory(workspaceId, runId);
     await access(join(directory, 'run.json'));
-    return withFileLock(join(directory, '.events.lock'), async () => {
+    const event = await withFileLock(join(directory, '.events.lock'), async () => {
       const events = await this.readEvents(workspaceId, runId);
       if (input.idempotencyKey) {
         const existing = events.find((event) => event.idempotencyKey === input.idempotencyKey);
@@ -137,6 +151,99 @@ export class RunStore {
       await atomicJson(join(directory, 'state.json'), projection);
       return event;
     });
+    if (input.type === 'run.completed') {
+      await this.ensureRetrospective(workspaceId, runId, input.traceId, input.spanId);
+    }
+    return event;
+  }
+
+  async ensureRetrospective(workspaceId: string, runId: string, traceId: string, parentSpanId: string): Promise<RunRetrospective> {
+    const directory = this.runDirectory(workspaceId, runId);
+    const events = await this.readEvents(workspaceId, runId);
+    const existing = events.find((event) => event.type === 'retrospective.generated');
+    if (existing) return JSON.parse(await readFile(join(directory, 'retrospective.json'), 'utf8')) as RunRetrospective;
+    invariant(events.some((event) => event.type === 'run.completed'), 'RUN_NOT_COMPLETED', 'Retrospective requires a completed Run');
+    const resourceLock = JSON.parse(await readFile(join(directory, 'resources.lock.json'), 'utf8')) as Record<string, { kind?: ResourceKind; digest?: string | null }>;
+    const latestTimestamp = events.at(-1)!.timestamp;
+    const generatedAt = new Date(Math.max(this.now().getTime(), Date.parse(latestTimestamp))).toISOString();
+    const generated = buildRetrospective(runId, events, resourceLock, generatedAt);
+
+    for (const proposal of generated.proposals) {
+      const path = join(directory, 'proposals', `${proposal.id}.json`);
+      await atomicJson(path, proposal);
+      await this.appendEvent(workspaceId, runId, {
+        type: 'resource.change.proposed',
+        traceId,
+        spanId: randomUUID(),
+        parentSpanId,
+        timestamp: generatedAt,
+        idempotencyKey: `proposal:${proposal.id}`,
+        payload: {
+          proposalId: proposal.id,
+          resourceId: proposal.resourceId,
+          summary: proposal.problem.summary,
+          path,
+        },
+      });
+    }
+    await atomicJson(join(directory, 'retrospective.json'), generated.retrospective);
+    await this.appendEvent(workspaceId, runId, {
+      type: 'retrospective.generated',
+      traceId,
+      spanId: randomUUID(),
+      parentSpanId,
+      timestamp: generatedAt,
+      idempotencyKey: `retrospective:${generated.retrospective.id}`,
+      payload: {
+        retrospectiveId: generated.retrospective.id,
+        observationCount: generated.retrospective.observations.length,
+        proposalIds: generated.retrospective.proposalIds,
+      },
+    });
+    return generated.retrospective;
+  }
+
+  async getRetrospective(workspaceId: string, runId: string): Promise<{ retrospective: RunRetrospective; proposals: ResourceProposal[] }> {
+    const directory = this.runDirectory(workspaceId, runId);
+    const retrospective = JSON.parse(await readFile(join(directory, 'retrospective.json'), 'utf8')) as RunRetrospective;
+    const projection = await this.getProjection(workspaceId, runId);
+    const proposals = await Promise.all(
+      retrospective.proposalIds.map(async (proposalId) => {
+        const proposal = JSON.parse(await readFile(join(directory, 'proposals', `${proposalId}.json`), 'utf8')) as ResourceProposal;
+        const projected = projection.resourceProposals[proposalId];
+        return projected ? { ...proposal, status: projected.status } : proposal;
+      }),
+    );
+    return { retrospective, proposals };
+  }
+
+  async decideProposal(
+    workspaceId: string,
+    runId: string,
+    proposalId: string,
+    decision: Exclude<ResourceProposalStatus, 'proposed'>,
+    traceId: string,
+    spanId: string,
+    reason?: string,
+  ): Promise<ResourceProposal> {
+    const path = join(this.runDirectory(workspaceId, runId), 'proposals', `${proposalId}.json`);
+    const proposal = JSON.parse(await readFile(path, 'utf8')) as ResourceProposal;
+    const projectedStatus = (await this.getProjection(workspaceId, runId)).resourceProposals[proposalId]?.status;
+    invariant(projectedStatus, 'UNKNOWN_PROPOSAL', `Unknown proposal '${proposalId}'`);
+    invariant(projectedStatus === 'proposed' || projectedStatus === decision, 'PROPOSAL_ALREADY_DECIDED', `Proposal '${proposalId}' is already ${projectedStatus}`);
+    if (projectedStatus === decision) return { ...proposal, status: projectedStatus };
+    const decidedAt = this.now().toISOString();
+    await this.appendEvent(workspaceId, runId, {
+      type: decision === 'accepted' ? 'resource.change.accepted' : 'resource.change.rejected',
+      traceId,
+      spanId,
+      idempotencyKey: `proposal-decision:${proposalId}`,
+      payload: { proposalId, ...(reason ? { reason } : {}) },
+    });
+    proposal.status = decision;
+    proposal.decision = { decidedAt, ...(reason ? { reason } : {}) };
+    await atomicJson(path, proposal);
+    return proposal;
   }
 
   async readEvents(workspaceId: string, runId: string): Promise<HarnessEvent[]> {

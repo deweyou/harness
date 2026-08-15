@@ -2,7 +2,7 @@
 
 Deweyou Harness 是一个面向 Codex 的通用工作流插件。插件只提供一个用户入口
 `/dhw`，以及一个本地 MCP Server，用于校验配置、编排 DAG、渐进加载资源并记录
-可重放的 Run 证据。
+可重放的 Run 证据，并在交付后生成有证据归因的资源优化建议。
 
 Harness Core 不内置 coding、写作、视频、产品或仓库规则。工作区通过
 `harness.yaml` 注入 skills、rules、knowledge、nodes 和 workflows。

@@ -25,9 +25,14 @@ const eventTypes = [
   'node.skipped',
   'node.interrupted',
   'resource.activated',
+  'resource.feedback.recorded',
   'evidence.recorded',
   'decision.recorded',
   'run.completed',
+  'retrospective.generated',
+  'resource.change.proposed',
+  'resource.change.accepted',
+  'resource.change.rejected',
 ] as const;
 
 function result(value: unknown) {
@@ -126,6 +131,48 @@ export function createHarnessServer(): McpServer {
         ...(timestamp ? { timestamp } : {}),
       };
       return result(await new RunStore().appendEvent(workspaceId, runId, input));
+    },
+  );
+
+  server.registerTool(
+    'retrospective_get',
+    {
+      description: 'Read the automatic post-delivery retrospective and its actionable resource improvement proposals.',
+      inputSchema: z.object({ workspacePath: z.string(), runId: z.string() }),
+    },
+    async ({ workspacePath, runId }) => {
+      const workspaceId = await RunStore.workspaceId(workspacePath);
+      return result(await new RunStore().getRetrospective(workspaceId, runId));
+    },
+  );
+
+  server.registerTool(
+    'proposal_decide',
+    {
+      description: 'Record the user decision for a resource proposal. Acceptance authorizes a separate maintenance Run, not direct mutation.',
+      inputSchema: z.object({
+        workspacePath: z.string(),
+        runId: z.string(),
+        proposalId: z.string(),
+        decision: z.enum(['accepted', 'rejected']),
+        traceId: z.string(),
+        spanId: z.string(),
+        reason: z.string().optional(),
+      }),
+    },
+    async ({ workspacePath, runId, proposalId, decision, traceId, spanId, reason }) => {
+      const workspaceId = await RunStore.workspaceId(workspacePath);
+      return result(
+        await new RunStore().decideProposal(
+          workspaceId,
+          runId,
+          proposalId,
+          decision,
+          traceId,
+          spanId,
+          reason,
+        ),
+      );
     },
   );
 

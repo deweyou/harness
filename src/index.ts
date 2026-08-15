@@ -2,6 +2,7 @@ export * from './core/config/load.js';
 export * from './core/errors.js';
 export * from './core/graph.js';
 export * from './core/resources.js';
+export * from './core/retrospective.js';
 export * from './core/runtime.js';
 export * from './core/state/projection.js';
 export * from './core/state/store.js';

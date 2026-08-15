@@ -3,7 +3,8 @@
 Deweyou Harness is a Codex Plugin for running config-driven, domain-neutral
 workflows. The plugin contains one user-facing skill, `/dhw`, and a bundled
 local MCP server that validates configuration, schedules DAG nodes, dispatches
-resources progressively, and records replayable Run evidence.
+resources progressively, records replayable Run evidence, and generates
+evidence-attributed resource improvement proposals after delivery.
 
 The Harness owns no coding, writing, video, product, or repository policy.
 Workspaces inject skills, rules, knowledge, nodes, and workflows through

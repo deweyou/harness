@@ -21,7 +21,18 @@ describe('Harness MCP server', () => {
     );
     const tools = await client.listTools();
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual(
-      ['config_inspect', 'event_append', 'evidence_record', 'ready_nodes', 'resources_dispatch', 'run_create', 'run_get', 'run_rehydrate'].sort(),
+      [
+        'config_inspect',
+        'event_append',
+        'evidence_record',
+        'proposal_decide',
+        'ready_nodes',
+        'resources_dispatch',
+        'retrospective_get',
+        'run_create',
+        'run_get',
+        'run_rehydrate',
+      ].sort(),
     );
   });
 });

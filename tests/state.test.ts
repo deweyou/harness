@@ -168,4 +168,57 @@ describe('RunStore', () => {
     ]);
     expect(lock).toEqual({ writer: { kind: 'skill', mode: 'full', status: 'loaded', locator: '/skill/SKILL.md', digest: 'abc' } });
   });
+
+  test('automatically creates actionable post-delivery proposals and records user decisions', async () => {
+    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
+    directories.push(stateRoot);
+    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
+    directories.push(workspace);
+    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:10.000Z') });
+    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config });
+    await store.updateResourceLock(run.workspaceId, run.id, [
+      { resourceId: 'writer', kind: 'skill', mode: 'full', status: 'loaded', locator: '/writer/SKILL.md', digest: 'digest-1' },
+    ]);
+    await store.appendEvent(
+      run.workspaceId,
+      run.id,
+      event('resource.feedback.recorded', '2026-08-16T00:00:11.000Z', {
+        resourceId: 'writer',
+        category: 'missing-instruction',
+        summary: 'The writer omitted required citations.',
+      }),
+    );
+    await store.appendEvent(run.workspaceId, run.id, event('run.completed', '2026-08-16T00:00:12.000Z', { outcome: 'delivered' }));
+
+    const generated = await store.getRetrospective(run.workspaceId, run.id);
+    expect(generated.retrospective.observations).toHaveLength(1);
+    expect(generated.proposals[0]).toMatchObject({
+      resourceId: 'writer',
+      resourceKind: 'skill',
+      baseDigest: 'digest-1',
+      status: 'proposed',
+      evidenceEventIds: [expect.any(String)],
+    });
+    const proposalId = generated.proposals[0]!.id;
+    expect((await store.getProjection(run.workspaceId, run.id)).resourceProposals[proposalId]?.status).toBe('proposed');
+    const accepted = await store.decideProposal(run.workspaceId, run.id, proposalId, 'accepted', 'trace', 'decision-span', 'Update now');
+    expect(accepted).toMatchObject({ status: 'accepted', decision: { reason: 'Update now' } });
+    expect((await store.getProjection(run.workspaceId, run.id)).resourceProposals[proposalId]?.status).toBe('accepted');
+    await expect(store.decideProposal(run.workspaceId, run.id, proposalId, 'rejected', 'trace', 'span')).rejects.toMatchObject({
+      code: 'PROPOSAL_ALREADY_DECIDED',
+    });
+  });
+
+  test('generates a silent retrospective when no resource can be attributed', async () => {
+    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
+    directories.push(stateRoot);
+    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
+    directories.push(workspace);
+    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:10.000Z') });
+    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config });
+    await store.appendEvent(run.workspaceId, run.id, event('run.completed', '2026-08-16T00:00:12.000Z', { outcome: 'delivered' }));
+    const generated = await store.getRetrospective(run.workspaceId, run.id);
+    expect(generated).toMatchObject({ retrospective: { observations: [], proposalIds: [] }, proposals: [] });
+    expect((await store.getProjection(run.workspaceId, run.id)).retrospective).toMatchObject({ observationCount: 0, proposalIds: [] });
+  });
 });

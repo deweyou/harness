@@ -10,9 +10,14 @@ const requiredFiles = [
   'schemas/harness.schema.json',
   'schemas/event.schema.json',
   'schemas/run.schema.json',
+  'schemas/resource-proposal.schema.json',
+  'schemas/retrospective.schema.json',
 ];
 
-for (const path of requiredFiles) await readFile(path);
+for (const path of requiredFiles) {
+  const content = await readFile(path, 'utf8');
+  if (path.endsWith('.json')) JSON.parse(content);
+}
 
 const manifest = JSON.parse(await readFile('.codex-plugin/plugin.json', 'utf8'));
 if (manifest.name !== 'deweyou-harness' || manifest.skills !== './skills/' || manifest.mcpServers !== './.mcp.json') {

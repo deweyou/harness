@@ -21,3 +21,8 @@ system, renderer, generated artifact, external destination, or integration.
 When verification fails, return only the affected work to execute and preserve
 all earlier timings and evidence. When the failure reveals a wrong objective or
 scope, return to align.
+
+When evidence identifies a specific skill, rule, or knowledge resource as the
+cause of a gap, record `resource.feedback.recorded` with its resource ID,
+category, concise summary, and evidence references. Omit attribution when the
+cause is uncertain; activation alone is not evidence of responsibility.

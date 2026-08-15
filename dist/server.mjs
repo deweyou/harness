@@ -513,6 +513,88 @@ function buildRehydrationPlan(config, workflowId, currentNodeIds, activatedResou
 	};
 }
 //#endregion
+//#region src/core/retrospective.ts
+function eventResourceIds(event) {
+	if (typeof event.payload.resourceId === "string") return [event.payload.resourceId];
+	if (Array.isArray(event.payload.resourceIds)) return event.payload.resourceIds.filter((value) => typeof value === "string");
+	return [];
+}
+function observationCategory(event) {
+	if (event.type === "resource.feedback.recorded") return typeof event.payload.category === "string" ? event.payload.category : "resource-feedback";
+	if ([
+		"node.failed",
+		"node.blocked",
+		"node.interrupted"
+	].includes(event.type)) return event.type;
+	if (event.type === "decision.recorded" && event.payload.result === "verification_rejected") return "verification-rejected";
+}
+function observationSummary(event, category) {
+	for (const key of [
+		"summary",
+		"reason",
+		"message"
+	]) if (typeof event.payload[key] === "string" && event.payload[key].trim()) return event.payload[key];
+	return `Run evidence recorded ${category}.`;
+}
+function stableId(prefix, value) {
+	return `${prefix}_${createHash("sha256").update(value).digest("hex").slice(0, 20)}`;
+}
+function buildRetrospective(runId, events, resourceLock, createdAt) {
+	const observations = events.flatMap((event) => {
+		const category = observationCategory(event);
+		if (!category) return [];
+		return eventResourceIds(event).map((resourceId) => ({
+			eventId: event.id,
+			resourceId,
+			category,
+			summary: observationSummary(event, category)
+		}));
+	});
+	const byResource = /* @__PURE__ */ new Map();
+	for (const observation of observations) {
+		const grouped = byResource.get(observation.resourceId) ?? [];
+		grouped.push(observation);
+		byResource.set(observation.resourceId, grouped);
+	}
+	const proposals = [...byResource].map(([resourceId, resourceObservations]) => {
+		const evidenceEventIds = resourceObservations.map((observation) => observation.eventId);
+		const categories = [...new Set(resourceObservations.map((observation) => observation.category))];
+		const summaries = [...new Set(resourceObservations.map((observation) => observation.summary))];
+		const lock = resourceLock[resourceId];
+		return {
+			schemaVersion: 1,
+			id: stableId("proposal", `${runId}\0${resourceId}\0${evidenceEventIds.join("\0")}`),
+			runId,
+			resourceId,
+			resourceKind: lock?.kind ?? "unknown",
+			baseDigest: lock?.digest ?? null,
+			status: "proposed",
+			createdAt,
+			evidenceEventIds,
+			problem: {
+				categories,
+				summary: summaries.join(" ")
+			},
+			suggestion: { summary: `Review '${resourceId}' against the attributed Run evidence and update only the instructions or facts that caused the observed gap.` },
+			validation: {
+				replayRunIds: [runId],
+				acceptance: `Replay the affected cases without equivalent feedback attributed to '${resourceId}'.`
+			}
+		};
+	});
+	return {
+		retrospective: {
+			schemaVersion: 1,
+			id: stableId("retro", runId),
+			runId,
+			createdAt,
+			observations,
+			proposalIds: proposals.map((proposal) => proposal.id)
+		},
+		proposals
+	};
+}
+//#endregion
 //#region src/core/state/projection.ts
 const NODE_TERMINAL = new Map([
 	["node.succeeded", "succeeded"],
@@ -541,6 +623,8 @@ function projectRun(events) {
 	const stageVisits = {};
 	const activatedResources = /* @__PURE__ */ new Set();
 	const evidenceIds = /* @__PURE__ */ new Set();
+	const resourceProposals = {};
+	let retrospective;
 	let status = "running";
 	let currentStage;
 	for (const event of events) if (event.type === "run.created") {
@@ -606,6 +690,30 @@ function projectRun(events) {
 	else if (event.type === "run.completed") {
 		status = "completed";
 		currentStage = void 0;
+	} else if (event.type === "resource.change.proposed") {
+		const proposalId = stringValue(event.payload, "proposalId");
+		resourceProposals[proposalId] = {
+			resourceId: stringValue(event.payload, "resourceId"),
+			status: "proposed",
+			summary: stringValue(event.payload, "summary")
+		};
+	} else if (event.type === "resource.change.accepted" || event.type === "resource.change.rejected") {
+		const proposalId = stringValue(event.payload, "proposalId");
+		const proposal = resourceProposals[proposalId];
+		if (!proposal) throw new Error(`Decision refers to unknown resource proposal '${proposalId}'`);
+		const decision = event.type === "resource.change.accepted" ? "accepted" : "rejected";
+		if (proposal.status !== "proposed" && proposal.status !== decision) throw new Error(`Resource proposal '${proposalId}' already has decision '${proposal.status}'`);
+		proposal.status = decision;
+	} else if (event.type === "retrospective.generated") {
+		const proposalIds = event.payload.proposalIds;
+		const observationCount = event.payload.observationCount;
+		if (!Array.isArray(proposalIds) || !proposalIds.every((value) => typeof value === "string")) throw new Error("Event payload.proposalIds must be a string array");
+		if (typeof observationCount !== "number" || !Number.isInteger(observationCount) || observationCount < 0) throw new Error("Event payload.observationCount must be a non-negative integer");
+		retrospective = {
+			id: stringValue(event.payload, "retrospectiveId"),
+			observationCount,
+			proposalIds
+		};
 	}
 	const nodeExecutions = [...executions.values()];
 	const executionTimeMs = nodeExecutions.reduce((sum, execution) => sum + (execution.durationMs ?? 0), 0);
@@ -636,6 +744,7 @@ function projectRun(events) {
 		nodeStatuses,
 		activatedResources: [...activatedResources],
 		evidenceIds: [...evidenceIds],
+		resourceProposals,
 		lastSequence: last.sequence,
 		updatedAt: last.timestamp,
 		timing: {
@@ -645,7 +754,8 @@ function projectRun(events) {
 			reworkTimeMs,
 			criticalPathMs
 		},
-		...currentStage ? { currentStage } : {}
+		...currentStage ? { currentStage } : {},
+		...retrospective ? { retrospective } : {}
 	};
 }
 //#endregion
@@ -688,10 +798,13 @@ var RunStore = class {
 		const workspaceId = createHash("sha256").update(workspacePath).digest("hex").slice(0, 20);
 		const runId = `${this.now().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
 		const runDirectory = this.runDirectory(workspaceId, runId);
-		await mkdir(join(runDirectory, "evidence"), {
+		await Promise.all([mkdir(join(runDirectory, "evidence"), {
 			recursive: true,
 			mode: 448
-		});
+		}), mkdir(join(runDirectory, "proposals"), {
+			recursive: true,
+			mode: 448
+		})]);
 		const createdAt = this.now().toISOString();
 		const metadata = {
 			schemaVersion: 1,
@@ -736,7 +849,7 @@ var RunStore = class {
 	async appendEvent(workspaceId, runId, input) {
 		const directory = this.runDirectory(workspaceId, runId);
 		await access(join(directory, "run.json"));
-		return withFileLock(join(directory, ".events.lock"), async () => {
+		const event = await withFileLock(join(directory, ".events.lock"), async () => {
 			const events = await this.readEvents(workspaceId, runId);
 			if (input.idempotencyKey) {
 				const existing = events.find((event) => event.idempotencyKey === input.idempotencyKey);
@@ -767,6 +880,96 @@ var RunStore = class {
 			await atomicJson(join(directory, "state.json"), projection);
 			return event;
 		});
+		if (input.type === "run.completed") await this.ensureRetrospective(workspaceId, runId, input.traceId, input.spanId);
+		return event;
+	}
+	async ensureRetrospective(workspaceId, runId, traceId, parentSpanId) {
+		const directory = this.runDirectory(workspaceId, runId);
+		const events = await this.readEvents(workspaceId, runId);
+		if (events.find((event) => event.type === "retrospective.generated")) return JSON.parse(await readFile(join(directory, "retrospective.json"), "utf8"));
+		invariant(events.some((event) => event.type === "run.completed"), "RUN_NOT_COMPLETED", "Retrospective requires a completed Run");
+		const resourceLock = JSON.parse(await readFile(join(directory, "resources.lock.json"), "utf8"));
+		const latestTimestamp = events.at(-1).timestamp;
+		const generatedAt = new Date(Math.max(this.now().getTime(), Date.parse(latestTimestamp))).toISOString();
+		const generated = buildRetrospective(runId, events, resourceLock, generatedAt);
+		for (const proposal of generated.proposals) {
+			const path = join(directory, "proposals", `${proposal.id}.json`);
+			await atomicJson(path, proposal);
+			await this.appendEvent(workspaceId, runId, {
+				type: "resource.change.proposed",
+				traceId,
+				spanId: randomUUID(),
+				parentSpanId,
+				timestamp: generatedAt,
+				idempotencyKey: `proposal:${proposal.id}`,
+				payload: {
+					proposalId: proposal.id,
+					resourceId: proposal.resourceId,
+					summary: proposal.problem.summary,
+					path
+				}
+			});
+		}
+		await atomicJson(join(directory, "retrospective.json"), generated.retrospective);
+		await this.appendEvent(workspaceId, runId, {
+			type: "retrospective.generated",
+			traceId,
+			spanId: randomUUID(),
+			parentSpanId,
+			timestamp: generatedAt,
+			idempotencyKey: `retrospective:${generated.retrospective.id}`,
+			payload: {
+				retrospectiveId: generated.retrospective.id,
+				observationCount: generated.retrospective.observations.length,
+				proposalIds: generated.retrospective.proposalIds
+			}
+		});
+		return generated.retrospective;
+	}
+	async getRetrospective(workspaceId, runId) {
+		const directory = this.runDirectory(workspaceId, runId);
+		const retrospective = JSON.parse(await readFile(join(directory, "retrospective.json"), "utf8"));
+		const projection = await this.getProjection(workspaceId, runId);
+		return {
+			retrospective,
+			proposals: await Promise.all(retrospective.proposalIds.map(async (proposalId) => {
+				const proposal = JSON.parse(await readFile(join(directory, "proposals", `${proposalId}.json`), "utf8"));
+				const projected = projection.resourceProposals[proposalId];
+				return projected ? {
+					...proposal,
+					status: projected.status
+				} : proposal;
+			}))
+		};
+	}
+	async decideProposal(workspaceId, runId, proposalId, decision, traceId, spanId, reason) {
+		const path = join(this.runDirectory(workspaceId, runId), "proposals", `${proposalId}.json`);
+		const proposal = JSON.parse(await readFile(path, "utf8"));
+		const projectedStatus = (await this.getProjection(workspaceId, runId)).resourceProposals[proposalId]?.status;
+		invariant(projectedStatus, "UNKNOWN_PROPOSAL", `Unknown proposal '${proposalId}'`);
+		invariant(projectedStatus === "proposed" || projectedStatus === decision, "PROPOSAL_ALREADY_DECIDED", `Proposal '${proposalId}' is already ${projectedStatus}`);
+		if (projectedStatus === decision) return {
+			...proposal,
+			status: projectedStatus
+		};
+		const decidedAt = this.now().toISOString();
+		await this.appendEvent(workspaceId, runId, {
+			type: decision === "accepted" ? "resource.change.accepted" : "resource.change.rejected",
+			traceId,
+			spanId,
+			idempotencyKey: `proposal-decision:${proposalId}`,
+			payload: {
+				proposalId,
+				...reason ? { reason } : {}
+			}
+		});
+		proposal.status = decision;
+		proposal.decision = {
+			decidedAt,
+			...reason ? { reason } : {}
+		};
+		await atomicJson(path, proposal);
+		return proposal;
 	}
 	async readEvents(workspaceId, runId) {
 		const events = (await readFile(join(this.runDirectory(workspaceId, runId), "events.jsonl"), "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
@@ -888,9 +1091,14 @@ const eventTypes = [
 	"node.skipped",
 	"node.interrupted",
 	"resource.activated",
+	"resource.feedback.recorded",
 	"evidence.recorded",
 	"decision.recorded",
-	"run.completed"
+	"run.completed",
+	"retrospective.generated",
+	"resource.change.proposed",
+	"resource.change.accepted",
+	"resource.change.rejected"
 ];
 function result(value) {
 	return {
@@ -982,6 +1190,31 @@ function createHarnessServer() {
 			...timestamp ? { timestamp } : {}
 		};
 		return result(await new RunStore().appendEvent(workspaceId, runId, input));
+	});
+	server.registerTool("retrospective_get", {
+		description: "Read the automatic post-delivery retrospective and its actionable resource improvement proposals.",
+		inputSchema: z.object({
+			workspacePath: z.string(),
+			runId: z.string()
+		})
+	}, async ({ workspacePath, runId }) => {
+		const workspaceId = await RunStore.workspaceId(workspacePath);
+		return result(await new RunStore().getRetrospective(workspaceId, runId));
+	});
+	server.registerTool("proposal_decide", {
+		description: "Record the user decision for a resource proposal. Acceptance authorizes a separate maintenance Run, not direct mutation.",
+		inputSchema: z.object({
+			workspacePath: z.string(),
+			runId: z.string(),
+			proposalId: z.string(),
+			decision: z.enum(["accepted", "rejected"]),
+			traceId: z.string(),
+			spanId: z.string(),
+			reason: z.string().optional()
+		})
+	}, async ({ workspacePath, runId, proposalId, decision, traceId, spanId, reason }) => {
+		const workspaceId = await RunStore.workspaceId(workspacePath);
+		return result(await new RunStore().decideProposal(workspaceId, runId, proposalId, decision, traceId, spanId, reason));
 	});
 	server.registerTool("ready_nodes", {
 		description: "Return all currently ready same-stage DAG nodes so the controller can dispatch independent nodes in parallel.",

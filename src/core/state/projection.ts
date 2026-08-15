@@ -30,6 +30,8 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
   const stageVisits: Partial<Record<Stage, number>> = {};
   const activatedResources = new Set<string>();
   const evidenceIds = new Set<string>();
+  const resourceProposals: RunProjection['resourceProposals'] = {};
+  let retrospective: RunProjection['retrospective'];
   let status: RunProjection['status'] = 'running';
   let currentStage: Stage | undefined;
 
@@ -96,6 +98,36 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
     } else if (event.type === 'run.completed') {
       status = 'completed';
       currentStage = undefined;
+    } else if (event.type === 'resource.change.proposed') {
+      const proposalId = stringValue(event.payload, 'proposalId');
+      resourceProposals[proposalId] = {
+        resourceId: stringValue(event.payload, 'resourceId'),
+        status: 'proposed',
+        summary: stringValue(event.payload, 'summary'),
+      };
+    } else if (event.type === 'resource.change.accepted' || event.type === 'resource.change.rejected') {
+      const proposalId = stringValue(event.payload, 'proposalId');
+      const proposal = resourceProposals[proposalId];
+      if (!proposal) throw new Error(`Decision refers to unknown resource proposal '${proposalId}'`);
+      const decision = event.type === 'resource.change.accepted' ? 'accepted' : 'rejected';
+      if (proposal.status !== 'proposed' && proposal.status !== decision) {
+        throw new Error(`Resource proposal '${proposalId}' already has decision '${proposal.status}'`);
+      }
+      proposal.status = decision;
+    } else if (event.type === 'retrospective.generated') {
+      const proposalIds = event.payload.proposalIds;
+      const observationCount = event.payload.observationCount;
+      if (!Array.isArray(proposalIds) || !proposalIds.every((value) => typeof value === 'string')) {
+        throw new Error('Event payload.proposalIds must be a string array');
+      }
+      if (typeof observationCount !== 'number' || !Number.isInteger(observationCount) || observationCount < 0) {
+        throw new Error('Event payload.observationCount must be a non-negative integer');
+      }
+      retrospective = {
+        id: stringValue(event.payload, 'retrospectiveId'),
+        observationCount,
+        proposalIds,
+      };
     }
   }
 
@@ -134,6 +166,7 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
     nodeStatuses,
     activatedResources: [...activatedResources],
     evidenceIds: [...evidenceIds],
+    resourceProposals,
     lastSequence: last.sequence,
     updatedAt: last.timestamp,
     timing: {
@@ -144,6 +177,7 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       criticalPathMs,
     },
     ...(currentStage ? { currentStage } : {}),
+    ...(retrospective ? { retrospective } : {}),
   };
   return projection;
 }

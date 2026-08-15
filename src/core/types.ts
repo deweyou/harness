@@ -115,9 +115,14 @@ export type HarnessEventType =
   | 'node.skipped'
   | 'node.interrupted'
   | 'resource.activated'
+  | 'resource.feedback.recorded'
   | 'evidence.recorded'
   | 'decision.recorded'
-  | 'run.completed';
+  | 'run.completed'
+  | 'retrospective.generated'
+  | 'resource.change.proposed'
+  | 'resource.change.accepted'
+  | 'resource.change.rejected';
 
 export interface EventInput {
   type: HarnessEventType;
@@ -170,6 +175,49 @@ export interface StageVisitState {
   durationMs?: number;
 }
 
+export type ResourceProposalStatus = 'proposed' | 'accepted' | 'rejected';
+
+export interface ResourceProposal {
+  schemaVersion: 1;
+  id: string;
+  runId: string;
+  resourceId: string;
+  resourceKind: ResourceKind | 'unknown';
+  baseDigest: string | null;
+  status: ResourceProposalStatus;
+  createdAt: string;
+  evidenceEventIds: string[];
+  problem: {
+    categories: string[];
+    summary: string;
+  };
+  suggestion: {
+    summary: string;
+  };
+  validation: {
+    replayRunIds: string[];
+    acceptance: string;
+  };
+  decision?: {
+    decidedAt: string;
+    reason?: string;
+  };
+}
+
+export interface RunRetrospective {
+  schemaVersion: 1;
+  id: string;
+  runId: string;
+  createdAt: string;
+  observations: Array<{
+    eventId: string;
+    resourceId: string;
+    category: string;
+    summary: string;
+  }>;
+  proposalIds: string[];
+}
+
 export interface RunProjection {
   schemaVersion: 1;
   runId: string;
@@ -181,6 +229,12 @@ export interface RunProjection {
   nodeStatuses: Record<string, NodeStatus>;
   activatedResources: string[];
   evidenceIds: string[];
+  retrospective?: {
+    id: string;
+    observationCount: number;
+    proposalIds: string[];
+  };
+  resourceProposals: Record<string, { resourceId: string; status: ResourceProposalStatus; summary: string }>;
   lastSequence: number;
   updatedAt: string;
   timing: {

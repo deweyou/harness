@@ -127,3 +127,23 @@ Do not equate implementation with verification or delivery. Finish only when:
 - `run.completed` records the outcome
 - the final response states what was produced, what was verified, what was
   delivered, and what remains uncertain
+
+After appending `run.completed`, Core automatically creates the post-delivery
+retrospective. Call `retrospective_get`. When it contains actionable resource
+proposals, briefly explain the attributed evidence and ask whether the user
+wants to update now, record only, or reject the proposal. Do not block or undo
+the completed delivery.
+
+- `update now`: call `proposal_decide` with `accepted`, then start a separate
+  maintenance Run using an appropriate configured workflow. Acceptance never
+  authorizes direct mutation outside that Run.
+- `record only`: leave the proposal in `proposed` state for dashboard and
+  cross-Run aggregation.
+- `reject`: call `proposal_decide` with `rejected` and record the reason when
+  available.
+
+Before completion, record `resource.feedback.recorded` only when evidence can
+attribute a user correction, verification rejection, repeated failure, or
+missing instruction/fact to specific resource IDs. Do not blame every activated
+resource for an unrelated failure. When no attributable feedback exists, the
+automatic retrospective remains silent and creates no proposal.

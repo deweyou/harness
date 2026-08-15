@@ -91,6 +91,19 @@
         "Requires authority for external delivery",
         "Records a blocked delivery without claiming completion"
       ]
+    },
+    {
+      "id": 8,
+      "prompt": "/dhw Delivery is complete. Verification needed one rework because the writer skill omitted citations, and the evidence clearly attributes the gap to that skill.",
+      "expected_output": "Record resource feedback before completion, allow Core to generate the post-delivery proposal, then ask whether to update now, retain, or reject without blocking the completed delivery or directly editing the skill.",
+      "files": [],
+      "expectations": [
+        "Records evidence-backed feedback against the specific writer resource",
+        "Calls retrospective_get after run.completed",
+        "Does not introduce a fifth workflow stage",
+        "Does not modify the skill before user acceptance",
+        "Uses a separate maintenance Run when the user accepts"
+      ]
     }
   ]
 }
