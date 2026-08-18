@@ -2,6 +2,10 @@
 
 All notable changes to Deweyou Harness are recorded here.
 
+## [1.1.0] - 2026-08-18
+
+- feat: add native Trae plugin support (#47) (379a2e6)
+
 ## [1.0.0] - 2026-08-18
 
 - Promoted the domain-neutral Harness Core MVP to its first stable release.

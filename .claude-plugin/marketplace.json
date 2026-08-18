@@ -10,7 +10,7 @@
       "name": "deweyou-harness",
       "source": "./",
       "description": "Run config-driven workflows with durable evidence",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "Dewey Ou"
       }
