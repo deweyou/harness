@@ -2,13 +2,17 @@
   "id": "deweyou-harness",
   "name": "Deweyou Harness",
   "description": "Run config-driven workflows with progressive resource dispatch and durable evidence.",
-  "version": "0.1.0",
-  "skills": ["./skills"],
+  "version": "1.0.0",
+  "skills": [
+    "./skills"
+  ],
   "mcpServers": {
     "deweyou-harness": {
       "transport": "stdio",
       "command": "node",
-      "args": ["./dist/server.mjs"],
+      "args": [
+        "./dist/server.mjs"
+      ],
       "cwd": "."
     }
   },

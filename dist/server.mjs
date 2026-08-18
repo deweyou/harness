@@ -9,7 +9,7 @@ import { dump, load } from "js-yaml";
 import { homedir } from "node:os";
 import { constants } from "node:fs";
 //#region package.json
-var version = "0.1.0";
+var version = "1.0.0";
 //#endregion
 //#region src/core/errors.ts
 var HarnessError = class extends Error {
