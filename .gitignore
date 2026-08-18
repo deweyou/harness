@@ -1,9 +1,9 @@
 # dependencies
 node_modules/
 
-# build output
-dist/
-site/.vitepress/cache/
+# local build cache (the bundled plugin server in dist/server.mjs is tracked)
+dist/*
+!dist/server.mjs
 
 # logs
 *.log
@@ -34,5 +34,5 @@ coverage/
 # Claude Code local settings
 .claude/settings.local.json
 
-# local harness state
+# local harness state belongs in ~/.deweyou/harness, never in a workspace
 .harness_local/

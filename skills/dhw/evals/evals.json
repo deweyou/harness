@@ -1,0 +1,109 @@
+{
+  "skill_name": "dhw",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "/dhw Please implement this request using the best workflow in harness.yaml.",
+      "expected_output": "Inspect config, select a clear workflow from its name and description, create one Run, align before execution, and dispatch detailed agent nodes to subagents.",
+      "files": [],
+      "expectations": [
+        "Uses config_inspect before selecting a workflow",
+        "Creates a Run only after workflow selection",
+        "Keeps the main agent as controller and monitor",
+        "Uses one subagent per non-trivial agent-node execution"
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "/dhw Write and publish the launch article. Two selectable workflows both plausibly match.",
+      "expected_output": "Present the ambiguous workflow names and descriptions and ask the user before creating a Run or publishing.",
+      "files": [],
+      "expectations": [
+        "Does not guess between materially plausible workflows",
+        "Does not create a Run before the workflow is selected",
+        "Does not publish without explicit authority"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/dhw Resume run 2026-08-16-example after the previous context was compacted.",
+      "expected_output": "Recover interrupted executions, rebuild state from events, generate a rehydration plan, and redispatch rules, knowledge metadata, current skills, and activated resources.",
+      "files": [],
+      "expectations": [
+        "Calls run_get with interrupted recovery",
+        "Calls run_rehydrate after compaction",
+        "Does not trust compressed context as a resource cache",
+        "Preserves earlier attempts and timings"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/dhw The verification node rejected attempt one because the generated video has no audio. Fix and reverify.",
+      "expected_output": "Loop from verify to execute, allocate a new node execution and attempt, preserve attempt-one evidence, and re-run only the affected DAG boundary.",
+      "files": [],
+      "expectations": [
+        "Loops verification_rejected to execute",
+        "Does not reset prior duration or evidence",
+        "Uses a new nodeExecutionId",
+        "Stops at the fixed retry limit"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/dhw Run a stage with two independent agent nodes and a third node that needs both.",
+      "expected_output": "Ask ready_nodes, dispatch the two independent nodes concurrently to separate subagents, then dispatch the dependent node only after both succeed.",
+      "files": [],
+      "expectations": [
+        "Respects same-stage DAG dependencies",
+        "Parallelizes independent ready nodes when supported",
+        "Uses one subagent per node execution",
+        "Main agent integrates the results"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/dhw Run a pure agent node with no skills and then a command node.",
+      "expected_output": "Delegate the pure agent node without inventing skill dependencies, then run the deterministic command under host safety rules and record separate spans and evidence.",
+      "files": [],
+      "expectations": [
+        "Supports an agent executor with an empty skills list",
+        "Does not treat command nodes as subagent launch instructions",
+        "Records command outcome and redacted evidence"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Explain what /dhw does. Do not start work.",
+      "expected_output": "Explain the Harness without creating a Run or mutating workspace or external state.",
+      "files": [],
+      "expectations": [
+        "Does not create Run state for a read-only explanation",
+        "Explains the four stages and config-owned resources"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/dhw Upload the final video, but I have not specified the account or visibility.",
+      "expected_output": "Complete safe preparation and verification if possible, block delivery, and ask for destination and visibility rather than guessing or uploading.",
+      "files": [],
+      "expectations": [
+        "Treats upload as delivery rather than implementation",
+        "Requires authority for external delivery",
+        "Records a blocked delivery without claiming completion"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/dhw Delivery is complete. Verification needed one rework because the writer skill omitted citations, and the evidence clearly attributes the gap to that skill.",
+      "expected_output": "Record resource feedback before completion, allow Core to generate the post-delivery proposal, then ask whether to update now, retain, or reject without blocking the completed delivery or directly editing the skill.",
+      "files": [],
+      "expectations": [
+        "Records evidence-backed feedback against the specific writer resource",
+        "Calls retrospective_get after run.completed",
+        "Does not introduce a fifth workflow stage",
+        "Does not modify the skill before user acceptance",
+        "Uses a separate maintenance Run when the user accepts"
+      ]
+    }
+  ]
+}

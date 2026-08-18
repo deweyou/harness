@@ -1,44 +1,45 @@
 {
-  "name": "@deweyou/agents",
-  "version": "0.2.0",
+  "name": "deweyou-harness",
+  "version": "0.1.0",
   "type": "module",
-  "description": "Dewey Ou's personal agent assets hub",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/deweyou/agents.git"
-  },
+  "description": "A config-driven, domain-neutral workflow harness for coding agents",
   "private": true,
   "author": "Dewey Ou <oushihao97@gmail.com>",
   "license": "MIT",
-  "scripts": {
-    "lint:assets": "node scripts/lint-agent-assets.mjs",
-    "site:sync": "node scripts/sync-site-content.mjs",
-    "site:dev": "node scripts/sync-site-content.mjs && vitepress dev site --host 127.0.0.1",
-    "site:build": "node scripts/sync-site-content.mjs && vitepress build site",
-    "site:preview": "vitepress preview site --host 127.0.0.1",
-    "test": "node --test tests/*.test.mjs",
-    "coverage": "node --test --experimental-test-coverage --test-coverage-include='scripts/asset-scanner.mjs' --test-coverage-lines=90 --test-coverage-branches=90 --test-coverage-functions=90 tests/*.test.mjs",
-    "test:cli": "npm --prefix cli test",
-    "typecheck:cli": "npm --prefix cli run typecheck",
-    "coverage:cli": "npm --prefix cli run test:coverage",
-    "prepare": "simple-git-hooks"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deweyou/harness.git"
   },
-  "simple-git-hooks": {
-    "pre-commit": "pnpm run lint:assets"
+  "openclaw": {
+    "extensions": ["./adapters/openclaw/index.mjs"]
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "build": "vp pack src/mcp/server.ts --out-dir dist --clean",
+    "pretest": "vp pack src/mcp/server.ts --out-dir dist --clean",
+    "typecheck": "tsc --noEmit",
+    "lint:assets": "node scripts/lint-assets.mjs",
+    "test": "vitest run",
+    "pretest:coverage": "vp pack src/mcp/server.ts --out-dir dist --clean",
+    "test:coverage": "vitest run --coverage",
+    "validate:plugin": "node scripts/validate-plugin.mjs",
+    "check": "pnpm run lint:assets && pnpm run typecheck && pnpm test && pnpm run build"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "@modelcontextprotocol/server": "^2.0.0",
+    "js-yaml": "^4.1.0",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
-    "@typescript/native-preview": "7.0.0-dev.20260328.1",
-    "bumpp": "^11.0.1",
-    "mermaid": "^11.16.0",
-    "simple-git-hooks": "^2.13.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.7",
-    "vite-plus": "latest",
-    "vitepress": "^1.6.4"
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.0.0",
+    "@vitest/coverage-v8": "4.1.8",
+    "typescript": "^6.0.0",
+    "vite-plus": "^0.1.21",
+    "vitest": "4.1.8"
   },
   "packageManager": "pnpm@10.33.0"
 }

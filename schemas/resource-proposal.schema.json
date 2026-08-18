@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/deweyou/harness/schemas/resource-proposal.schema.json",
+  "title": "Deweyou Harness resource improvement proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "runId", "resourceId", "resourceKind", "baseDigest", "status", "createdAt", "evidenceEventIds", "problem", "suggestion", "validation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^proposal_[a-f0-9]{20}$" },
+    "runId": { "type": "string", "minLength": 1 },
+    "resourceId": { "type": "string", "minLength": 1 },
+    "resourceKind": { "enum": ["skill", "rule", "knowledge", "unknown"] },
+    "baseDigest": { "type": ["string", "null"] },
+    "status": { "enum": ["proposed", "accepted", "rejected"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "evidenceEventIds": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+    "problem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["categories", "summary"],
+      "properties": {
+        "categories": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary"],
+      "properties": { "summary": { "type": "string", "minLength": 1 } }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replayRunIds", "acceptance"],
+      "properties": {
+        "replayRunIds": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+        "acceptance": { "type": "string", "minLength": 1 }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decidedAt"],
+      "properties": {
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
