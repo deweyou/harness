@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { VERSION_TARGETS } from './prepare-release.mjs';
 
 const requiredFiles = [
   '.codex-plugin/plugin.json',
@@ -27,6 +28,18 @@ for (const path of requiredFiles) {
 }
 
 const manifest = JSON.parse(await readFile('.codex-plugin/plugin.json', 'utf8'));
+const packageVersion = JSON.parse(await readFile('package.json', 'utf8')).version;
+for (const target of VERSION_TARGETS) {
+  const document = JSON.parse(await readFile(target.path, 'utf8'));
+  const versionedObject = target.select(document);
+  if (versionedObject?.version !== packageVersion) {
+    throw new Error(`${target.label} version must match package.json (${packageVersion})`);
+  }
+}
+const changelog = await readFile('CHANGELOG.md', 'utf8');
+if (!changelog.includes(`## [${packageVersion}] - `)) {
+  throw new Error(`CHANGELOG.md must contain the current version ${packageVersion}`);
+}
 if (
   manifest.name !== 'deweyou-harness' ||
   manifest.skills !== './skills/' ||

@@ -4,13 +4,14 @@ import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
+import packageManifest from '../../package.json' with { type: 'json' };
 import { loadHarnessConfig, selectableWorkflows } from '../core/config/load.js';
 import { dispatchNodeSkills, dispatchResource, dispatchWorkflowContext } from '../core/resources.js';
 import { buildRehydrationPlan, readyWorkflowNodes } from '../core/runtime.js';
 import { findConfig, RunStore } from '../core/state/store.js';
 import { STAGES } from '../core/types.js';
 
-const VERSION = '0.1.0';
+const VERSION = packageManifest.version;
 const eventTypes = [
   'run.created',
   'workflow.selected',

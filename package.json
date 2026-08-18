@@ -21,6 +21,7 @@
     "pretest": "vp pack src/mcp/server.ts --out-dir dist --clean",
     "typecheck": "tsc --noEmit",
     "lint:assets": "node scripts/lint-assets.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
     "test": "vitest run",
     "pretest:coverage": "vp pack src/mcp/server.ts --out-dir dist --clean",
     "test:coverage": "vitest run --coverage",

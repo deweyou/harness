@@ -98,6 +98,12 @@ pnpm run test:coverage
 pnpm run validate:plugin
 ```
 
+每次非 release 提交进入 `main` 后都会触发 Release workflow。它会读取尚未发布的
+Conventional Commit：`!`/`BREAKING CHANGE` 升 major，`feat` 升 minor，其余改动升
+patch；随后统一更新所有宿主 manifest 的版本、在 `CHANGELOG.md` 顶部增加记录、重新
+构建 `dist/server.mjs`、执行完整校验，并把 `chore(release): v<version>` 提交回
+`main`。Release commit 不会再次参与版本计算，也不会造成触发循环。
+
 仓库会跟踪打包后的 `dist/server.mjs`，插件安装后不依赖 TypeScript 运行时。各宿主
 manifest 只负责适配插件发现和 MCP 路径解析，各端共享同一份 Skill、Core、schema
 和运行时 bundle。本项目不再发布公共 CLI，也不迁移旧 DDev/Brain 状态。
