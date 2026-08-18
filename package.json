@@ -19,13 +19,13 @@
     "node": ">=22.5"
   },
   "scripts": {
-    "build": "vp pack src/mcp/server.ts --out-dir dist --clean",
-    "pretest": "vp pack src/mcp/server.ts --out-dir dist --clean",
+    "build": "vp pack src/mcp/server.ts --out-dir dist --clean && node scripts/normalize-bundle.mjs",
+    "pretest": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "lint:assets": "node scripts/lint-assets.mjs",
     "release:prepare": "node scripts/prepare-release.mjs",
     "test": "vitest run",
-    "pretest:coverage": "vp pack src/mcp/server.ts --out-dir dist --clean",
+    "pretest:coverage": "pnpm run build",
     "test:coverage": "vitest run --coverage",
     "validate:plugin": "node scripts/validate-plugin.mjs",
     "check": "pnpm run lint:assets && pnpm run typecheck && pnpm test && pnpm run build"

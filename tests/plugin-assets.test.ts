@@ -57,6 +57,34 @@ describe('cross-agent plugin package', () => {
     });
   });
 
+  test('provides native Trae discovery, skill, and MCP metadata', async () => {
+    const manifest = JSON.parse(await readFile('.trae-plugin/plugin.json', 'utf8'));
+    const mcp = JSON.parse(await readFile('.trae-mcp.json', 'utf8'));
+    expect(manifest).toMatchObject({
+      name: 'deweyou-harness',
+      version: packageVersion,
+      skills: './skills/',
+      mcp: '.trae-mcp.json',
+      interface: {
+        displayName: 'Deweyou Harness',
+        capabilities: ['Interactive', 'Write'],
+        composerIcon: './assets/harness-small.svg',
+        logo: './assets/harness.png',
+      },
+    });
+    expect(mcp.mcpServers['deweyou-harness']).toEqual({
+      type: 'stdio',
+      command: 'node',
+      args: ['./dist/server.mjs'],
+      cwd: '.',
+    });
+    await expect(readFile('skills/dhw/agents/openai.yaml', 'utf8')).resolves.toContain(
+      'display_name: "Deweyou Harness"',
+    );
+    await expect(readFile('assets/harness-small.svg', 'utf8')).resolves.toContain('#4F46E5');
+    await expect(readFile('skills/dhw/assets/dhw-small.svg', 'utf8')).resolves.toContain('#22D3EE');
+  });
+
   test('provides an OpenClaw plugin over the shared skill and MCP bundle', async () => {
     const packageManifest = JSON.parse(await readFile('package.json', 'utf8'));
     const manifest = JSON.parse(await readFile('openclaw.plugin.json', 'utf8'));

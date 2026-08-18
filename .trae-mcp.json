@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "deweyou-harness": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./dist/server.mjs"],
+      "cwd": "."
+    }
+  }
+}

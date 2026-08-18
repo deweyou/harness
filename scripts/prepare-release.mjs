@@ -10,6 +10,7 @@ export const VERSION_TARGETS = [
   { path: 'package.json', select: (document) => document, label: 'package' },
   { path: '.codex-plugin/plugin.json', select: (document) => document, label: 'Codex plugin' },
   { path: '.claude-plugin/plugin.json', select: (document) => document, label: 'Claude plugin' },
+  { path: '.trae-plugin/plugin.json', select: (document) => document, label: 'Trae plugin' },
   {
     path: '.claude-plugin/marketplace.json',
     select: (document) => document.plugins?.find((plugin) => plugin.name === 'deweyou-harness'),

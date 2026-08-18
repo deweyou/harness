@@ -1,0 +1,40 @@
+{
+  "name": "deweyou-harness",
+  "version": "1.0.0",
+  "description": "A config-driven, domain-neutral workflow harness for Trae",
+  "author": {
+    "name": "Dewey Ou",
+    "email": "oushihao97@gmail.com",
+    "url": "https://github.com/deweyou"
+  },
+  "homepage": "https://github.com/deweyou/harness",
+  "repository": "https://github.com/deweyou/harness",
+  "license": "MIT",
+  "keywords": [
+    "agent",
+    "harness",
+    "workflow",
+    "trae"
+  ],
+  "skills": "./skills/",
+  "mcp": ".trae-mcp.json",
+  "interface": {
+    "displayName": "Deweyou Harness",
+    "shortDescription": "Run config-driven workflows with durable evidence.",
+    "longDescription": "Orchestrates align, execute, verify, and deliver stages while progressively dispatching workspace-owned resources and recording replayable run evidence.",
+    "developerName": "Dewey Ou",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/deweyou/harness",
+    "defaultPrompt": [
+      "Run a Harness workflow with /dhw"
+    ],
+    "composerIcon": "./assets/harness-small.svg",
+    "logo": "./assets/harness.png",
+    "screenshots": [],
+    "brandColor": "#4F46E5"
+  }
+}
