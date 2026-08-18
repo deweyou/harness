@@ -1,13 +1,15 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { describe, expect, test } from 'vitest';
 
+const packageVersion = JSON.parse(await readFile('package.json', 'utf8')).version;
+
 describe('cross-agent plugin package', () => {
   test('exposes only dhw and the bundled MCP server to Codex', async () => {
     const manifest = JSON.parse(await readFile('.codex-plugin/plugin.json', 'utf8'));
     const mcp = JSON.parse(await readFile('.mcp.json', 'utf8'));
     expect(manifest).toMatchObject({
       name: 'deweyou-harness',
-      version: '0.1.0',
+      version: packageVersion,
       skills: './skills/',
       mcpServers: './.mcp.json',
     });
@@ -23,10 +25,10 @@ describe('cross-agent plugin package', () => {
     const manifest = JSON.parse(await readFile('.claude-plugin/plugin.json', 'utf8'));
     const marketplace = JSON.parse(await readFile('.claude-plugin/marketplace.json', 'utf8'));
     const mcp = JSON.parse(await readFile('.mcp.json', 'utf8'));
-    expect(manifest).toMatchObject({ name: 'deweyou-harness', version: '0.1.0' });
+    expect(manifest).toMatchObject({ name: 'deweyou-harness', version: packageVersion });
     expect(marketplace).toMatchObject({
       name: 'deweyou',
-      plugins: [{ name: 'deweyou-harness', source: './', version: '0.1.0' }],
+      plugins: [{ name: 'deweyou-harness', source: './', version: packageVersion }],
     });
     expect(mcp.mcpServers['deweyou-harness']).toEqual({
       command: 'node',
@@ -40,7 +42,7 @@ describe('cross-agent plugin package', () => {
     expect(manifest).toMatchObject({
       $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
       name: 'deweyou-harness',
-      version: '0.1.0',
+      version: packageVersion,
     });
     expect(mcp).toMatchObject({
       $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
@@ -63,7 +65,7 @@ describe('cross-agent plugin package', () => {
     });
     expect(manifest).toMatchObject({
       id: 'deweyou-harness',
-      version: '0.1.0',
+      version: packageVersion,
       skills: ['./skills'],
       mcpServers: {
         'deweyou-harness': {

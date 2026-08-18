@@ -1,7 +1,7 @@
 {
   "name": "deweyou-harness",
   "displayName": "Deweyou Harness",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A config-driven, domain-neutral workflow harness for Claude Code",
   "author": {
     "name": "Dewey Ou",
@@ -11,5 +11,10 @@
   "homepage": "https://github.com/deweyou/harness",
   "repository": "https://github.com/deweyou/harness",
   "license": "MIT",
-  "keywords": ["agent", "harness", "workflow", "claude-code"]
+  "keywords": [
+    "agent",
+    "harness",
+    "workflow",
+    "claude-code"
+  ]
 }

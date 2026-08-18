@@ -109,6 +109,14 @@ pnpm run test:coverage
 pnpm run validate:plugin
 ```
 
+Every non-release push to `main` runs the Release workflow. It reads the
+unreleased conventional commit subjects, applies the highest semantic-version
+bump (`!`/`BREAKING CHANGE` = major, `feat` = minor, everything else = patch),
+synchronizes every host manifest, prepends `CHANGELOG.md`, rebuilds
+`dist/server.mjs`, validates the package, and commits
+`chore(release): v<version>` back to `main`. Release commits are excluded from
+the next calculation and do not trigger another release.
+
 The bundled `dist/server.mjs` is tracked so an installed plugin can start its
 MCP server without a TypeScript runtime. Host-specific manifests only adapt
 plugin discovery and MCP path resolution; all hosts share the same Skill, Core,

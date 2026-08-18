@@ -8,6 +8,9 @@ import { access, appendFile, mkdir, open, readFile, realpath, rename, stat, writ
 import { dump, load } from "js-yaml";
 import { homedir } from "node:os";
 import { constants } from "node:fs";
+//#region package.json
+var version = "1.0.0";
+//#endregion
 //#region src/core/errors.ts
 var HarnessError = class extends Error {
 	code;
@@ -1076,7 +1079,7 @@ async function findConfig(workspacePath) {
 }
 //#endregion
 //#region src/mcp/server.ts
-const VERSION = "0.1.0";
+const VERSION = version;
 const eventTypes = [
 	"run.created",
 	"workflow.selected",
