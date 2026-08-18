@@ -63,6 +63,34 @@ if (
   throw new Error('Portable Agent Plugin MCP server must resolve the bundle from PLUGIN_ROOT');
 }
 
+const traeManifest = JSON.parse(await readFile('.trae-plugin/plugin.json', 'utf8'));
+const traeMcp = JSON.parse(await readFile('.trae-mcp.json', 'utf8'));
+if (
+  traeManifest.name !== manifest.name ||
+  traeManifest.version !== manifest.version ||
+  traeManifest.skills !== './skills/' ||
+  traeManifest.mcp !== '.trae-mcp.json' ||
+  !traeManifest.interface?.displayName ||
+  !traeManifest.interface?.defaultPrompt?.length ||
+  traeManifest.interface?.composerIcon !== './assets/harness-small.svg' ||
+  traeManifest.interface?.logo !== './assets/harness.png'
+) {
+  throw new Error('Trae plugin identity, skill root, MCP config, or interface metadata is invalid');
+}
+if (
+  traeMcp.mcpServers?.['deweyou-harness']?.type !== 'stdio' ||
+  traeMcp.mcpServers?.['deweyou-harness']?.command !== 'node' ||
+  traeMcp.mcpServers?.['deweyou-harness']?.args?.[0] !== './dist/server.mjs' ||
+  traeMcp.mcpServers?.['deweyou-harness']?.cwd !== '.'
+) {
+  throw new Error('Trae MCP server must use plugin-root-relative paths without host variables');
+}
+await access('skills/dhw/agents/openai.yaml');
+await access('assets/harness-small.svg');
+await access('assets/harness.png');
+await access('skills/dhw/assets/dhw-small.svg');
+await access('skills/dhw/assets/dhw.png');
+
 const packageManifest = JSON.parse(await readFile('package.json', 'utf8'));
 const openClawManifest = JSON.parse(await readFile('openclaw.plugin.json', 'utf8'));
 if (
@@ -101,6 +129,16 @@ if (
   throw new Error('Codex marketplace must expose the repository-root plugin with explicit policy');
 }
 await access('dist/server.mjs');
+const serverBundle = await readFile('dist/server.mjs', 'utf8');
+const importSpecifiers = serverBundle
+  .split('\n')
+  .filter((line) => line.startsWith('import '))
+  .map((line) => /(?:from\s+)?["']([^"']+)["'];?\s*$/.exec(line)?.[1])
+  .filter(Boolean);
+const externalImports = importSpecifiers.filter((specifier) => !specifier.startsWith('node:'));
+if (externalImports.length > 0) {
+  throw new Error(`Bundled MCP server has external imports: ${[...new Set(externalImports)].join(', ')}`);
+}
 console.log(
-  'Cross-agent plugin asset validation passed for Codex, Claude Code, Cursor, OpenClaw, and Hermes Agent.',
+  'Cross-agent plugin asset validation passed for Codex, Claude Code, Cursor, Trae, OpenClaw, and Hermes Agent.',
 );

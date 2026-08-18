@@ -1,7 +1,7 @@
 # Deweyou Harness
 
 Deweyou Harness is a cross-agent plugin for running config-driven, domain-neutral
-workflows in Codex, Claude Code, Cursor, OpenClaw, and Hermes Agent. The plugin
+workflows in Codex, Claude Code, Cursor, Trae, OpenClaw, and Hermes Agent. The plugin
 contains one user-facing skill, `/dhw`, and a bundled local MCP server that
 validates configuration, schedules DAG nodes, dispatches resources progressively,
 records replayable Run evidence and generates evidence-attributed resource
@@ -69,6 +69,29 @@ To update a cloned Cursor installation:
 git -C ~/.cursor/plugins/local/deweyou-harness pull --ff-only
 ```
 
+### Trae
+
+Paste the following prompt into Trae:
+
+```text
+Install Deweyou Harness from https://github.com/deweyou/harness as a native Trae
+plugin. Treat the repository root as the plugin root. Discover it through
+.trae-plugin/plugin.json, register the dhw Skill through
+skills/dhw/agents/openai.yaml, and load its MCP configuration from
+.trae-mcp.json. Use the tracked dist/server.mjs bundle; do not run pnpm install.
+After installation, report the resolved plugin root and verify that the manifest,
+the dhw Skill, and the deweyou-harness MCP server were discovered. If the plugin
+must be enabled by the user, ask me to enable it in Trae's plugin settings; do not
+edit Trae's internal plugin configuration directly.
+```
+
+Enable **Deweyou Harness** in Trae's plugin settings if prompted, start a new
+session, and invoke `/dhw`. You can then ask Trae to list the
+`deweyou-harness` MCP tools to verify the runtime connection.
+
+The plugin and Skill use the same four-node Harness mark so the `/dhw` entry is
+easy to recognize at menu and sidebar sizes.
+
 ### OpenClaw
 
 Install and enable the native OpenClaw adapter from GitHub:
@@ -117,8 +140,9 @@ synchronizes every host manifest, prepends `CHANGELOG.md`, rebuilds
 `chore(release): v<version>` back to `main`. Release commits are excluded from
 the next calculation and do not trigger another release.
 
-The bundled `dist/server.mjs` is tracked so an installed plugin can start its
-MCP server without a TypeScript runtime. Host-specific manifests only adapt
+The bundled `dist/server.mjs` is tracked and self-contained so an installed
+plugin can start its MCP server without a TypeScript runtime or `node_modules`.
+Host-specific manifests only adapt
 plugin discovery and MCP path resolution; all hosts share the same Skill, Core,
 schemas, and runtime bundle. There is no public CLI and no legacy DDev or Brain
 state migration.

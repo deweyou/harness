@@ -1,6 +1,13 @@
 import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
+  pack: {
+    minify: true,
+    deps: {
+      alwaysBundle: [/^@modelcontextprotocol\//, /^js-yaml$/, /^zod(?:\/|$)/],
+      onlyBundle: [/^@modelcontextprotocol\//, /^js-yaml$/, /^zod(?:\/|$)/],
+    },
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.{ts,mjs}'],

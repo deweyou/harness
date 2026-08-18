@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { load as loadYaml } from 'js-yaml';
 import { VERSION_TARGETS } from './prepare-release.mjs';
 
 const requiredFiles = [
@@ -7,6 +8,10 @@ const requiredFiles = [
   '.claude-plugin/plugin.json',
   '.claude-plugin/marketplace.json',
   '.mcp.json',
+  '.trae-plugin/plugin.json',
+  '.trae-mcp.json',
+  'assets/harness-small.svg',
+  'assets/harness.png',
   'adapters/openclaw/index.mjs',
   'openclaw.plugin.json',
   'plugin.json',
@@ -15,6 +20,9 @@ const requiredFiles = [
   'skills/dhw/README.md',
   'skills/dhw/README_ZH.md',
   'skills/dhw/evals/evals.json',
+  'skills/dhw/agents/openai.yaml',
+  'skills/dhw/assets/dhw-small.svg',
+  'skills/dhw/assets/dhw.png',
   'schemas/harness.schema.json',
   'schemas/event.schema.json',
   'schemas/run.schema.json',
@@ -25,6 +33,7 @@ const requiredFiles = [
 for (const path of requiredFiles) {
   const content = await readFile(path, 'utf8');
   if (path.endsWith('.json')) JSON.parse(content);
+  if (path.endsWith('.yaml')) loadYaml(content);
 }
 
 const manifest = JSON.parse(await readFile('.codex-plugin/plugin.json', 'utf8'));
@@ -51,6 +60,17 @@ if (
 const skill = await readFile('skills/dhw/SKILL.md', 'utf8');
 if (!skill.startsWith('---\nname: dhw\n') || !skill.includes('\ndescription:')) {
   throw new Error('skills/dhw/SKILL.md must have dhw frontmatter');
+}
+
+const traeAgent = loadYaml(await readFile('skills/dhw/agents/openai.yaml', 'utf8'));
+if (
+  traeAgent?.interface?.display_name !== 'Deweyou Harness' ||
+  typeof traeAgent?.interface?.short_description !== 'string' ||
+  traeAgent?.interface?.icon_small !== './assets/dhw-small.svg' ||
+  traeAgent?.interface?.icon_large !== './assets/dhw.png' ||
+  typeof traeAgent?.interface?.default_prompt !== 'string'
+) {
+  throw new Error('Trae skill registration must expose the dhw interface metadata');
 }
 
 const evals = JSON.parse(await readFile('skills/dhw/evals/evals.json', 'utf8'));
