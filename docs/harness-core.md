@@ -1,8 +1,8 @@
 # Harness Core
 
-Deweyou Harness separates orchestration from domain behavior. The Codex Plugin
-ships `/dhw` and a local stdio MCP server. A workspace owns everything else in
-`harness.yaml`.
+Deweyou Harness separates orchestration from domain behavior. Its Codex,
+Claude Code, Cursor, OpenClaw, and Hermes Agent adapters share the `dhw`
+controller skill and local stdio MCP server. Workspaces own `harness.yaml`.
 
 ```mermaid
 flowchart LR
@@ -215,8 +215,10 @@ judgment. Those remain controller responsibilities.
 
 ## Distribution Boundary
 
-v0.1 is a Codex Plugin, not a public CLI. Plugin installation/update distributes
-the skill, schemas, and bundled MCP server together. Other host/plugin formats
+v0.1 is a plugin package for Codex, Claude Code, Cursor, OpenClaw, and Hermes
+Agent, not a public CLI. Host-specific manifests adapt discovery and MCP path
+resolution while sharing the skill, schemas, and bundled MCP server. Cursor and
+Hermes consume Agent Plugins v1; OpenClaw uses its native manifest. Other hosts
 and a dashboard may be added later without changing the Core contracts.
 
 Old `~/.deweyou/dev/` state is intentionally ignored. The plugin contains no

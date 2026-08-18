@@ -2,8 +2,7 @@
   "mcpServers": {
     "deweyou-harness": {
       "command": "node",
-      "args": ["./dist/server.mjs"],
-      "cwd": "."
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"]
     }
   }
 }

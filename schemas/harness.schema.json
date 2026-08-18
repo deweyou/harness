@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/deweyou/agents/schemas/harness.schema.json",
+  "$id": "https://github.com/deweyou/harness/schemas/harness.schema.json",
   "title": "Deweyou Harness configuration",
   "type": "object",
   "additionalProperties": false,

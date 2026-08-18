@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/deweyou/agents/schemas/run.schema.json",
+  "$id": "https://github.com/deweyou/harness/schemas/run.schema.json",
   "title": "Deweyou Harness run metadata",
   "type": "object",
   "additionalProperties": false,

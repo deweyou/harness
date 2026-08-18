@@ -2,7 +2,14 @@ import { readFile } from 'node:fs/promises';
 
 const requiredFiles = [
   '.codex-plugin/plugin.json',
+  '.agents/plugins/marketplace.json',
+  '.claude-plugin/plugin.json',
+  '.claude-plugin/marketplace.json',
   '.mcp.json',
+  'adapters/openclaw/index.mjs',
+  'openclaw.plugin.json',
+  'plugin.json',
+  'mcp.json',
   'skills/dhw/SKILL.md',
   'skills/dhw/README.md',
   'skills/dhw/README_ZH.md',
@@ -20,7 +27,11 @@ for (const path of requiredFiles) {
 }
 
 const manifest = JSON.parse(await readFile('.codex-plugin/plugin.json', 'utf8'));
-if (manifest.name !== 'deweyou-harness' || manifest.skills !== './skills/' || manifest.mcpServers !== './.mcp.json') {
+if (
+  manifest.name !== 'deweyou-harness' ||
+  manifest.skills !== './skills/' ||
+  manifest.mcpServers !== './.mcp.json'
+) {
   throw new Error('Plugin manifest does not expose the expected Harness components');
 }
 

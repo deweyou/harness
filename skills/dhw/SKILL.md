@@ -6,6 +6,7 @@ description: >
   workflow from harness.yaml, orchestrates its four fixed stages, dispatches
   resources progressively, delegates detailed agent nodes to subagents, and
   records durable Run evidence through the Deweyou Harness MCP server.
+user-invocable: true
 ---
 
 # Deweyou Harness Work

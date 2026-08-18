@@ -2,13 +2,16 @@
   "name": "deweyou-harness",
   "version": "0.1.0",
   "type": "module",
-  "description": "A config-driven, domain-neutral workflow harness for Codex",
+  "description": "A config-driven, domain-neutral workflow harness for coding agents",
   "private": true,
   "author": "Dewey Ou <oushihao97@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/deweyou/agents.git"
+    "url": "git+https://github.com/deweyou/harness.git"
+  },
+  "openclaw": {
+    "extensions": ["./adapters/openclaw/index.mjs"]
   },
   "engines": {
     "node": ">=22.5"

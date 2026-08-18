@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/deweyou/agents/schemas/retrospective.schema.json",
+  "$id": "https://github.com/deweyou/harness/schemas/retrospective.schema.json",
   "title": "Deweyou Harness Run retrospective",
   "type": "object",
   "additionalProperties": false,

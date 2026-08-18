@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repository contains the Deweyou Harness Codex Plugin.
+This repository contains the cross-agent Deweyou Harness plugin package.
 
 ## Product Boundary
 

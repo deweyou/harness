@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/deweyou/agents/schemas/resource-proposal.schema.json",
+  "$id": "https://github.com/deweyou/harness/schemas/resource-proposal.schema.json",
   "title": "Deweyou Harness resource improvement proposal",
   "type": "object",
   "additionalProperties": false,

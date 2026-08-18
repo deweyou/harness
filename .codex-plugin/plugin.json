@@ -7,8 +7,8 @@
     "email": "oushihao97@gmail.com",
     "url": "https://github.com/deweyou"
   },
-  "homepage": "https://github.com/deweyou/agents",
-  "repository": "https://github.com/deweyou/agents",
+  "homepage": "https://github.com/deweyou/harness",
+  "repository": "https://github.com/deweyou/harness",
   "license": "MIT",
   "keywords": ["agent", "harness", "workflow", "codex"],
   "skills": "./skills/",
@@ -20,7 +20,7 @@
     "developerName": "Dewey Ou",
     "category": "Productivity",
     "capabilities": ["Workflow orchestration", "Progressive resource dispatch", "Run telemetry"],
-    "websiteURL": "https://github.com/deweyou/agents",
+    "websiteURL": "https://github.com/deweyou/harness",
     "defaultPrompt": [
       "Use /dhw to run the best matching workflow for this task.",
       "Use /dhw to resume the active Harness run.",
