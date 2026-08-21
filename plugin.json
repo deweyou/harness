@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "deweyou-harness",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A domain-neutral commitment and evidence harness",
   "author": {
     "name": "Dewey Ou",
