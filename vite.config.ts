@@ -4,8 +4,8 @@ export default defineConfig({
   pack: {
     minify: true,
     deps: {
-      alwaysBundle: [/^@modelcontextprotocol\//, /^js-yaml$/, /^zod(?:\/|$)/],
-      onlyBundle: [/^@modelcontextprotocol\//, /^js-yaml$/, /^zod(?:\/|$)/],
+      alwaysBundle: [/^@deepseek-ai\//, /^@modelcontextprotocol\//, /^js-yaml$/, /^zod(?:\/|$)/],
+      onlyBundle: [/^@deepseek-ai\//, /^@modelcontextprotocol\//, /^js-yaml$/, /^zod(?:\/|$)/],
     },
   },
   test: {

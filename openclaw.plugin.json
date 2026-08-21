@@ -1,7 +1,7 @@
 {
   "id": "deweyou-harness",
   "name": "Deweyou Harness",
-  "description": "Run config-driven workflows with progressive resource dispatch and durable evidence.",
+  "description": "Run commitment-driven agent work with progressive capabilities and durable evidence.",
   "version": "1.1.0",
   "skills": [
     "./skills"

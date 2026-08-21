@@ -1,6 +1,6 @@
 import { isAbsolute } from 'node:path';
 import { HarnessError, invariant } from '../errors.js';
-import { STAGES, type HarnessConfig, type NodeInstance, type ResourceDefinition } from '../types.js';
+import type { HarnessConfig, ResourceDefinition } from '../types.js';
 
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 
@@ -16,6 +16,12 @@ function assertString(value: unknown, label: string): asserts value is string {
   invariant(typeof value === 'string' && value.trim().length > 0, 'INVALID_CONFIG', `${label} must be a non-empty string`);
 }
 
+function assertStringArray(value: unknown, label: string): void {
+  invariant(Array.isArray(value), 'INVALID_CONFIG', `${label} must be an array`);
+  for (const item of value) assertString(item, `${label}[]`);
+  invariant(new Set(value).size === value.length, 'INVALID_CONFIG', `${label} must not contain duplicates`);
+}
+
 function assertKnownKeys(value: Record<string, unknown>, allowed: string[], label: string): void {
   const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
   invariant(unknown.length === 0, 'UNKNOWN_CONFIG_FIELD', `${label} has unknown field(s): ${unknown.join(', ')}`);
@@ -25,6 +31,7 @@ function validateResource(id: string, value: unknown): asserts value is Resource
   invariant(isRecord(value), 'INVALID_RESOURCE', `Resource '${id}' must be an object`);
   assertKnownKeys(value, ['kind', 'description', 'source'], `Resource '${id}'`);
   invariant(['skill', 'rule', 'knowledge'].includes(String(value.kind)), 'INVALID_RESOURCE', `Resource '${id}' has an invalid kind`);
+  if (value.description !== undefined) assertString(value.description, `Resource '${id}'.description`);
   invariant(isRecord(value.source), 'INVALID_RESOURCE', `Resource '${id}' must define source`);
   const source = value.source;
   const sourceFields = source.type === 'workspace' ? ['type', 'path'] : source.type === 'registry' ? ['type', 'repo', 'skill'] : ['type', 'repo', 'path', 'ref'];
@@ -43,32 +50,16 @@ function validateResource(id: string, value: unknown): asserts value is Resource
   }
 }
 
-function validateNodeInstance(instance: unknown, label: string): asserts instance is NodeInstance {
-  invariant(isRecord(instance), 'INVALID_NODE_INSTANCE', `${label} must be an object`);
-  assertKnownKeys(instance, ['use', 'id', 'needs', 'with'], label);
-  assertString(instance.use, `${label}.use`);
-  if (instance.id !== undefined) {
-    assertString(instance.id, `${label}.id`);
-    assertId(instance.id, `${label}.id`);
-  }
-  if (instance.needs !== undefined) {
-    invariant(Array.isArray(instance.needs), 'INVALID_NODE_INSTANCE', `${label}.needs must be an array`);
-    for (const dependency of instance.needs) assertString(dependency, `${label}.needs[]`);
-  }
-  if (instance.with !== undefined) invariant(isRecord(instance.with), 'INVALID_NODE_INSTANCE', `${label}.with must be an object`);
-}
-
 export function validateConfigDocument(value: unknown, source: string): asserts value is HarnessConfig {
   invariant(isRecord(value), 'INVALID_CONFIG', `${source} must contain a YAML object`);
-  assertKnownKeys(value, ['$schema', 'version', 'imports', 'resources', 'nodes', 'workflows'], source);
-  invariant(value.version === 1, 'UNSUPPORTED_CONFIG_VERSION', `${source} must set version: 1`);
+  assertKnownKeys(value, ['$schema', 'version', 'imports', 'resources', 'nodes'], source);
+  invariant(value.version === 2, 'UNSUPPORTED_CONFIG_VERSION', `${source} must set version: 2`);
 
   if (value.imports !== undefined) {
     invariant(Array.isArray(value.imports), 'INVALID_IMPORT', `${source} imports must be an array`);
     for (const entry of value.imports) {
-      if (typeof entry === 'string') {
-        assertString(entry, 'Import path');
-      } else {
+      if (typeof entry === 'string') assertString(entry, 'Import path');
+      else {
         invariant(isRecord(entry), 'INVALID_IMPORT', 'Import must be a path string or object');
         assertKnownKeys(entry, ['path', 'as'], 'Import');
         assertString(entry.path, 'Import path');
@@ -93,47 +84,45 @@ export function validateConfigDocument(value: unknown, source: string): asserts 
     for (const [id, node] of Object.entries(value.nodes)) {
       assertId(id, 'Node id');
       invariant(isRecord(node) && isRecord(node.executor), 'INVALID_NODE', `Node '${id}' must define executor`);
-      assertKnownKeys(node, ['name', 'description', 'executor'], `Node '${id}'`);
+      assertKnownKeys(node, ['name', 'description', 'executor', 'resources', 'inputs', 'outputs', 'claimTypes', 'artifactTypes', 'authority', 'executionPolicy'], `Node '${id}'`);
       if (node.name !== undefined) assertString(node.name, `Node '${id}'.name`);
       if (node.description !== undefined) assertString(node.description, `Node '${id}'.description`);
+      for (const field of ['resources', 'inputs', 'outputs', 'claimTypes', 'artifactTypes', 'authority'] as const) {
+        if (node[field] !== undefined) assertStringArray(node[field], `Node '${id}'.${field}`);
+      }
+      if (node.executionPolicy !== undefined) {
+        invariant(isRecord(node.executionPolicy), 'INVALID_NODE', `Node '${id}'.executionPolicy must be an object`);
+        assertKnownKeys(node.executionPolicy, ['idempotent', 'timeoutMs', 'retry'], `Node '${id}'.executionPolicy`);
+        invariant(typeof node.executionPolicy.idempotent === 'boolean', 'INVALID_NODE', `Node '${id}'.executionPolicy.idempotent must be boolean`);
+        if (node.executionPolicy.timeoutMs !== undefined) {
+          invariant(Number.isInteger(node.executionPolicy.timeoutMs) && Number(node.executionPolicy.timeoutMs) > 0, 'INVALID_NODE', `Node '${id}'.executionPolicy.timeoutMs must be a positive integer`);
+        }
+        if (node.executionPolicy.retry !== undefined) {
+          invariant(isRecord(node.executionPolicy.retry), 'INVALID_NODE', `Node '${id}'.executionPolicy.retry must be an object`);
+          assertKnownKeys(node.executionPolicy.retry, ['maxAttempts', 'backoffMs'], `Node '${id}'.executionPolicy.retry`);
+          invariant(Number.isInteger(node.executionPolicy.retry.maxAttempts) && Number(node.executionPolicy.retry.maxAttempts) > 0, 'INVALID_NODE', `Node '${id}'.executionPolicy.retry.maxAttempts must be a positive integer`);
+          if (node.executionPolicy.retry.backoffMs !== undefined) {
+            invariant(Number.isInteger(node.executionPolicy.retry.backoffMs) && Number(node.executionPolicy.retry.backoffMs) >= 0, 'INVALID_NODE', `Node '${id}'.executionPolicy.retry.backoffMs must be a non-negative integer`);
+          }
+        }
+      }
       const executor = node.executor;
-      invariant(executor.type === 'agent' || executor.type === 'command', 'INVALID_EXECUTOR', `Node '${id}' has an invalid executor type`);
-      if (executor.type === 'agent') {
-        assertKnownKeys(executor, ['type', 'skills'], `Node '${id}' executor`);
-        if (executor.skills !== undefined) {
-          invariant(Array.isArray(executor.skills), 'INVALID_EXECUTOR', `Node '${id}' skills must be an array`);
-          for (const skill of executor.skills) assertString(skill, `Node '${id}' skill`);
-        }
+      invariant(['agent', 'command', 'capability'].includes(String(executor.kind)), 'INVALID_EXECUTOR', `Node '${id}' has an invalid executor kind`);
+      if (executor.kind === 'agent') {
+        assertKnownKeys(executor, ['kind', 'skills', 'config'], `Node '${id}' executor`);
+        if (executor.skills !== undefined) assertStringArray(executor.skills, `Node '${id}' executor.skills`);
+        if (executor.config !== undefined) invariant(isRecord(executor.config), 'INVALID_EXECUTOR', `Node '${id}' executor.config must be an object`);
+      } else if (executor.kind === 'command') {
+        assertKnownKeys(executor, ['kind', 'argv', 'cwd'], `Node '${id}' executor`);
+        const argv = executor.argv;
+        invariant(Array.isArray(argv), 'INVALID_EXECUTOR', `Node '${id}' executor.argv must be an array`);
+        assertStringArray(argv, `Node '${id}' executor.argv`);
+        invariant(argv.length > 0, 'INVALID_EXECUTOR', `Node '${id}' executor.argv must not be empty`);
+        if (executor.cwd !== undefined) assertString(executor.cwd, `Node '${id}' executor.cwd`);
       } else {
-        assertKnownKeys(executor, ['type', 'command'], `Node '${id}' executor`);
-        assertString(executor.command, `Node '${id}' command`);
-      }
-    }
-  }
-
-  if (value.workflows !== undefined) {
-    invariant(isRecord(value.workflows), 'INVALID_CONFIG', 'workflows must be an object');
-    for (const [id, workflow] of Object.entries(value.workflows)) {
-      assertId(id, 'Workflow id');
-      invariant(isRecord(workflow), 'INVALID_WORKFLOW', `Workflow '${id}' must be an object`);
-      assertKnownKeys(workflow, ['name', 'description', 'selectable', 'extends', 'rules', 'knowledge', 'stages'], `Workflow '${id}'`);
-      assertString(workflow.name, `Workflow '${id}'.name`);
-      assertString(workflow.description, `Workflow '${id}'.description`);
-      if (workflow.selectable !== undefined) invariant(typeof workflow.selectable === 'boolean', 'INVALID_WORKFLOW', `Workflow '${id}'.selectable must be boolean`);
-      if (workflow.extends !== undefined) assertString(workflow.extends, `Workflow '${id}'.extends`);
-      for (const field of ['rules', 'knowledge'] as const) {
-        if (workflow[field] !== undefined) {
-          invariant(Array.isArray(workflow[field]), 'INVALID_WORKFLOW', `Workflow '${id}'.${field} must be an array`);
-          for (const resource of workflow[field]) assertString(resource, `Workflow '${id}'.${field}[]`);
-        }
-      }
-      if (workflow.stages !== undefined) {
-        invariant(isRecord(workflow.stages), 'INVALID_WORKFLOW', `Workflow '${id}'.stages must be an object`);
-        for (const [stage, instances] of Object.entries(workflow.stages)) {
-          invariant(STAGES.includes(stage as (typeof STAGES)[number]), 'INVALID_STAGE', `Workflow '${id}' uses unsupported stage '${stage}'`);
-          invariant(Array.isArray(instances), 'INVALID_STAGE', `Workflow '${id}' stage '${stage}' must be an array`);
-          instances.forEach((instance, index) => validateNodeInstance(instance, `Workflow '${id}' ${stage}[${index}]`));
-        }
+        assertKnownKeys(executor, ['kind', 'capability', 'config'], `Node '${id}' executor`);
+        assertString(executor.capability, `Node '${id}' executor.capability`);
+        if (executor.config !== undefined) invariant(isRecord(executor.config), 'INVALID_EXECUTOR', `Node '${id}' executor.config must be an object`);
       }
     }
   }

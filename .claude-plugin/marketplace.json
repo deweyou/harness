@@ -4,12 +4,12 @@
     "name": "Dewey Ou",
     "email": "oushihao97@gmail.com"
   },
-  "description": "Config-driven workflow orchestration plugins from Deweyou",
+  "description": "Commitment-driven agent runtime plugins from Deweyou",
   "plugins": [
     {
       "name": "deweyou-harness",
       "source": "./",
-      "description": "Run config-driven workflows with durable evidence",
+      "description": "Run commitment-driven work with durable evidence",
       "version": "1.1.0",
       "author": {
         "name": "Dewey Ou"

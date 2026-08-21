@@ -1,224 +1,170 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, test } from 'vitest';
-import { findConfig, RunStore } from '../src/core/state/store.js';
-import type { EventInput, ResolvedHarnessConfig } from '../src/core/types.js';
-
-const directories: string[] = [];
-afterEach(async () => Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true }))));
+import { describe, expect, it } from 'vitest';
+import { findConfig, RunStore, type CommandContext } from '../src/core/state/store.js';
+import type { ResolvedHarnessConfig, Run } from '../src/core/types.js';
 
 const config: ResolvedHarnessConfig = {
-  version: 1,
+  version: 2,
   sourceFiles: [],
   resources: {},
-  nodes: { work: { executor: { type: 'agent' } } },
-  workflows: {
-    flow: {
-      name: 'Flow',
-      description: 'A workflow.',
-      selectable: true,
-      rules: [],
-      knowledge: [],
-      stages: { execute: [{ use: 'work', id: 'work', needs: [] }] },
-    },
-  },
+  nodes: { work: { executor: { kind: 'agent' }, outputs: ['result'], claimTypes: ['acceptance'] } },
 };
 
-function event(type: EventInput['type'], timestamp: string, payload: Record<string, unknown>, idempotencyKey?: string): EventInput {
-  return { type, timestamp, traceId: 'trace', spanId: `span-${timestamp}`, payload, ...(idempotencyKey ? { idempotencyKey } : {}) };
+function context(key: string): CommandContext {
+  return { traceId: 'trace', spanId: `span-${key}`, idempotencyKey: key };
 }
 
-describe('RunStore', () => {
-  test('creates the complete Run bundle and keeps every loop execution duration', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:00.000Z') });
-    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: { prompt: 'work' }, config, hostSessionId: 'host-1' });
-    expect((await store.getProjection(run.workspaceId, run.id)).nodeStatuses).toEqual({ 'execute:work': 'pending' });
-    const append = (input: EventInput) => store.appendEvent(run.workspaceId, run.id, input);
+function clock(): () => Date {
+  let tick = 0;
+  return () => new Date(Date.parse('2026-08-21T00:00:00.000Z') + tick++ * 1_000);
+}
 
-    await append(event('stage.started', '2026-08-16T00:00:01.000Z', { stage: 'execute', stageVisit: 1 }));
-    await append(event('node.started', '2026-08-16T00:00:02.000Z', { nodeExecutionId: 'exec-1', nodeId: 'work', stage: 'execute', stageVisit: 1, attempt: 1 }));
-    await append(event('node.failed', '2026-08-16T00:00:02.100Z', { nodeExecutionId: 'exec-1' }));
-    await append(event('node.started', '2026-08-16T00:00:03.000Z', { nodeExecutionId: 'exec-2', nodeId: 'work', stage: 'execute', stageVisit: 1, attempt: 2 }));
-    await append(event('node.succeeded', '2026-08-16T00:00:03.200Z', { nodeExecutionId: 'exec-2' }));
-    await append(event('stage.completed', '2026-08-16T00:00:03.500Z', { stage: 'execute', stageVisit: 1 }));
-    await append(event('stage.started', '2026-08-16T00:00:04.000Z', { stage: 'execute', stageVisit: 2 }));
-    await append(event('node.started', '2026-08-16T00:00:05.000Z', { nodeExecutionId: 'exec-3', nodeId: 'work', stage: 'execute', stageVisit: 2, attempt: 1 }));
-    await append(event('node.succeeded', '2026-08-16T00:00:05.300Z', { nodeExecutionId: 'exec-3' }));
-    await append(event('stage.completed', '2026-08-16T00:00:06.000Z', { stage: 'execute', stageVisit: 2 }));
+async function setup(): Promise<{ store: RunStore; run: Run; workspace: string; stateRoot: string; claimId: string }> {
+  const workspace = await mkdtemp(join(tmpdir(), 'harness-v2-state-workspace-'));
+  const stateRoot = await mkdtemp(join(tmpdir(), 'harness-v2-state-root-'));
+  const store = new RunStore({ stateRoot, now: clock() });
+  const run = await store.createRun({
+    workspacePath: workspace,
+    request: { prompt: 'work' },
+    config,
+    commitment: {
+      objective: 'Produce the requested result',
+      scope: ['workspace'],
+      authority: ['read-workspace', 'deliver:user'],
+      destination: 'user',
+      acceptance: [{ description: 'The result is verified' }],
+    },
+  });
+  const projection = await store.getProjection(run.workspace.id, run.id);
+  return { store, run, workspace, stateRoot, claimId: projection.commitments[1]!.acceptanceClaimIds[0]! };
+}
 
-    const projection = await store.getProjection(run.workspaceId, run.id);
-    expect(projection.nodeExecutions).toHaveLength(3);
-    expect(projection.nodeExecutions.map((execution) => execution.durationMs)).toEqual([100, 200, 300]);
-    expect(projection.timing).toMatchObject({ executionTimeMs: 600, retryTimeMs: 200, reworkTimeMs: 300, wallTimeMs: 6000, criticalPathMs: 600 });
-    expect(projection.stageVisits.execute).toBe(2);
-    expect(projection.stageVisitExecutions).toEqual([
-      {
-        stage: 'execute',
-        stageVisit: 1,
-        status: 'completed',
-        startedAt: '2026-08-16T00:00:01.000Z',
-        endedAt: '2026-08-16T00:00:03.500Z',
-        durationMs: 2500,
-      },
-      {
-        stage: 'execute',
-        stageVisit: 2,
-        status: 'completed',
-        startedAt: '2026-08-16T00:00:04.000Z',
-        endedAt: '2026-08-16T00:00:06.000Z',
-        durationMs: 2000,
-      },
-    ]);
-    expect(projection.nodeStatuses['execute:work']).toBe('succeeded');
+async function activatePlan(store: RunStore, run: Run, claimId: string): Promise<void> {
+  const plan = await store.proposePlan(run.workspace.id, run.id, 1, [{
+    id: 'work-1',
+    definitionId: 'work',
+    dependsOn: [],
+    targetClaimIds: [claimId],
+    authority: ['read-workspace'],
+  }], context('plan'));
+  await store.activatePlan(run.workspace.id, run.id, plan.revision, context('activate'));
+}
 
-    const bundle = store.runDirectory(run.workspaceId, run.id);
-    for (const path of ['run.json', 'request.json', 'config.snapshot.yaml', 'resources.lock.json', 'plan.json', 'events.jsonl', 'state.json', 'artifacts.json']) {
-      await expect(readFile(join(bundle, path), 'utf8')).resolves.toBeTruthy();
-    }
+describe('RunStore v2 semantic commands', () => {
+  it('does not complete from successful nodes without accepted Claims', async () => {
+    const { store, run, claimId } = await setup();
+    await activatePlan(store, run, claimId);
+    const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('start'));
+    await store.finishExecution(run.workspace.id, run.id, execution.executionId, 'succeeded', [], context('finish'));
+
+    await expect(store.completeRun(run.workspace.id, run.id, 1, 1, 'user', context('complete-early')))
+      .rejects.toMatchObject({ code: 'ACCEPTANCE_INCOMPLETE' });
+    expect((await store.getProjection(run.workspace.id, run.id)).status).toBe('running');
   });
 
-  test('deduplicates append retries and detects a modified hash chain', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:00.000Z') });
-    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config });
-    const input = event('workflow.selected', '2026-08-16T00:00:01.000Z', { workflowId: 'flow' }, 'select-flow');
-    const first = await store.appendEvent(run.workspaceId, run.id, input);
-    const second = await store.appendEvent(run.workspaceId, run.id, input);
-    expect(second.id).toBe(first.id);
-    expect(await store.readEvents(run.workspaceId, run.id)).toHaveLength(2);
-    await expect(
-      store.appendEvent(run.workspaceId, run.id, { ...input, payload: { workflowId: 'different' } }),
-    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+  it('records digest Evidence, satisfies the current Claim, and completes explicitly', async () => {
+    const { store, run, claimId } = await setup();
+    await activatePlan(store, run, claimId);
+    const evidence = await store.recordEvidence(run.workspace.id, run.id, {
+      content: 'tests passed',
+      kind: 'test',
+      summary: 'Targeted tests passed',
+      commitmentRevision: 1,
+      inputDigests: { source: 'abc' },
+    }, context('evidence'));
+    expect(evidence.id).not.toBe(evidence.digest);
+    expect(evidence.locator).toContain(evidence.digest);
 
-    const eventsPath = join(store.runDirectory(run.workspaceId, run.id), 'events.jsonl');
-    const content = await readFile(eventsPath, 'utf8');
-    await import('node:fs/promises').then(({ writeFile }) => writeFile(eventsPath, content.replace('workflow.selected', 'run.completed')));
-    await expect(store.readEvents(run.workspaceId, run.id)).rejects.toMatchObject({ code: 'INVALID_EVENT_HASH' });
+    await store.updateClaim(run.workspace.id, run.id, claimId, 'satisfied', [evidence.id], context('claim'));
+    const accepted = await store.getProjection(run.workspace.id, run.id);
+    expect(accepted.commitmentAcceptanceSatisfied).toBe(true);
+    expect(accepted.status).toBe('running');
+
+    const completed = await store.completeRun(run.workspace.id, run.id, 1, 1, 'user', context('complete'));
+    expect(completed.status).toBe('completed');
+    expect(completed.completedAt).toBeDefined();
+    expect(completed.retrospective).toBeDefined();
   });
 
-  test('marks started executions interrupted on resume and stores content-addressed evidence once', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:00.000Z') });
-    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config });
-    await store.appendEvent(run.workspaceId, run.id, event('node.started', '2026-08-16T00:00:01.000Z', { nodeExecutionId: 'dangling', nodeId: 'work', stage: 'execute', stageVisit: 1, attempt: 1 }));
-    const recovered = await store.recoverInterrupted(run.workspaceId, run.id, 'resume-trace');
-    expect(recovered.nodeExecutions[0]?.status).toBe('interrupted');
+  it('replays semantic command idempotency and rejects conflicting event content', async () => {
+    const { store, run, claimId } = await setup();
+    await activatePlan(store, run, claimId);
+    const first = await store.startExecution(run.workspace.id, run.id, 'work-1', context('same-start'));
+    const replay = await store.startExecution(run.workspace.id, run.id, 'work-1', context('same-start'));
+    expect(replay).toEqual(first);
 
-    const first = await store.writeEvidence(run.workspaceId, run.id, 'same proof');
-    const second = await store.writeEvidence(run.workspaceId, run.id, 'same proof');
-    expect(second).toEqual(first);
+    await store.finishExecution(run.workspace.id, run.id, first.executionId, 'succeeded', [], context('same-finish'));
+    await expect(store.finishExecution(run.workspace.id, run.id, first.executionId, 'failed', [], context('same-finish')))
+      .rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
   });
 
-  test('projects activated resources, evidence, blocked and completed outcomes', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:00.000Z') });
-    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config });
-    await store.appendEvent(run.workspaceId, run.id, event('resource.activated', '2026-08-16T00:00:01.000Z', { resourceId: 'writer' }));
-    await store.appendEvent(run.workspaceId, run.id, event('evidence.recorded', '2026-08-16T00:00:02.000Z', { evidenceId: 'proof' }));
-    await store.appendEvent(run.workspaceId, run.id, event('node.started', '2026-08-16T00:00:03.000Z', { nodeExecutionId: 'blocked', nodeId: 'work', stage: 'execute', stageVisit: 1, attempt: 1 }));
-    await store.appendEvent(run.workspaceId, run.id, event('node.blocked', '2026-08-16T00:00:04.000Z', { nodeExecutionId: 'blocked' }));
-    expect((await store.getProjection(run.workspaceId, run.id)).status).toBe('blocked');
-    await store.appendEvent(run.workspaceId, run.id, event('run.completed', '2026-08-16T00:00:05.000Z', { outcome: 'partial' }));
-    const projection = await store.rebuildProjection(run.workspaceId, run.id);
-    expect(projection).toMatchObject({ status: 'completed', activatedResources: ['writer'], evidenceIds: ['proof'] });
+  it('recovers running executions as interrupted without rewriting attempts', async () => {
+    const { store, run, claimId } = await setup();
+    await activatePlan(store, run, claimId);
+    const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('start-interrupted'));
+    const recovered = await store.recoverInterrupted(run.workspace.id, run.id, 'recover-trace');
+    expect(recovered.nodeExecutions.find((item) => item.id === execution.executionId)?.status).toBe('interrupted');
+    expect(recovered.nodeExecutions.find((item) => item.id === execution.executionId)?.attempt).toBe(1);
   });
 
-  test('finds harness.yaml by walking upward and rejects unknown workflows', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const nested = join(workspace, 'packages', 'app');
-    await import('node:fs/promises').then(async ({ mkdir, writeFile }) => {
-      await mkdir(nested, { recursive: true });
-      await writeFile(join(workspace, 'harness.yaml'), 'version: 1\n');
-    });
-    await expect(findConfig(nested)).resolves.toBe(join(await import('node:fs/promises').then(({ realpath }) => realpath(workspace)), 'harness.yaml'));
-    await expect(new RunStore({ stateRoot }).createRun({ workspacePath: workspace, workflowId: 'missing', request: {}, config })).rejects.toMatchObject({
-      code: 'MISSING_WORKFLOW',
-    });
-  });
-
-  test('tracks host sessions and atomically updates the resource lock', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:00.000Z') });
-    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config, hostSessionId: 'host-1' });
-    const metadata = await store.attachHostSession(run.workspaceId, run.id, 'host-2');
-    expect(metadata.hostSessions).toEqual(['host-1', 'host-2']);
-    await store.attachHostSession(run.workspaceId, run.id, 'host-2');
-    const lock = await store.updateResourceLock(run.workspaceId, run.id, [
-      { resourceId: 'writer', kind: 'skill', mode: 'full', status: 'loaded', locator: '/skill/SKILL.md', digest: 'abc', content: 'ignored' },
-    ]);
-    expect(lock).toEqual({ writer: { kind: 'skill', mode: 'full', status: 'loaded', locator: '/skill/SKILL.md', digest: 'abc' } });
-  });
-
-  test('automatically creates actionable post-delivery proposals and records user decisions', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:10.000Z') });
-    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config });
-    await store.updateResourceLock(run.workspaceId, run.id, [
-      { resourceId: 'writer', kind: 'skill', mode: 'full', status: 'loaded', locator: '/writer/SKILL.md', digest: 'digest-1' },
-    ]);
-    await store.appendEvent(
-      run.workspaceId,
+  it('supersedes the active Plan on Commitment revision and generates attributed proposals', async () => {
+    const { store, run, claimId } = await setup();
+    await activatePlan(store, run, claimId);
+    const evidence = await store.recordEvidence(run.workspace.id, run.id, {
+      content: 'the skill omitted a required check',
+      kind: 'review',
+      summary: 'Review found a missing check',
+      commitmentRevision: 1,
+    }, context('feedback-evidence'));
+    await store.recordResourceActivation(run.workspace.id, run.id, 'review-skill', 'digest-1', context('activate-resource'));
+    await store.recordResourceFeedback(
+      run.workspace.id,
       run.id,
-      event('resource.feedback.recorded', '2026-08-16T00:00:11.000Z', {
-        resourceId: 'writer',
-        category: 'missing-instruction',
-        summary: 'The writer omitted required citations.',
-      }),
+      'review-skill',
+      'missing-instruction',
+      'The skill omitted a required check.',
+      [evidence.id],
+      context('feedback'),
     );
-    await store.appendEvent(run.workspaceId, run.id, event('run.completed', '2026-08-16T00:00:12.000Z', { outcome: 'delivered' }));
+    await store.updateClaim(run.workspace.id, run.id, claimId, 'satisfied', [evidence.id], context('claim-feedback'));
+    await store.completeRun(run.workspace.id, run.id, 1, 1, 'user', context('complete-feedback'));
 
-    const generated = await store.getRetrospective(run.workspaceId, run.id);
-    expect(generated.retrospective.observations).toHaveLength(1);
-    expect(generated.proposals[0]).toMatchObject({
-      resourceId: 'writer',
-      resourceKind: 'skill',
-      baseDigest: 'digest-1',
-      status: 'proposed',
-      evidenceEventIds: [expect.any(String)],
-    });
-    const proposalId = generated.proposals[0]!.id;
-    expect((await store.getProjection(run.workspaceId, run.id)).resourceProposals[proposalId]?.status).toBe('proposed');
-    const accepted = await store.decideProposal(run.workspaceId, run.id, proposalId, 'accepted', 'trace', 'decision-span', 'Update now');
-    expect(accepted).toMatchObject({ status: 'accepted', decision: { reason: 'Update now' } });
-    expect((await store.getProjection(run.workspaceId, run.id)).resourceProposals[proposalId]?.status).toBe('accepted');
-    await expect(store.decideProposal(run.workspaceId, run.id, proposalId, 'rejected', 'trace', 'span')).rejects.toMatchObject({
-      code: 'PROPOSAL_ALREADY_DECIDED',
-    });
+    const retrospective = await store.getRetrospective(run.workspace.id, run.id);
+    expect(retrospective.retrospective.observations).toHaveLength(1);
+    expect(retrospective.proposals).toHaveLength(1);
+    const proposalId = retrospective.proposals[0]!.id;
+    const accepted = await store.decideProposal(run.workspace.id, run.id, proposalId, 'accepted', context('accept-proposal'), 'confirmed');
+    expect(accepted.status).toBe('accepted');
+    expect((await store.getRetrospective(run.workspace.id, run.id)).proposals[0]?.status).toBe('accepted');
+
+    const second = await setup();
+    await activatePlan(second.store, second.run, second.claimId);
+    const revised = await second.store.reviseCommitment(second.run.workspace.id, second.run.id, {
+      objective: 'Produce the revised result',
+      scope: ['workspace'],
+      authority: ['read-workspace', 'deliver:user'],
+      destination: 'user',
+      acceptance: [{ description: 'The revised result is verified' }],
+    }, context('revise'));
+    const projection = await second.store.getProjection(second.run.workspace.id, second.run.id);
+    expect(revised.revision).toBe(2);
+    expect(projection.activePlanRevision).toBeUndefined();
+    expect(projection.plans[1]?.status).toBe('superseded');
+    expect(projection.claims[second.claimId]?.status).toBe('invalidated');
   });
 
-  test('generates a silent retrospective when no resource can be attributed', async () => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-'));
-    directories.push(stateRoot);
-    const workspace = await mkdtemp(join(tmpdir(), 'harness-workspace-'));
-    directories.push(workspace);
-    const store = new RunStore({ stateRoot, now: () => new Date('2026-08-16T00:00:10.000Z') });
-    const run = await store.createRun({ workspacePath: workspace, workflowId: 'flow', request: {}, config });
-    await store.appendEvent(run.workspaceId, run.id, event('run.completed', '2026-08-16T00:00:12.000Z', { outcome: 'delivered' }));
-    const generated = await store.getRetrospective(run.workspaceId, run.id);
-    expect(generated).toMatchObject({ retrospective: { observations: [], proposalIds: [] }, proposals: [] });
-    expect((await store.getProjection(run.workspaceId, run.id)).retrospective).toMatchObject({ observationCount: 0, proposalIds: [] });
+  it('detects event-chain tampering and finds config by walking upward', async () => {
+    const { store, run, workspace } = await setup();
+    const eventsPath = join(store.runDirectory(run.workspace.id, run.id), 'events.jsonl');
+    const content = await readFile(eventsPath, 'utf8');
+    await writeFile(eventsPath, content.replace('Produce the requested result', 'tampered'));
+    await expect(store.readEvents(run.workspace.id, run.id)).rejects.toMatchObject({ code: 'INVALID_EVENT_HASH' });
+
+    await writeFile(join(workspace, 'harness.yaml'), 'version: 2\n');
+    const nested = join(workspace, 'a', 'b');
+    await mkdir(nested, { recursive: true });
+    expect(await findConfig(nested)).toBe(join(await realpath(workspace), 'harness.yaml'));
   });
 });

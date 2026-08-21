@@ -1,28 +1,21 @@
-# Verification Stage
+# Claim Verification
 
-Match evidence to the claim. Prefer the smallest meaningful check that proves
-the configured acceptance criterion.
+Match Evidence to the Claim. Prefer the smallest meaningful check that proves
+the expected result.
 
-Possible evidence is domain-owned: tests and runtime checks for software,
-rendered and editorial review for articles, upload status and playback checks
-for video, or another workflow-specific proof. The Harness does not prescribe a
-coding-specific test stack.
+For each Claim record:
 
-For each claim record:
-
-- claim identity and expected result
-- verification method and why it is relevant
-- evidence identity or external reference
-- observed result
-- pass, reject, or explicit gap
+- identity and current Commitment revision
+- expected result and verification method
+- Evidence digest and locator
+- input digests or artifact identities on which the Evidence depends
+- observed result and the resulting status
 
 Source inspection alone is insufficient when behavior depends on a running
 system, renderer, generated artifact, external destination, or integration.
-When verification fails, return only the affected work to execute and preserve
-all earlier timings and evidence. When the failure reveals a wrong objective or
-scope, return to align.
+A successful node only produces candidate Evidence; it never implicitly
+satisfies a Claim.
 
-When evidence identifies a specific skill, rule, or knowledge resource as the
-cause of a gap, record `resource.feedback.recorded` with its resource ID,
-category, concise summary, and evidence references. Omit attribution when the
-cause is uncertain; activation alone is not evidence of responsibility.
+When inputs or the Commitment change, stale Evidence remains historical but
+cannot satisfy the current Claim. Attribute resource feedback only when the
+Evidence identifies a specific skill, rule, or knowledge resource as causal.

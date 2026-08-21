@@ -1,13 +1,12 @@
 # Deweyou Harness
 
 Deweyou Harness 是一个支持 Codex、Claude Code、Cursor、Trae、OpenClaw 和 Hermes
-Agent 的通用工作流插件。
-插件只提供一个用户入口 `/dhw`，以及一个本地 MCP Server，用于校验配置、编排
-DAG、渐进加载资源并记录可重放的 Run 证据，并在交付后生成有证据归因的资源优化
-建议。
+Agent 的通用持久化工作插件。插件只提供一个用户入口 `/dhw`，以及一个本地 MCP
+Server，用于管理 Run、Commitment、证据支撑的 Claim、任务级 Plan 和节点执行。
 
 Harness Core 不内置 coding、写作、视频、产品或仓库规则。工作区通过
-`harness.yaml` 注入 skills、rules、knowledge、nodes 和 workflows。
+`harness.yaml` 声明可复用的 skills、rules、knowledge 和 node capabilities。
+Plan 属于具体 Run，配置中不再存在 workflow 和固定 stage。
 
 ## 环境要求
 

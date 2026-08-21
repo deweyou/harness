@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "id", "runId", "resourceId", "resourceKind", "baseDigest", "status", "createdAt", "evidenceEventIds", "problem", "suggestion", "validation"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "id": { "type": "string", "pattern": "^proposal_[a-f0-9]{20}$" },
     "runId": { "type": "string", "minLength": 1 },
     "resourceId": { "type": "string", "minLength": 1 },

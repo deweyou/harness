@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/deweyou/harness/schemas/harness.schema.json",
-  "title": "Deweyou Harness configuration",
+  "title": "Deweyou Harness v2 configuration",
   "type": "object",
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
     "$schema": { "type": "string" },
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "imports": {
       "type": "array",
       "items": {
@@ -34,18 +34,11 @@
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/id" },
       "additionalProperties": { "$ref": "#/$defs/node" }
-    },
-    "workflows": {
-      "type": "object",
-      "propertyNames": { "$ref": "#/$defs/id" },
-      "additionalProperties": { "$ref": "#/$defs/workflow" }
     }
   },
   "$defs": {
-    "id": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
-    },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$" },
+    "stringSet": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
     "resource": {
       "type": "object",
       "additionalProperties": false,
@@ -59,10 +52,7 @@
               "type": "object",
               "additionalProperties": false,
               "required": ["type", "path"],
-              "properties": {
-                "type": { "const": "workspace" },
-                "path": { "type": "string", "minLength": 1 }
-              }
+              "properties": { "type": { "const": "workspace" }, "path": { "type": "string", "minLength": 1 } }
             },
             {
               "type": "object",
@@ -96,65 +86,63 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 },
+        "resources": { "$ref": "#/$defs/stringSet" },
+        "inputs": { "$ref": "#/$defs/stringSet" },
+        "outputs": { "$ref": "#/$defs/stringSet" },
+        "claimTypes": { "$ref": "#/$defs/stringSet" },
+        "artifactTypes": { "$ref": "#/$defs/stringSet" },
+        "authority": { "$ref": "#/$defs/stringSet" },
+        "executionPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["idempotent"],
+          "properties": {
+            "idempotent": { "type": "boolean" },
+            "timeoutMs": { "type": "integer", "minimum": 1 },
+            "retry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["maxAttempts"],
+              "properties": {
+                "maxAttempts": { "type": "integer", "minimum": 1 },
+                "backoffMs": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        },
         "executor": {
           "oneOf": [
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["type"],
+              "required": ["kind"],
               "properties": {
-                "type": { "const": "agent" },
-                "skills": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true }
+                "kind": { "const": "agent" },
+                "skills": { "$ref": "#/$defs/stringSet" },
+                "config": { "type": "object" }
               }
             },
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["type", "command"],
+              "required": ["kind", "argv"],
               "properties": {
-                "type": { "const": "command" },
-                "command": { "type": "string", "minLength": 1 }
+                "kind": { "const": "command" },
+                "argv": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+                "cwd": { "type": "string", "minLength": 1 }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "capability"],
+              "properties": {
+                "kind": { "const": "capability" },
+                "capability": { "type": "string", "minLength": 1 },
+                "config": { "type": "object" }
               }
             }
           ]
-        }
-      }
-    },
-    "nodeInstance": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["use"],
-      "properties": {
-        "use": { "$ref": "#/$defs/id" },
-        "id": { "$ref": "#/$defs/id" },
-        "needs": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
-        "with": { "type": "object" }
-      }
-    },
-    "stage": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/nodeInstance" }
-    },
-    "workflow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["name", "description"],
-      "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "description": { "type": "string", "minLength": 1 },
-        "selectable": { "type": "boolean", "default": true },
-        "extends": { "$ref": "#/$defs/id" },
-        "rules": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
-        "knowledge": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
-        "stages": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "align": { "$ref": "#/$defs/stage" },
-            "execute": { "$ref": "#/$defs/stage" },
-            "verify": { "$ref": "#/$defs/stage" },
-            "deliver": { "$ref": "#/$defs/stage" }
-          }
         }
       }
     }

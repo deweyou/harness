@@ -1,7 +1,7 @@
 {
   "name": "deweyou-harness",
   "version": "1.1.0",
-  "description": "A config-driven, domain-neutral workflow harness for Codex",
+  "description": "A domain-neutral commitment and evidence harness for Codex",
   "author": {
     "name": "Dewey Ou",
     "email": "oushihao97@gmail.com",
@@ -13,27 +13,27 @@
   "keywords": [
     "agent",
     "harness",
-    "workflow",
+    "agent-runtime",
     "codex"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Deweyou Harness",
-    "shortDescription": "Run config-driven workflows with durable evidence.",
-    "longDescription": "Orchestrates align, execute, verify, and deliver stages while progressively dispatching workspace-owned resources and recording replayable run evidence.",
+    "shortDescription": "Run commitment-driven work with durable evidence.",
+    "longDescription": "Coordinates commitment-driven Plans, scoped capabilities, acceptance Claims, and replayable Evidence for durable agent work.",
     "developerName": "Dewey Ou",
     "category": "Productivity",
     "capabilities": [
-      "Workflow orchestration",
-      "Progressive resource dispatch",
-      "Run telemetry"
+      "Commitment and Plan coordination",
+      "Scoped capability activation",
+      "Evidence-backed run state"
     ],
     "websiteURL": "https://github.com/deweyou/harness",
     "defaultPrompt": [
-      "Use /dhw to run the best matching workflow for this task.",
+      "Use /dhw to establish a Commitment and Plan for this task.",
       "Use /dhw to resume the active Harness run.",
-      "Use /dhw to show workflow choices for this workspace."
+      "Use /dhw to inspect available node capabilities for this workspace."
     ],
     "brandColor": "#4F46E5"
   }
