@@ -1,21 +1,20 @@
-# Safety And Delivery
+# Authority And Delivery
 
-Preserve user ownership. Inspect exact targets before destructive, irreversible,
-public, privacy-sensitive, expensive, or externally visible actions. Obtain the
-authority required by the host and the user before performing them.
-
-Delivery is domain-owned. It may mean handing back a file, committing code,
-publishing an article, uploading a video, sending a message, or recording an
-approved no-op. The configured delivery node defines the mechanism; the user
-defines whether consequential external delivery is authorized.
+Preserve user ownership. Inspect exact targets before destructive,
+irreversible, public, privacy-sensitive, expensive, or externally visible
+actions. The current Commitment must authorize the action and destination.
 
 Before delivery:
 
 - protect unrelated user work and data
-- ensure verification evidence supports the claims being delivered
-- identify the exact destination and visibility
-- state any skipped check or residual risk
+- ensure current Evidence supports the acceptance Claims being delivered
+- identify exact destination and visibility
+- state skipped checks and residual risk
 - distinguish produced, verified, and delivered states
 
-If authorization is missing, keep the artifact ready, record a blocked delivery,
-and ask the user. Never silently publish, push, send, upload, spend, or delete.
+If authority is missing, keep the artifact ready and ask the user. Never
+silently publish, push, send, upload, spend, or delete.
+
+Future remote executors receive only delegated authority for one planned node.
+They cannot revise the Commitment, accept a Plan, waive a Claim, or complete the
+Run unless Core explicitly grants that semantic command.

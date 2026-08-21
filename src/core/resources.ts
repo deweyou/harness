@@ -1,25 +1,15 @@
+import { createHash } from 'node:crypto';
 import { access, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, isAbsolute, join, resolve } from 'node:path';
-import { createHash } from 'node:crypto';
+import { isAbsolute, join, resolve } from 'node:path';
+import type {
+  CapabilityLoadMode,
+  CapabilityProvider,
+  CapabilityScope,
+  CapabilitySummary,
+  LoadedCapability,
+} from './capabilities.js';
 import type { ResolvedHarnessConfig, ResourceDefinition } from './types.js';
-
-export type DispatchMode = 'full' | 'metadata';
-
-export interface DispatchReceipt {
-  resourceId: string;
-  kind: ResourceDefinition['kind'];
-  mode: DispatchMode;
-  status: 'loaded' | 'missing';
-  locator: string;
-  digest?: string;
-  content?: string;
-  installHint?: string;
-  preparation?: {
-    command: string;
-    args: string[];
-  };
-}
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -35,8 +25,7 @@ async function resourceFile(path: string, kind: ResourceDefinition['kind']): Pro
   if (info.isFile()) return path;
   if (kind === 'skill') return join(path, 'SKILL.md');
   const preferred = join(path, kind === 'rule' ? 'RULE.md' : 'KNOWLEDGE.md');
-  if (await exists(preferred)) return preferred;
-  return join(path, 'README.md');
+  return (await exists(preferred)) ? preferred : join(path, 'README.md');
 }
 
 function metadataOnly(content: string): string {
@@ -58,113 +47,58 @@ async function findRegistrySkill(skill: string, workspacePath: string): Promise<
   return undefined;
 }
 
-async function locateResource(
-  resource: ResourceDefinition,
-  workspacePath: string,
-): Promise<{ locator: string; hint?: string; preparation?: DispatchReceipt['preparation'] }> {
-  if (resource.source.type === 'workspace') return { locator: resource.source.path };
-  if (resource.source.type === 'registry') {
-    const found = await findRegistrySkill(resource.source.skill, workspacePath);
-    return found
-      ? { locator: found }
-      : {
-          locator: `registry:${resource.source.repo}#${resource.source.skill}`,
-          hint: `npx skills add ${resource.source.repo} --skill ${resource.source.skill} --yes`,
-          preparation: { command: 'npx', args: ['skills', 'add', resource.source.repo, '--skill', resource.source.skill, '--yes'] },
-        };
-  }
-  const repoPath = resource.source.repo.startsWith('file://') ? new URL(resource.source.repo).pathname : resource.source.repo;
-  if (isAbsolute(repoPath) || repoPath.startsWith('.')) {
-    return { locator: resolve(workspacePath, repoPath, resource.source.path) };
-  }
+async function locateResource(resource: ResourceDefinition, workspacePath: string): Promise<string | undefined> {
+  if (resource.source.type === 'workspace') return resource.source.path;
+  if (resource.source.type === 'registry') return findRegistrySkill(resource.source.skill, workspacePath);
+  const repositoryPath = resource.source.repo.startsWith('file://') ? new URL(resource.source.repo).pathname : resource.source.repo;
+  if (isAbsolute(repositoryPath) || repositoryPath.startsWith('.')) return resolve(workspacePath, repositoryPath, resource.source.path);
   const identity = createHash('sha256').update(`${resource.source.repo}\0${resource.source.ref ?? 'HEAD'}`).digest('hex').slice(0, 16);
-  const cacheRoot = join(homedir(), '.deweyou', 'harness', 'resources', 'git', identity);
-  const cached = join(cacheRoot, resource.source.path);
-  return {
-    locator: cached,
-    hint: `Clone ${resource.source.repo}${resource.source.ref ? ` at ${resource.source.ref}` : ''} into ${cacheRoot}`,
-    preparation: {
-      command: 'git',
-      args: ['clone', '--depth', '1', ...(resource.source.ref ? ['--branch', resource.source.ref] : []), '--', resource.source.repo, cacheRoot],
-    },
-  };
+  return join(homedir(), '.deweyou', 'harness', 'resources', 'git', identity, resource.source.path);
 }
 
-export async function dispatchResource(
-  config: ResolvedHarnessConfig,
-  resourceId: string,
-  mode: DispatchMode,
-  workspacePath: string,
-): Promise<DispatchReceipt> {
-  const resource = config.resources[resourceId];
-  if (!resource) throw new Error(`Unknown resource '${resourceId}'`);
-  const located = await locateResource(resource, workspacePath);
-  if (!(await exists(located.locator))) {
-    return {
-      resourceId,
+export class ConfigResourceProvider implements CapabilityProvider {
+  readonly id: string;
+
+  constructor(
+    private readonly config: ResolvedHarnessConfig,
+    private readonly workspacePath: string,
+    providerId = 'workspace-config',
+  ) {
+    this.id = providerId;
+  }
+
+  async list(_scope: CapabilityScope, signal: AbortSignal): Promise<CapabilitySummary[]> {
+    signal.throwIfAborted();
+    return Object.entries(this.config.resources).map(([id, resource]) => ({
+      id,
       kind: resource.kind,
-      mode,
-      status: 'missing',
-      locator: located.locator,
-      ...(located.hint ? { installHint: located.hint } : {}),
-      ...(located.preparation ? { preparation: located.preparation } : {}),
+      description: resource.description ?? id,
+    }));
+  }
+
+  async load(id: string, mode: CapabilityLoadMode, _scope: CapabilityScope, signal: AbortSignal): Promise<LoadedCapability | undefined> {
+    signal.throwIfAborted();
+    const resource = this.config.resources[id];
+    if (!resource) return undefined;
+    const located = await locateResource(resource, this.workspacePath);
+    if (!located || !(await exists(located))) return undefined;
+    const file = await resourceFile(located, resource.kind);
+    if (!(await exists(file))) return undefined;
+    const fullContent = await readFile(file, 'utf8');
+    signal.throwIfAborted();
+    return {
+      id,
+      kind: resource.kind,
+      description: resource.description ?? id,
+      locator: file,
+      digest: createHash('sha256').update(fullContent).digest('hex'),
+      content: mode === 'metadata' ? metadataOnly(fullContent) : fullContent,
     };
   }
-  const file = await resourceFile(located.locator, resource.kind);
-  if (!(await exists(file))) {
-    return { resourceId, kind: resource.kind, mode, status: 'missing', locator: file };
-  }
-  const fullContent = await readFile(file, 'utf8');
-  const content = mode === 'metadata' ? metadataOnly(fullContent) : fullContent;
-  return {
-    resourceId,
-    kind: resource.kind,
-    mode,
-    status: 'loaded',
-    locator: file,
-    digest: createHash('sha256').update(fullContent).digest('hex'),
-    content,
-  };
 }
 
-export async function dispatchWorkflowContext(
-  config: ResolvedHarnessConfig,
-  workflowId: string,
-  workspacePath: string,
-): Promise<DispatchReceipt[]> {
-  const workflow = config.workflows[workflowId];
-  if (!workflow) throw new Error(`Unknown workflow '${workflowId}'`);
-  const rules = await Promise.all((workflow.rules ?? []).map((id) => dispatchResource(config, id, 'full', workspacePath)));
-  const knowledge = await Promise.all((workflow.knowledge ?? []).map((id) => dispatchResource(config, id, 'metadata', workspacePath)));
-  return [...rules, ...knowledge];
-}
-
-export async function dispatchNodeSkills(
-  config: ResolvedHarnessConfig,
-  nodeId: string,
-  workspacePath: string,
-): Promise<DispatchReceipt[]> {
+export function nodeCapabilityIds(config: ResolvedHarnessConfig, nodeId: string): string[] {
   const node = config.nodes[nodeId];
   if (!node) throw new Error(`Unknown node '${nodeId}'`);
-  if (node.executor.type !== 'agent') return [];
-  return Promise.all((node.executor.skills ?? []).map((id) => dispatchResource(config, id, 'full', workspacePath)));
-}
-
-export function resourceLock(receipts: DispatchReceipt[]): Record<string, unknown> {
-  return Object.fromEntries(
-    receipts.map((receipt) => [
-      receipt.resourceId,
-      {
-        kind: receipt.kind,
-        mode: receipt.mode,
-        status: receipt.status,
-        locator: receipt.locator,
-        digest: receipt.digest ?? null,
-      },
-    ]),
-  );
-}
-
-export function receiptLabel(receipt: DispatchReceipt): string {
-  return `${receipt.kind}:${receipt.resourceId}:${basename(receipt.locator)}`;
+  return [...new Set([...(node.resources ?? []), ...(node.executor.kind === 'agent' ? node.executor.skills ?? [] : [])])];
 }

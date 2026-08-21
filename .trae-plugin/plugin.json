@@ -1,7 +1,7 @@
 {
   "name": "deweyou-harness",
   "version": "1.1.0",
-  "description": "A config-driven, domain-neutral workflow harness for Trae",
+  "description": "A domain-neutral commitment and evidence harness for Trae",
   "author": {
     "name": "Dewey Ou",
     "email": "oushihao97@gmail.com",
@@ -13,15 +13,15 @@
   "keywords": [
     "agent",
     "harness",
-    "workflow",
+    "agent-runtime",
     "trae"
   ],
   "skills": "./skills/",
   "mcp": ".trae-mcp.json",
   "interface": {
     "displayName": "Deweyou Harness",
-    "shortDescription": "Run config-driven workflows with durable evidence.",
-    "longDescription": "Orchestrates align, execute, verify, and deliver stages while progressively dispatching workspace-owned resources and recording replayable run evidence.",
+    "shortDescription": "Run commitment-driven work with durable evidence.",
+    "longDescription": "Coordinates commitment-driven Plans, scoped capabilities, acceptance Claims, and replayable Evidence for durable agent work.",
     "developerName": "Dewey Ou",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,7 +30,7 @@
     ],
     "websiteURL": "https://github.com/deweyou/harness",
     "defaultPrompt": [
-      "Run a Harness workflow with /dhw"
+      "Run durable Harness work with /dhw"
     ],
     "composerIcon": "./assets/harness-small.svg",
     "logo": "./assets/harness.png",

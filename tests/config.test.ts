@@ -1,158 +1,109 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, test } from 'vitest';
-import { loadHarnessConfig, selectableWorkflows } from '../src/core/config/load.js';
-import { HarnessError } from '../src/core/errors.js';
+import { describe, expect, it } from 'vitest';
+import { availableNodes, loadHarnessConfig } from '../src/core/config/load.js';
 
-const temporaryDirectories: string[] = [];
-
-async function fixture(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'harness-config-'));
-  temporaryDirectories.push(directory);
-  return directory;
-}
-
-afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
-});
-
-describe('loadHarnessConfig', () => {
-  test('loads nested monorepo imports, namespaces IDs, and preserves declaring source paths', async () => {
-    const root = await fixture();
-    await mkdir(join(root, 'packages', 'shared', 'rules'), { recursive: true });
-    await writeFile(
-      join(root, 'packages', 'shared', 'base.yaml'),
-      `version: 1
+describe('Harness v2 config', () => {
+  it('loads resources and reusable node definitions without workflows or dependencies', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-v2-config-'));
+    await mkdir(join(directory, 'skills', 'review'), { recursive: true });
+    await writeFile(join(directory, 'skills', 'review', 'SKILL.md'), '# Review');
+    await writeFile(join(directory, 'harness.yaml'), `
+version: 2
 resources:
-  house-rule:
-    kind: rule
-    source: { type: workspace, path: rules/house.md }
-  writer:
+  review-skill:
     kind: skill
-    source: { type: registry, repo: acme/skills, skill: writer }
-nodes:
-  draft:
-    executor: { type: agent, skills: [writer] }
-workflows:
-  base:
-    name: Shared base
-    description: Shared non-selectable workflow.
-    selectable: false
-    rules: [house-rule]
-    stages:
-      execute:
-        - use: draft
-`,
-    );
-    await writeFile(
-      join(root, 'harness.yaml'),
-      `version: 1
-imports:
-  - path: packages/shared/base.yaml
-    as: shared
+    source: { type: workspace, path: skills/review }
 nodes:
   review:
-    executor: { type: agent }
-workflows:
-  article:
-    name: Article
-    description: Write and review an article.
-    selectable: true
-    extends: shared.base
-    stages:
-      verify:
-        - use: review
-`,
-    );
+    name: Review
+    description: Review a bounded change
+    executor: { kind: agent, skills: [review-skill] }
+    outputs: [review-result]
+    claimTypes: [quality]
+    authority: [read-workspace]
+`);
 
-    const config = await loadHarnessConfig(join(root, 'harness.yaml'));
-
-    expect(config.resources['shared.house-rule']?.source).toEqual({
-      type: 'workspace',
-      path: join(await realpath(root), 'packages', 'shared', 'rules', 'house.md'),
-    });
-    expect(config.nodes['shared.draft']?.executor).toEqual({ type: 'agent', skills: ['shared.writer'] });
-    expect(config.workflows.article?.rules).toEqual(['shared.house-rule']);
-    expect(config.workflows.article?.stages.execute?.[0]).toMatchObject({ id: 'draft', use: 'shared.draft' });
-    expect(config.workflows.article?.stages.verify?.[0]).toMatchObject({ id: 'review', use: 'review' });
-    expect(selectableWorkflows(config).map((workflow) => workflow.id)).toEqual(['article']);
+    const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
+    expect(config.version).toBe(2);
+    expect(config).not.toHaveProperty('workflows');
+    expect(config.nodes.review).not.toHaveProperty('needs');
+    expect(availableNodes(config)).toEqual([{ id: 'review', name: 'Review', description: 'Review a bounded change' }]);
   });
 
-  test('declared inherited lists and stages replace rather than deep merge', async () => {
-    const root = await fixture();
-    await writeFile(
-      join(root, 'harness.yaml'),
-      `version: 1
+  it('namespaces imported resources and node references', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-v2-import-'));
+    await writeFile(join(directory, 'shared.yaml'), `
+version: 2
 resources:
-  one: { kind: rule, source: { type: workspace, path: one.md } }
-  two: { kind: rule, source: { type: workspace, path: two.md } }
+  inspect:
+    kind: skill
+    source: { type: registry, repo: example/skills, skill: inspect }
 nodes:
-  a: { executor: { type: agent } }
-  b: { executor: { type: agent } }
-workflows:
-  base:
-    name: Base
-    description: Base workflow.
-    rules: [one]
-    stages:
-      execute: [{ use: a }]
-  child:
-    name: Child
-    description: Child workflow.
-    extends: base
-    rules: [two]
-    stages:
-      execute: [{ use: b }]
-`,
-    );
-    const config = await loadHarnessConfig(join(root, 'harness.yaml'));
-    expect(config.workflows.child?.rules).toEqual(['two']);
-    expect(config.workflows.child?.stages.execute?.map((node) => node.use)).toEqual(['b']);
+  inspect:
+    executor: { kind: agent, skills: [inspect] }
+    resources: [inspect]
+`);
+    await writeFile(join(directory, 'harness.yaml'), `
+version: 2
+imports:
+  - path: shared.yaml
+    as: shared
+`);
+    const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
+    expect(config.nodes['shared.inspect']?.executor).toEqual({ kind: 'agent', skills: ['shared.inspect'] });
+    expect(config.nodes['shared.inspect']?.resources).toEqual(['shared.inspect']);
   });
 
-  test.each([
-    ['import cycles', `version: 1\nimports: [harness.yaml]\n`, 'IMPORT_CYCLE'],
-    [
-      'same-stage DAG cycles',
-      `version: 1
-nodes:
-  a: { executor: { type: agent } }
-  b: { executor: { type: agent } }
+  it('rejects every v1 workflow field instead of translating it', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-v1-rejected-'));
+    await writeFile(join(directory, 'harness.yaml'), `
+version: 1
 workflows:
-  bad:
-    name: Bad
-    description: Invalid cycle.
-    stages:
-      execute:
-        - { use: a, needs: [b] }
-        - { use: b, needs: [a] }
-`,
-      'DAG_CYCLE',
-    ],
-    [
-      'unknown stages',
-      `version: 1
-workflows:
-  bad:
-    name: Bad
-    description: Invalid stage.
-    stages: { publish: [] }
-`,
-      'INVALID_STAGE',
-    ],
-    ['unknown fields', `version: 1\nresource_loading: eager\n`, 'UNKNOWN_CONFIG_FIELD'],
-  ])('rejects %s', async (_name, yaml, code) => {
-    const root = await fixture();
-    await writeFile(join(root, 'harness.yaml'), yaml);
-    await expect(loadHarnessConfig(join(root, 'harness.yaml'))).rejects.toMatchObject({ code } satisfies Partial<HarnessError>);
+  default:
+    name: Default
+    description: old
+`);
+    await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
   });
 
-  test('rejects collisions without an import namespace', async () => {
-    const root = await fixture();
-    await writeFile(join(root, 'one.yaml'), 'version: 1\nnodes:\n  work: { executor: { type: agent } }\n');
-    await writeFile(join(root, 'two.yaml'), 'version: 1\nnodes:\n  work: { executor: { type: agent } }\n');
-    await writeFile(join(root, 'harness.yaml'), 'version: 1\nimports: [one.yaml, two.yaml]\n');
-    await expect(loadHarnessConfig(join(root, 'harness.yaml'))).rejects.toMatchObject({ code: 'IMPORT_COLLISION' } satisfies Partial<HarnessError>);
+  it('rejects dependencies embedded in reusable node definitions', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-node-dependency-'));
+    await writeFile(join(directory, 'harness.yaml'), `
+version: 2
+nodes:
+  inspect:
+    executor: { kind: agent }
+    needs: [prepare]
+`);
+    await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
+  });
+
+  it('validates structured command and capability executors with execution policy', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-v2-executors-'));
+    await writeFile(join(directory, 'harness.yaml'), `
+version: 2
+nodes:
+  check:
+    executor:
+      kind: command
+      argv: [pnpm, test]
+      cwd: packages/core
+    executionPolicy:
+      idempotent: true
+      timeoutMs: 60000
+      retry: { maxAttempts: 2, backoffMs: 100 }
+  publish:
+    executor:
+      kind: capability
+      capability: artifact-publisher
+      config: { channel: preview }
+`);
+
+    const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
+    expect(config.nodes.check?.executor).toEqual({ kind: 'command', argv: ['pnpm', 'test'], cwd: 'packages/core' });
+    expect(config.nodes.publish?.executor).toEqual({ kind: 'capability', capability: 'artifact-publisher', config: { channel: 'preview' } });
+    expect(config.nodes.check?.executionPolicy?.retry?.maxAttempts).toBe(2);
   });
 });

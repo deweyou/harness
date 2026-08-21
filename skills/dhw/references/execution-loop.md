@@ -1,26 +1,25 @@
-# Execution Loop
+# Plan And Execution
 
-The controller owns scheduling; subagents own bounded agent-node executions.
+The controller owns Plan proposals and scheduling. Executors own bounded node
+executions.
 
-For every assignment provide:
+A Node Definition describes reusable capability and must not name another node.
+A Planned Node binds a definition to Run-specific inputs, dependencies, output
+contracts, Claims, and authority. A Node Execution is one immutable attempt.
 
-- Run, workflow, stage, stage visit, node instance, and attempt identity
-- the exact objective and inputs from `with`
-- relevant workflow rules and knowledge metadata
-- full dispatched skill instructions for this node
+Every assignment includes:
+
+- Run, Commitment revision, Plan revision, planned node, and execution identity
+- exact objective, inputs, dependency artifacts, and input digests
+- activated capability receipts and full skill instructions where required
 - allowed mutation and external-action boundaries
-- expected output and evidence format
-- the requirement to return a concise result, evidence references, and blockers
+- expected structured output, Evidence, and Claim links
+- cancellation signal, idempotency key, timeout, and retry policy
 
-One subagent handles one node execution. Independent ready nodes may run in
-parallel, but dependent or overlapping mutations must remain ordered. The main
-agent reviews returned evidence, rejects outputs that violate current user or
-workspace instructions, and records the terminal event.
+Retry only an evidence-backed technical failure. A retry creates a new
+execution identity and preserves the previous attempt. Changes to objective,
+scope, acceptance, or authority require a new Commitment and Plan revision.
 
-Commands are deterministic nodes, not shell-shaped agent prompts. Capture the
-command, working directory, exit status, duration, and a redacted output summary.
-Store significant output as evidence. Never interpolate secrets into event data.
-
-Retry only when the observed failure identifies a bounded technical correction.
-A retry gets a new node execution and preserves the failed attempt. A changed
-requirement is rework through align or execute, not a reset.
+Cordis disposal cleans up in-process capability effects. It does not provide a
+security boundary. Use an isolated subagent session or process/container when a
+task needs stronger context, filesystem, credential, or tool isolation.

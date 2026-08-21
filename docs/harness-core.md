@@ -1,225 +1,184 @@
-# Harness Core
+# Harness Core v2
 
-Deweyou Harness separates orchestration from domain behavior. Its Codex,
-Claude Code, Cursor, OpenClaw, and Hermes Agent adapters share the `dhw`
-controller skill and local stdio MCP server. Workspaces own `harness.yaml`.
+Harness Core is a deterministic, domain-neutral control and state plane for
+durable agent work. Agents decide how to explore and perform work. Core records
+what has been committed, which claims define acceptance, which task-scoped Plan
+is active, what each execution produced, and whether the Run may complete.
 
-```mermaid
-flowchart LR
-  U["User invokes /dhw"] --> C["Main agent controller"]
-  C --> M["Harness MCP control and state"]
-  C --> S["Subagents execute agent nodes"]
-  M --> Y["harness.yaml"]
-  M --> R["Progressive resource dispatch"]
-  M --> E["Run events and evidence"]
-  Y --> W["align -> execute -> verify -> deliver"]
-```
+There is no Workflow or fixed Stage model in v2. Version 1 configuration and
+events are rejected rather than translated.
+
+## Boundary
+
+Core owns:
+
+- Run, Commitment, Claim, Plan, Planned Node, Node Execution, Evidence, and
+  Artifact contracts
+- semantic command validation, identifiers, revisions, attempts, timestamps,
+  event ordering, and replay
+- Plan DAG validation and ready-node calculation
+- acceptance and completion invariants
+- capability activation receipts and evidence-attributed retrospectives
+
+Agents and host adapters own:
+
+- exploration, judgment, and Plan proposals
+- subagent, command, or tool execution
+- host-native approvals and external side effects
+- domain-specific verification meaning
+
+Cordis is used behind the project-owned `CapabilityRuntime` boundary. It owns
+dynamic provider registration, scoped capability lookup, and lifecycle cleanup.
+It never owns Run or acceptance authority. Cordis isolation is in-process
+lifecycle isolation, not a security sandbox.
 
 ## Configuration
 
-The schema is [harness.schema.json](../schemas/harness.schema.json). Editors can
-associate that schema with `harness.yaml`.
+`harness.yaml` declares reusable resources and Node Definitions:
 
 ```yaml
-version: 1
-
-imports:
-  - path: packages/shared/harness.yaml
-    as: shared
+version: 2
 
 resources:
-  editorial-rule:
-    kind: rule
-    source:
-      type: workspace
-      path: .agents/rules/editorial.md
-  research:
-    kind: knowledge
-    source:
-      type: git
-      repo: https://github.com/acme/knowledge.git
-      path: launch/research.md
-      ref: main
-  article-writer:
+  review-skill:
     kind: skill
     source:
-      type: registry
-      repo: acme/agent-skills
-      skill: article-writer
+      type: workspace
+      path: .agents/skills/review
 
 nodes:
-  draft:
+  review:
+    name: Review
+    description: Review one bounded result
     executor:
-      type: agent
-      skills: [article-writer]
-  verify-copy:
-    executor:
-      type: agent
-  render:
-    executor:
-      type: command
-      command: pnpm render
-
-workflows:
-  publish-article:
-    name: Publish article
-    description: Draft, verify, and deliver an article for an approved channel.
-    rules: [editorial-rule]
-    knowledge: [research]
-    stages:
-      execute:
-        - use: draft
-        - use: render
-          needs: [draft]
-      verify:
-        - use: verify-copy
+      kind: agent
+      skills: [review-skill]
+    inputs: [change]
+    outputs: [review-result]
+    claimTypes: [quality]
+    authority: [read-workspace]
+    executionPolicy:
+      idempotent: true
+      timeoutMs: 900000
 ```
 
-This configuration is illustrative documentation, not a bundled workflow. The
-plugin does not ship any of these resources.
+Node Definitions do not contain dependencies. A Planned Node binds a reusable
+definition to Run-specific inputs, dependencies, expected outputs, target
+Claims, and delegated authority.
 
-### Sources
+Imports remain recursive and cycle-checked. `as` namespaces imported resource
+and node IDs and rewrites their resource references. Workspace resource paths
+resolve relative to the declaring configuration file.
 
-- `workspace`: `path` is relative to the config that declares it. The loader
-  resolves it before merging imports.
-- `registry`: `repo` and `skill` are the fixed `npx skills` parameters. The
-  dispatcher looks for an already installed skill in workspace and user skill
-  roots. When absent it returns the exact `npx skills add` hint; it never
-  installs silently. The receipt also contains a structured command and argument
-  list for an approved preparation step.
-- `git`: `repo`, `path`, and optional `ref` identify a cached Git resource.
-  Local/file repositories resolve directly. A missing remote cache produces a
-  structured shallow-clone preparation step rather than a hidden network side
-  effect.
+## Durable Model
 
-There is no `entry`, provider, version, or `resource_loading` field.
+### Run And Workspace
 
-### Imports And Inheritance
+A Run has a globally unique identity and a logical `WorkspaceRef`. A local path
+is only a locator used by the local repository implementation. Future remote
+execution can mount the same logical workspace elsewhere without changing Core
+identity.
 
-Imports are recursive and paths are relative to the declaring config. `as`
-namespaces imported resource, node, and workflow IDs and rewrites internal
-references. Import cycles and collisions fail validation; local definitions do
-not silently override imports.
+### Commitment And Claims
 
-A workflow may `extends` one workflow. The child must still define its own
-`name` and `description`. Missing fields and stages inherit. A declared stage,
-`rules`, or `knowledge` list replaces the inherited value. There is no deep
-merge, multiple inheritance, or inheritance cycle.
+A Commitment revision records objective, scope, authority, destination,
+acceptance Claim IDs, and unresolved decisions. Material changes create a new
+revision; history is immutable.
 
-### Workflows And Nodes
+Claims are `open`, `satisfied`, `invalidated`, or `waived`. Satisfied and waived
+acceptance Claims require current Evidence. A waiver also requires the authority
+declared by the current Commitment.
 
-Workflows may use any subset of four canonical stages: `align`, `execute`,
-`verify`, and `deliver`. Their order and transitions are fixed, not configured.
-Each stage contains reusable node instances. `needs` may refer only to another
-instance in the same stage, forming a validated DAG.
+### Plan And Execution
 
-An `agent` executor may reference zero or more skill resources. Zero means a
-pure agent node. The `/dhw` controller gives one non-trivial agent-node
-execution to one subagent. A `command` executor is run deterministically by the
-controller under host safety and approval rules.
+A Plan is a proposed, active, or superseded DAG bound to one Commitment
+revision. Plans are immutable and revisions are contiguous inside a Run.
 
-## Progressive Dispatch
+A Node Execution is one attempt of one Planned Node. Attempts are contiguous
+per Plan revision and Planned Node. Starting, finishing, retrying, and
+interrupting executions are semantic commands; clients do not allocate attempts
+or append arbitrary events.
 
-Dispatch is the only loading mechanism:
+### Evidence And Artifacts
 
-1. Workflow selection loads rules in full and knowledge metadata only.
-2. Activating an agent node loads its skill `SKILL.md` files in full.
-3. Knowledge bodies and skill supporting files load only on demand.
-4. Every activation creates a receipt with locator, mode, and digest; passing
-   the Run ID updates `resources.lock.json` atomically.
-5. Resume, handoff, and context compaction redispatch workflow rules, knowledge
-   metadata, current-node skills, and previously activated resources.
+Evidence and Artifacts use a digest as identity plus a locator. A bare local
+path is never an identity. Evidence records its Commitment revision and relevant
+input digests so Core can reject stale proof after inputs or requirements
+change.
 
-## Runtime Loop
+## Capability Runtime
 
-The fixed loop is align → execute → verify → deliver. Verification rejection
-returns to execute; a material objective error returns to align; delivery
-rejection returns to execute. v0.1 allows at most two attempts for a node in one
-stage and three visits to one stage. Only retryable technical failures retry.
-
-Every rerun is additive:
-
-- `stageVisit` identifies one visit to a stage.
-- `nodeExecutionId` identifies one execution, never a reusable node.
-- `attempt` identifies the attempt within its stage visit and node.
-- each execution keeps its own timestamps, duration, trace, span, and evidence.
-
-Aggregates distinguish execution time, retry time, rework time, and Run wall
-time. A started execution without a terminal event becomes `interrupted` on
-resume; it is never silently reset.
-
-## Run Data
-
-New state lives only under `~/.deweyou/harness/`:
+Providers can expose skills, rules, knowledge, executors, host integrations,
+approvals, or telemetry. Lookup is scoped from general to specific:
 
 ```text
-workspaces/<workspace-id>/runs/<run-id>/
-  run.json
-  request.json
-  config.snapshot.yaml
-  resources.lock.json
-  plan.json
-  events.jsonl
-  state.json
-  evidence/<sha256>
-  artifacts.json
-  retrospective.json
-  proposals/<proposal-id>.json
+global -> workspace -> run -> planned node -> execution
 ```
 
-`workspace-id` hashes the canonical workspace path and does not require Git.
-The durable unit is a Run; host sessions are metadata. `events.jsonl` is an
-append-only, sequence-checked, hash-chained source of truth. A lock serializes
-writers and idempotency keys deduplicate retried appends. `state.json` is an
-atomic, rebuildable projection. The initial event records planned node
-instances so the projection can show pending, ready, running, and terminal
-progress without consulting chat history.
+Agents list summaries first, then activate full content on demand. Every
+activation returns a receipt with provider, scope, locator, and digest.
+Idempotency keys replay the same activation and reject different input.
+Disposing a Cordis fiber releases effects owned by that provider or activation.
 
-Dashboard, retrospectives, and evaluations must consume only Run bundles. Do
-not store secrets, environment dumps, unrelated raw conversations, or large raw
-logs in events. Store content-addressed evidence and keep structured event
-summaries redacted.
+Strong isolation remains a host concern: use a separate subagent session,
+process, container, filesystem sandbox, or credential boundary as required.
 
-## Post-delivery Retrospective
+## Events And Repository
 
-Appending `run.completed` triggers a fixed Core hook; it is not a fifth stage
-and adds nothing to `harness.yaml`. The hook analyzes explicit resource
-feedback and resource-attributed failure or verification events. It always
-writes `retrospective.json`, but creates proposals only when evidence identifies
-a specific skill, rule, or knowledge resource.
+`events.jsonl` is authoritative and hash-chained. `state.json`, resource locks,
+active Plan views, and dashboards are rebuildable projections. Immutable config
+snapshots and digest-addressed blobs are supporting artifacts, not mutable
+authority.
 
-Each proposal records the resource ID and base digest, evidence event IDs,
-problem categories, a domain-neutral review suggestion, and a replay acceptance
-condition. The controller reads proposals with `retrospective_get` and asks the
-user whether to update now, retain the proposal, or reject it. An accepted
-proposal starts a separate maintenance Run; Core never mutates resources
-directly. Proposal and retrospective formats are defined by
-[resource-proposal.schema.json](../schemas/resource-proposal.schema.json) and
-[retrospective.schema.json](../schemas/retrospective.schema.json).
+Core depends on a `RunRepository` interface. v2 ships a local filesystem
+implementation under `~/.deweyou/harness/`. A database or cloud event store can
+implement the same append/read contract later without changing semantic
+commands.
 
-## MCP Tools
+Old `~/.deweyou/dev/` state is intentionally ignored. v2 never reads, migrates,
+or deletes it.
+
+## Completion
+
+`run_complete` succeeds only when:
+
+1. the referenced Commitment and active Plan revisions are current;
+2. no material decision remains unresolved;
+3. every acceptance Claim is satisfied or validly waived;
+4. every referenced Evidence item exists and targets the current Commitment
+   revision and inputs; and
+5. the requested destination is within the current authority.
+
+Successful nodes alone never complete a Run.
+
+## Future Extension Seams
+
+v2 reserves inexpensive seams for cloud and multi-agent execution:
+
+- logical workspace identity separate from mounts
+- repository abstraction and store-authoritative ordering
+- Node Definition, Planned Node, and Node Execution separation
+- structured executors with cancellation and idempotency
+- digest-addressed Artifacts and Evidence
+- globally unique identities and semantic commands
+
+v2 intentionally does not implement a cloud coordinator, remote scheduler,
+device or agent registry, lease and heartbeat protocol, object store,
+cross-device sync, mailbox, P2P transport, multi-tenancy, cloud auth, vault, or
+billing.
+
+## Public MCP Surface
+
+The MCP server exposes semantic operations rather than raw event mutation:
 
 - `config_inspect`
-- `run_create`
-- `run_get`
-- `event_append`
-- `ready_nodes`
-- `resources_dispatch`
-- `run_rehydrate`
-- `evidence_record`
-- `retrospective_get`
-- `proposal_decide`
+- `run_create`, `run_get`, `commitment_revise`, `run_complete`
+- `plan_propose`, `plan_activate`, `ready_nodes`
+- `execution_start`, `execution_finish`
+- `evidence_record`, `claim_update`
+- `resource_feedback_record`
+- `capabilities_list`, `capability_activate`
+- `retrospective_get`, `proposal_decide`
 
-The MCP server does not choose a workflow, launch a subagent, or perform user
-judgment. Those remain controller responsibilities.
-
-## Distribution Boundary
-
-v0.1 is a plugin package for Codex, Claude Code, Cursor, OpenClaw, and Hermes
-Agent, not a public CLI. Host-specific manifests adapt discovery and MCP path
-resolution while sharing the skill, schemas, and bundled MCP server. Cursor and
-Hermes consume Agent Plugins v1; OpenClaw uses its native manifest. Other hosts
-and a dashboard may be added later without changing the Core contracts.
-
-Old `~/.deweyou/dev/` state is intentionally ignored. The plugin contains no
-migration, compatibility command, or cleanup path for it.
+The server does not launch subagents, choose product intent, or grant external
+authority.

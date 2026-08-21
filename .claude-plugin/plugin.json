@@ -2,7 +2,7 @@
   "name": "deweyou-harness",
   "displayName": "Deweyou Harness",
   "version": "1.1.0",
-  "description": "A config-driven, domain-neutral workflow harness for Claude Code",
+  "description": "A domain-neutral commitment and evidence harness for Claude Code",
   "author": {
     "name": "Dewey Ou",
     "email": "oushihao97@gmail.com",
@@ -14,7 +14,7 @@
   "keywords": [
     "agent",
     "harness",
-    "workflow",
+    "agent-runtime",
     "claude-code"
   ]
 }

@@ -1,6 +1,6 @@
 interface:
   display_name: "Deweyou Harness"
-  short_description: "Run a config-driven workflow"
+  short_description: "Run commitment-driven durable work"
   icon_small: "./assets/dhw-small.svg"
   icon_large: "./assets/dhw.png"
-  default_prompt: "Use $dhw to run or resume a Harness workflow, select a workflow from harness.yaml, orchestrate its stages, dispatch resources, and record Run evidence."
+  default_prompt: "Use $dhw to run or resume durable Harness work, establish a Commitment, propose a task-scoped Plan, activate capabilities, and record Claim evidence."

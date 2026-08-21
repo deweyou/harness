@@ -1,150 +1,109 @@
 ---
 name: dhw
 description: >
-  Deweyou Harness Work. Use when the user invokes /dhw, asks to run or resume a
-  Harness workflow, or asks which configured workflow fits a task. Selects a
-  workflow from harness.yaml, orchestrates its four fixed stages, dispatches
-  resources progressively, delegates detailed agent nodes to subagents, and
-  records durable Run evidence through the Deweyou Harness MCP server.
+  Deweyou Harness Work. Use when the user invokes /dhw or asks to start or
+  resume durable work governed by a Commitment, evidence-backed Claims, and a
+  task-scoped Plan. Keeps exploration free, activates capabilities
+  progressively, delegates bounded node executions, and records replayable
+  state through the Deweyou Harness MCP server.
 user-invocable: true
 ---
 
 # Deweyou Harness Work
 
-`/dhw` is the controller for a domain-neutral, configuration-owned workflow.
-The plugin owns orchestration and evidence; `harness.yaml` owns workflows,
-nodes, rules, knowledge, and skill references.
+`/dhw` is a domain-neutral controller for durable agent work. The agent may
+explore and discuss freely. Create a Run only when the work needs a durable
+commitment, acceptance record, delegation, recovery, or delivery boundary.
+
+`harness.yaml` declares reusable resources and node capabilities. It does not
+declare a workflow. The Plan belongs to one Run and may be revised when the
+Commitment changes.
 
 ## Controller Boundary
 
 The main agent must:
 
-- select and monitor one workflow
-- keep user decisions and stage gates in the main conversation
-- ask the Harness MCP server to validate config, persist events, calculate ready
-  nodes, dispatch resources, and rebuild state
-- assign one detailed agent-node execution to one subagent when the host
-  supports subagents
-- run independent ready nodes concurrently when safe
-- integrate node outputs and decide whether acceptance evidence is sufficient
+- keep material user choices and external authority in the main conversation
+- create and revise the current Commitment through semantic MCP commands
+- propose a small Plan DAG whose nodes serve the Commitment's acceptance Claims
+- activate only the rules, knowledge, skills, executors, and host capabilities
+  needed for the current assignment
+- delegate one bounded agent execution to one subagent when supported
+- record content-addressed Evidence and connect it to explicit Claims
+- complete only when the current Commitment's acceptance Claims are resolved
 
-The main agent must not absorb a large node task merely because it can perform
-the work itself. A pure `agent` node still prefers a subagent; an agent node with
-skills dispatches those skills first and includes them in the assignment. Use a
-local fallback only when subagents are unavailable or the node is truly trivial,
-and record that fallback.
-
-The MCP server is a deterministic control and state plane. It does not launch
-subagents and does not decide product or editorial intent.
+Core owns identities, revisions, attempts, timestamps, event ordering, and
+transition validation. Never append arbitrary events or invent those fields in
+the controller. Cordis owns capability lifecycles only; it is not Run or Plan
+authority.
 
 ## Start Or Resume
 
+Read [commitment.md](references/commitment.md) before creating durable state.
+
 1. Find the workspace root and call `config_inspect`.
-2. Compare the user request with every selectable workflow's `name` and
-   `description`.
-3. Select one workflow only when the match is clear. If two remain materially
-   plausible, show the short choices and ask the user.
-4. Call `run_create` only after selecting a workflow. Do not create a Run for a
-   read-only explanation of Harness itself.
-5. Call `resources_dispatch` with `scope: workflow` and the Run ID: rules load in full;
-   knowledge loads as metadata first.
-   If a required receipt is missing, inspect its structured preparation command,
-   obtain any host/user approval required for network or filesystem changes,
-   run it without string interpolation, and redispatch. Never install silently.
-6. Record `workflow.selected`, then enter the first configured stage in the
-   canonical order: align, execute, verify, deliver.
+2. Explore enough to understand whether durable execution is useful. Do not
+   create a Run for a read-only explanation or a small conversational answer.
+3. Call `run_create` with the local workspace path. Core resolves it to a
+   stable logical WorkspaceRef for the local repository, plus an initial
+   Commitment: objective, scope, authority, intended destination, acceptance
+   Claims, and unresolved material decisions.
+4. Use `capabilities_list` for summaries. Load full content with
+   `capability_activate` only when it is relevant to the current Run or node.
+5. Propose a Plan containing node instances, dependencies, inputs, expected
+   outputs, Claim links, and authority. Call `plan_propose`, inspect the result,
+   then call `plan_activate` when it matches the current Commitment revision.
 
-To resume, call `run_get` with `recoverInterrupted: true`, then call
-`run_rehydrate`. Redispatch workflow rules, knowledge metadata, current-node
-skills, and every activated on-demand/supporting resource before continuing.
-Do the same after context compaction or a host-session handoff. Never assume the
-compressed context retained executable resource instructions.
+To resume, call `run_get` with interrupted-execution recovery enabled. Re-list
+and reactivate the current node's required capabilities using fresh activation
+receipts. Never assume compressed or handed-off context retained executable
+instructions.
 
-## Stage Loop
+## Plan And Execution Loop
 
-Read [alignment.md](references/alignment.md) before the align stage,
-[execution-loop.md](references/execution-loop.md) before dispatching nodes,
-[verification.md](references/verification.md) before verification, and
-[safety-and-delivery.md](references/safety-and-delivery.md) before delivery or
-any action that changes external state.
+Read [execution-loop.md](references/execution-loop.md) before dispatching work.
 
-Stages are fixed and ordered. A workflow may omit stages but may not add or
-reorder them:
+1. Ask Core for ready planned nodes in the active Plan revision.
+2. For each ready node, activate its declared capabilities and inspect its
+   authority boundary.
+3. Call `execution_start`; use the returned execution identity and attempt.
+4. Let the host adapter invoke the configured project-owned StructuredExecutor
+   boundary. Pass cancellation and idempotency through unchanged; Cordis owns
+   only the executor capability's scoped lifecycle.
+5. Store large or raw output as Evidence. Call `execution_finish` exactly once
+   with a concise structured result and Evidence references.
+6. Evaluate affected Claims explicitly. A successful node does not satisfy a
+   Claim by itself.
+7. Continue until no node is ready, the Commitment changes, or a material
+   decision requires the user.
 
-1. `align`: agree on objective, constraints, acceptance, and material choices.
-2. `execute`: produce the requested result.
-3. `verify`: test or inspect the result against acceptance evidence.
-4. `deliver`: hand the result to its intended destination after any required
-   user authorization.
+Independent ready nodes may run concurrently when their mutation and authority
+boundaries do not overlap. A changed requirement creates a new Commitment
+revision and supersedes the active Plan; preserve all prior executions and
+Evidence.
 
-`verification_rejected` loops to execute. A material scope or requirement error
-returns to align. `delivery_rejected` returns to execute. Never overwrite prior
-attempts: increment `stageVisit`, allocate a new `nodeExecutionId`, and preserve
-the per-node `attempt`.
+## Verification And Completion
 
-Hard v0.1 limits are two attempts for one node in one stage and three visits to
-one stage. Retry only evidence-backed, retryable technical failures. Otherwise
-record `node.blocked`, report the blocker, and ask only for the missing decision.
+Read [verification.md](references/verification.md) before changing a Claim and
+[safety-and-delivery.md](references/safety-and-delivery.md) before consequential
+external action.
 
-## Node Dispatch
+Claims are `open`, `satisfied`, `invalidated`, or `waived`. Satisfy a Claim only
+with relevant Evidence tied to the current input and Commitment revision.
+Waiving an acceptance Claim requires the authority recorded by the Commitment.
 
-For each stage:
+Call `run_complete` only after the destination and authority are current and
+every acceptance Claim is satisfied or validly waived. Core must reject
+completion for open Claims, stale Plan revisions, or stale Evidence.
 
-1. Record `stage.started` with `stage` and `stageVisit`.
-2. Call `ready_nodes` using completed and already-started instance IDs.
-3. For each ready node, resolve its reusable node definition.
-4. For `agent` nodes, call `resources_dispatch` with `scope: node` and the Run ID, record every
-   successful `resource.activated` receipt, and give one subagent a bounded
-   assignment containing inputs, constraints, expected output, evidence, and
-   the dispatched skill text. Empty `skills` means a pure agent assignment.
-5. For `command` nodes, the controller may run the configured command directly.
-   Treat command text as workspace-owned code: show or inspect consequential
-   commands before running them and follow host approval rules.
-6. Record `node.started` before execution and exactly one terminal node event.
-7. Store large/raw output as content-addressed evidence; keep event payloads
-   short, structured, and redacted.
-8. Repeat until no node remains. If no node is ready and unfinished nodes remain,
-   stop because the validated DAG and observed state disagree.
+The final response distinguishes what was produced, verified, and delivered,
+and states every remaining uncertainty. Retrospective resource suggestions are
+evidence-attributed follow-up work; they never rewrite a resource inside the
+completed Run.
 
-Use a single trace for the Run and child spans for stages, node executions,
-commands, subagents, tools, and evidence. Preserve parent span links.
+## Privacy
 
-## Privacy And Evidence
-
-The Run bundle under `~/.deweyou/harness/` is the only future dashboard,
-retrospective, and evaluation data source. Record enough structured evidence to
-reconstruct decisions, durations, retries, rework, assignments, and outcomes.
-Do not record secrets, environment dumps, unrelated conversation, or unredacted
-large logs. Evidence proves a claim; the event records the claim and evidence
-identity.
-
-## Completion
-
-Do not equate implementation with verification or delivery. Finish only when:
-
-- configured stage nodes are terminal
-- acceptance claims have relevant evidence or an explicit recorded gap
-- delivery was performed only with the authority required for that destination
-- `run.completed` records the outcome
-- the final response states what was produced, what was verified, what was
-  delivered, and what remains uncertain
-
-After appending `run.completed`, Core automatically creates the post-delivery
-retrospective. Call `retrospective_get`. When it contains actionable resource
-proposals, briefly explain the attributed evidence and ask whether the user
-wants to update now, record only, or reject the proposal. Do not block or undo
-the completed delivery.
-
-- `update now`: call `proposal_decide` with `accepted`, then start a separate
-  maintenance Run using an appropriate configured workflow. Acceptance never
-  authorizes direct mutation outside that Run.
-- `record only`: leave the proposal in `proposed` state for dashboard and
-  cross-Run aggregation.
-- `reject`: call `proposal_decide` with `rejected` and record the reason when
-  available.
-
-Before completion, record `resource.feedback.recorded` only when evidence can
-attribute a user correction, verification rejection, repeated failure, or
-missing instruction/fact to specific resource IDs. Do not blame every activated
-resource for an unrelated failure. When no attributable feedback exists, the
-automatic retrospective remains silent and creates no proposal.
+The Run bundle under `~/.deweyou/harness/` is replayable state. Record the
+minimum structured context needed to reconstruct decisions, assignments,
+Evidence, and outcomes. Never record secrets, environment dumps, unrelated
+conversation, or unredacted large logs.

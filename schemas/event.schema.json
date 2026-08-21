@@ -6,13 +6,13 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "id", "runId", "sequence", "timestamp", "type", "traceId", "spanId", "payload", "previousHash", "hash"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "id": { "type": "string", "minLength": 1 },
     "runId": { "type": "string", "minLength": 1 },
     "sequence": { "type": "integer", "minimum": 1 },
     "timestamp": { "type": "string", "format": "date-time" },
     "type": {
-      "enum": ["run.created", "workflow.selected", "stage.started", "stage.completed", "node.ready", "node.started", "node.succeeded", "node.failed", "node.blocked", "node.cancelled", "node.skipped", "node.interrupted", "resource.activated", "resource.feedback.recorded", "evidence.recorded", "decision.recorded", "run.completed", "retrospective.generated", "resource.change.proposed", "resource.change.accepted", "resource.change.rejected"]
+      "enum": ["run.created", "commitment.revised", "plan.proposed", "plan.activated", "plan.superseded", "node.ready", "node.started", "node.succeeded", "node.failed", "node.blocked", "node.cancelled", "node.skipped", "node.interrupted", "resource.activated", "resource.feedback.recorded", "evidence.recorded", "claim.opened", "claim.satisfied", "claim.invalidated", "claim.waived", "decision.recorded", "run.completed", "retrospective.generated", "resource.change.proposed", "resource.change.accepted", "resource.change.rejected"]
     },
     "traceId": { "type": "string", "minLength": 1 },
     "spanId": { "type": "string", "minLength": 1 },

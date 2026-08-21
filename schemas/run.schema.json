@@ -4,13 +4,22 @@
   "title": "Deweyou Harness run metadata",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "workspaceId", "workspacePath", "workflowId", "createdAt", "hostSessions"],
+  "required": ["schemaVersion", "id", "workspace", "createdAt", "hostSessions"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "id": { "type": "string", "minLength": 1 },
-    "workspaceId": { "type": "string", "pattern": "^[a-f0-9]{20}$" },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "minLength": 1 }
+      }
+    },
     "workspacePath": { "type": "string", "minLength": 1 },
-    "workflowId": { "type": "string", "minLength": 1 },
+    "workspaceMount": { "type": "string", "minLength": 1 },
     "createdAt": { "type": "string", "format": "date-time" },
     "hostSessions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
   }

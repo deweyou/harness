@@ -61,7 +61,7 @@ export function buildRetrospective(
     const summaries = [...new Set(resourceObservations.map((observation) => observation.summary))];
     const lock = resourceLock[resourceId];
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: stableId('proposal', `${runId}\0${resourceId}\0${evidenceEventIds.join('\0')}`),
       runId,
       resourceId,
@@ -79,7 +79,7 @@ export function buildRetrospective(
     };
   });
   const retrospective: RunRetrospective = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: stableId('retro', runId),
     runId,
     createdAt,

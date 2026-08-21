@@ -1,15 +1,14 @@
 # Deweyou Harness
 
-Deweyou Harness is a cross-agent plugin for running config-driven, domain-neutral
-workflows in Codex, Claude Code, Cursor, Trae, OpenClaw, and Hermes Agent. The plugin
-contains one user-facing skill, `/dhw`, and a bundled local MCP server that
-validates configuration, schedules DAG nodes, dispatches resources progressively,
-records replayable Run evidence and generates evidence-attributed resource
-improvement proposals after delivery.
+Deweyou Harness is a cross-agent plugin for durable, domain-neutral agent work in
+Codex, Claude Code, Cursor, Trae, OpenClaw, and Hermes Agent. The plugin contains
+one user-facing skill, `/dhw`, and a bundled local MCP server that governs Runs,
+Commitments, evidence-backed Claims, task-scoped Plans, and node executions.
 
 The Harness owns no coding, writing, video, product, or repository policy.
-Workspaces inject skills, rules, knowledge, nodes, and workflows through
-`harness.yaml`.
+Workspaces declare reusable skills, rules, knowledge, and node capabilities
+through `harness.yaml`. Plans are created for a Run; configuration does not own a
+workflow or fixed stages.
 
 ## Requirements
 

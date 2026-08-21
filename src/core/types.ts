@@ -1,26 +1,8 @@
-export const STAGES = ['align', 'execute', 'verify', 'deliver'] as const;
-export type Stage = (typeof STAGES)[number];
-
 export type ResourceKind = 'skill' | 'rule' | 'knowledge';
 
-export interface WorkspaceSource {
-  type: 'workspace';
-  path: string;
-}
-
-export interface RegistrySource {
-  type: 'registry';
-  repo: string;
-  skill: string;
-}
-
-export interface GitSource {
-  type: 'git';
-  repo: string;
-  path: string;
-  ref?: string;
-}
-
+export interface WorkspaceSource { type: 'workspace'; path: string }
+export interface RegistrySource { type: 'registry'; repo: string; skill: string }
+export interface GitSource { type: 'git'; repo: string; path: string; ref?: string }
 export type ResourceSource = WorkspaceSource | RegistrySource | GitSource;
 
 export interface ResourceDefinition {
@@ -29,69 +11,121 @@ export interface ResourceDefinition {
   source: ResourceSource;
 }
 
-export interface AgentExecutor {
-  type: 'agent';
-  skills?: string[];
-}
+export interface AgentExecutor { kind: 'agent'; skills?: string[]; config?: Record<string, unknown> }
+export interface CommandExecutor { kind: 'command'; argv: string[]; cwd?: string }
+export interface CapabilityExecutor { kind: 'capability'; capability: string; config?: Record<string, unknown> }
+export type Executor = AgentExecutor | CommandExecutor | CapabilityExecutor;
 
-export interface CommandExecutor {
-  type: 'command';
-  command: string;
+export interface ExecutionPolicy {
+  idempotent: boolean;
+  timeoutMs?: number;
+  retry?: { maxAttempts: number; backoffMs?: number };
 }
-
-export type Executor = AgentExecutor | CommandExecutor;
 
 export interface NodeDefinition {
   name?: string;
   description?: string;
   executor: Executor;
+  resources?: string[];
+  inputs?: string[];
+  outputs?: string[];
+  claimTypes?: string[];
+  artifactTypes?: string[];
+  authority?: string[];
+  executionPolicy?: ExecutionPolicy;
 }
 
-export interface NodeInstance {
-  use: string;
-  id?: string;
-  needs?: string[];
-  with?: Record<string, unknown>;
-}
-
-export interface WorkflowDefinition {
-  name: string;
-  description: string;
-  selectable?: boolean;
-  extends?: string;
-  rules?: string[];
-  knowledge?: string[];
-  stages?: Partial<Record<Stage, NodeInstance[]>>;
-}
-
-export interface HarnessImport {
-  path: string;
-  as?: string;
-}
-
+export interface HarnessImport { path: string; as?: string }
 export interface HarnessConfig {
-  version: 1;
+  version: 2;
   imports?: Array<string | HarnessImport>;
   resources?: Record<string, ResourceDefinition>;
   nodes?: Record<string, NodeDefinition>;
-  workflows?: Record<string, WorkflowDefinition>;
 }
-
-export interface ResolvedWorkflow extends Omit<WorkflowDefinition, 'selectable' | 'extends'> {
-  selectable: boolean;
-  stages: Partial<Record<Stage, NodeInstance[]>>;
-}
-
 export interface ResolvedHarnessConfig {
-  version: 1;
+  version: 2;
   sourceFiles: string[];
   resources: Record<string, ResourceDefinition>;
   nodes: Record<string, NodeDefinition>;
-  workflows: Record<string, ResolvedWorkflow>;
 }
 
-export type NodeStatus =
-  | 'pending'
+export type ClaimStatus = 'open' | 'satisfied' | 'invalidated' | 'waived';
+
+export interface WorkspaceRef {
+  id: string;
+  repository?: string;
+  revision?: string;
+}
+
+export interface Run {
+  schemaVersion: 2;
+  id: string;
+  workspace: WorkspaceRef;
+  workspacePath?: string;
+  workspaceMount?: string;
+  createdAt: string;
+  hostSessions: string[];
+}
+
+export interface Commitment {
+  id: string;
+  runId: string;
+  revision: number;
+  objective: string;
+  scope: string[];
+  authority: string[];
+  destination: string;
+  acceptanceClaimIds: string[];
+  unresolvedDecisions: string[];
+  createdAt: string;
+  supersedesRevision?: number;
+}
+
+export interface Claim {
+  id: string;
+  runId: string;
+  commitmentId: string;
+  description: string;
+  status: ClaimStatus;
+  evidenceIds: string[];
+  createdAt: string;
+  decidedAt?: string;
+}
+
+export interface Evidence {
+  id: string;
+  runId: string;
+  kind: string;
+  summary: string;
+  createdAt: string;
+  digest: string;
+  locator: string;
+  commitmentRevision: number;
+  inputDigests: Record<string, string>;
+}
+
+export interface PlannedNode {
+  id: string;
+  definitionId: string;
+  dependsOn: string[];
+  input?: Record<string, unknown>;
+  targetClaimIds?: string[];
+  expectedOutputs?: string[];
+  authority?: string[];
+}
+
+export interface Plan {
+  schemaVersion: 2;
+  id: string;
+  runId: string;
+  revision: number;
+  commitmentRevision: number;
+  status: 'proposed' | 'active' | 'superseded';
+  createdAt: string;
+  nodes: PlannedNode[];
+}
+
+export type NodeExecutionStatus =
   | 'ready'
   | 'running'
   | 'blocked'
@@ -101,11 +135,25 @@ export type NodeStatus =
   | 'skipped'
   | 'interrupted';
 
+export interface NodeExecution {
+  id: string;
+  runId: string;
+  planRevision: number;
+  plannedNodeId: string;
+  attempt: number;
+  status: NodeExecutionStatus;
+  evidenceIds: string[];
+  startedAt?: string;
+  endedAt?: string;
+  durationMs?: number;
+}
+
 export type HarnessEventType =
   | 'run.created'
-  | 'workflow.selected'
-  | 'stage.started'
-  | 'stage.completed'
+  | 'commitment.revised'
+  | 'plan.proposed'
+  | 'plan.activated'
+  | 'plan.superseded'
   | 'node.ready'
   | 'node.started'
   | 'node.succeeded'
@@ -117,6 +165,10 @@ export type HarnessEventType =
   | 'resource.activated'
   | 'resource.feedback.recorded'
   | 'evidence.recorded'
+  | 'claim.opened'
+  | 'claim.satisfied'
+  | 'claim.invalidated'
+  | 'claim.waived'
   | 'decision.recorded'
   | 'run.completed'
   | 'retrospective.generated'
@@ -135,7 +187,7 @@ export interface EventInput {
 }
 
 export interface HarnessEvent extends EventInput {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   runId: string;
   sequence: number;
@@ -144,41 +196,11 @@ export interface HarnessEvent extends EventInput {
   hash: string;
 }
 
-export interface RunMetadata {
-  schemaVersion: 1;
-  id: string;
-  workspaceId: string;
-  workspacePath: string;
-  workflowId: string;
-  createdAt: string;
-  hostSessions: string[];
-}
-
-export interface NodeExecutionState {
-  nodeExecutionId: string;
-  nodeId: string;
-  stage: Stage;
-  stageVisit: number;
-  attempt: number;
-  status: NodeStatus;
-  startedAt?: string;
-  endedAt?: string;
-  durationMs?: number;
-}
-
-export interface StageVisitState {
-  stage: Stage;
-  stageVisit: number;
-  status: 'running' | 'completed';
-  startedAt: string;
-  endedAt?: string;
-  durationMs?: number;
-}
-
+export type RunMetadata = Run;
 export type ResourceProposalStatus = 'proposed' | 'accepted' | 'rejected';
 
 export interface ResourceProposal {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   runId: string;
   resourceId: string;
@@ -187,53 +209,37 @@ export interface ResourceProposal {
   status: ResourceProposalStatus;
   createdAt: string;
   evidenceEventIds: string[];
-  problem: {
-    categories: string[];
-    summary: string;
-  };
-  suggestion: {
-    summary: string;
-  };
-  validation: {
-    replayRunIds: string[];
-    acceptance: string;
-  };
-  decision?: {
-    decidedAt: string;
-    reason?: string;
-  };
+  problem: { categories: string[]; summary: string };
+  suggestion: { summary: string };
+  validation: { replayRunIds: string[]; acceptance: string };
+  decision?: { decidedAt: string; reason?: string };
 }
 
 export interface RunRetrospective {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   runId: string;
   createdAt: string;
-  observations: Array<{
-    eventId: string;
-    resourceId: string;
-    category: string;
-    summary: string;
-  }>;
+  observations: Array<{ eventId: string; resourceId: string; category: string; summary: string }>;
   proposalIds: string[];
 }
 
 export interface RunProjection {
-  schemaVersion: 1;
+  schemaVersion: 2;
   runId: string;
   status: 'running' | 'blocked' | 'completed';
-  currentStage?: Stage;
-  stageVisits: Partial<Record<Stage, number>>;
-  stageVisitExecutions: StageVisitState[];
-  nodeExecutions: NodeExecutionState[];
-  nodeStatuses: Record<string, NodeStatus>;
+  commitmentAcceptanceSatisfied: boolean;
+  completedAt?: string;
+  activeCommitmentRevision?: number;
+  activePlanRevision?: number;
+  commitments: Record<number, Commitment>;
+  plans: Record<number, Plan>;
+  claims: Record<string, Claim>;
+  evidence: Record<string, Evidence>;
+  nodeExecutions: NodeExecution[];
+  nodeStatuses: Record<string, NodeExecutionStatus | 'pending'>;
   activatedResources: string[];
-  evidenceIds: string[];
-  retrospective?: {
-    id: string;
-    observationCount: number;
-    proposalIds: string[];
-  };
+  retrospective?: { id: string; observationCount: number; proposalIds: string[] };
   resourceProposals: Record<string, { resourceId: string; status: ResourceProposalStatus; summary: string }>;
   lastSequence: number;
   updatedAt: string;
@@ -241,7 +247,6 @@ export interface RunProjection {
     wallTimeMs: number;
     executionTimeMs: number;
     retryTimeMs: number;
-    reworkTimeMs: number;
     criticalPathMs: number;
   };
 }
