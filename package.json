@@ -19,16 +19,18 @@
     "node": ">=22.5"
   },
   "scripts": {
-    "build": "vp pack src/mcp/server.ts --out-dir dist --clean && node scripts/normalize-bundle.mjs",
-    "pretest": "pnpm run build",
+    "build": "npm run build:dashboard && npm run build:server",
+    "build:dashboard": "npm --prefix dashboard run build && node scripts/sync-dashboard-assets.mjs",
+    "build:server": "vp pack src/mcp/server.ts --out-dir dist --clean && node scripts/normalize-bundle.mjs",
+    "pretest": "npm run build",
     "typecheck": "tsc --noEmit",
     "lint:assets": "node scripts/lint-assets.mjs",
     "release:prepare": "node scripts/prepare-release.mjs",
     "test": "vitest run",
-    "pretest:coverage": "pnpm run build",
+    "pretest:coverage": "npm run build",
     "test:coverage": "vitest run --coverage",
     "validate:plugin": "node scripts/validate-plugin.mjs",
-    "check": "pnpm run lint:assets && pnpm run typecheck && pnpm test && pnpm run build"
+    "check": "npm run lint:assets && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

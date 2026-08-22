@@ -12,6 +12,7 @@ const requiredFiles = [
   '.trae-mcp.json',
   'assets/harness-small.svg',
   'assets/harness.png',
+  'assets/dashboard/index.html',
   'adapters/openclaw/index.mjs',
   'openclaw.plugin.json',
   'plugin.json',
@@ -26,6 +27,7 @@ const requiredFiles = [
   'schemas/harness.schema.json',
   'schemas/event.schema.json',
   'schemas/run.schema.json',
+  'schemas/run-index.schema.json',
   'schemas/resource-proposal.schema.json',
   'schemas/retrospective.schema.json',
 ];

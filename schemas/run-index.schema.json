@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/deweyou/harness/schemas/run-index.schema.json",
+  "title": "Deweyou Harness global run index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "updatedAt", "runs"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "runId",
+          "workspaceId",
+          "workspacePath",
+          "workflowId",
+          "title",
+          "status",
+          "needsAttention",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "runId": { "type": "string", "minLength": 1 },
+          "workspaceId": { "type": "string", "pattern": "^[a-f0-9]{20}$" },
+          "workspacePath": { "type": "string", "minLength": 1 },
+          "workflowId": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 96 },
+          "status": { "enum": ["running", "blocked", "completed"] },
+          "needsAttention": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "currentStage": { "enum": ["align", "execute", "verify", "deliver"] }
+        }
+      }
+    }
+  }
+}

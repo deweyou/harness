@@ -1,4 +1,4 @@
-import { lstat, readFile } from 'node:fs/promises';
+import { access, lstat, readFile } from 'node:fs/promises';
 import { describe, expect, test } from 'vitest';
 
 const packageVersion = JSON.parse(await readFile('package.json', 'utf8')).version;
@@ -82,6 +82,7 @@ describe('cross-agent plugin package', () => {
       'display_name: "Deweyou Harness"',
     );
     await expect(readFile('assets/harness-small.svg', 'utf8')).resolves.toContain('#4F46E5');
+    await expect(access('assets/dashboard/index.html')).resolves.toBeUndefined();
     await expect(readFile('skills/dhw/assets/dhw-small.svg', 'utf8')).resolves.toContain('#22D3EE');
   });
 
