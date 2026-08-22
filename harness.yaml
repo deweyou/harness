@@ -1,0 +1,90 @@
+$schema: ./schemas/harness.schema.json
+version: 1
+
+resources:
+  project-rules:
+    kind: rule
+    description: Repository product boundaries, asset conventions, and verification requirements.
+    source:
+      type: workspace
+      path: AGENTS.md
+
+nodes:
+  align-scope:
+    name: Align change scope
+    description: Confirm the requested outcome, repository boundaries, affected contracts, and validation plan.
+    executor:
+      type: agent
+
+  implement-change:
+    name: Implement change
+    description: Implement the approved change while preserving domain-neutral Core boundaries and existing user work.
+    executor:
+      type: agent
+
+  lint-assets:
+    name: Lint plugin assets
+    executor:
+      type: command
+      command: pnpm run lint:assets
+
+  typecheck:
+    name: Typecheck workspace
+    executor:
+      type: command
+      command: pnpm run typecheck
+
+  test:
+    name: Run tests
+    executor:
+      type: command
+      command: pnpm test
+
+  test-coverage:
+    name: Verify test coverage
+    executor:
+      type: command
+      command: pnpm run test:coverage
+
+  build:
+    name: Build plugin
+    executor:
+      type: command
+      command: pnpm run build
+
+  validate-plugin:
+    name: Validate plugin package
+    executor:
+      type: command
+      command: pnpm run validate:plugin
+
+  summarize-delivery:
+    name: Summarize delivery
+    description: Summarize changes, evidence, remaining risks, and the separate commit, CI, review, and release gates.
+    executor:
+      type: agent
+
+workflows:
+  harness-development:
+    name: Develop Harness plugin
+    description: Implement and verify a scoped change to the Deweyou Harness plugin package.
+    rules: [project-rules]
+    stages:
+      align:
+        - use: align-scope
+      execute:
+        - use: implement-change
+      verify:
+        - use: lint-assets
+        - use: typecheck
+          needs: [lint-assets]
+        - use: test
+          needs: [typecheck]
+        - use: test-coverage
+          needs: [test]
+        - use: build
+          needs: [test-coverage]
+        - use: validate-plugin
+          needs: [build]
+      deliver:
+        - use: summarize-delivery
