@@ -2,11 +2,13 @@ import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { HarnessEvent, NodeInstance, NodeStatus, RunIndexEntry, RunProjection, Stage } from '../core/types.js';
-import { STAGES } from '../core/types.js';
+import { load as loadYaml } from 'js-yaml';
+import type { HarnessEvent, NodeExecutionStatus, Plan, ResolvedHarnessConfig, RunIndexEntry, RunProjection } from '../core/types.js';
 import { RunStore } from '../core/state/store.js';
 
-const TERMINAL_NODE_STATUSES = new Set<NodeStatus>(['succeeded', 'failed', 'cancelled', 'skipped', 'interrupted']);
+type DashboardNodeStatus = NodeExecutionStatus | 'pending';
+
+const TERMINAL_NODE_STATUSES = new Set<DashboardNodeStatus>(['succeeded', 'failed', 'cancelled', 'skipped', 'interrupted']);
 const MIME_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -20,21 +22,25 @@ const MIME_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
 };
 
-interface RunPlan {
-  workflowId: string;
-  stages: Partial<Record<Stage, NodeInstance[]>>;
-}
-
 export interface DashboardRunNode {
   id: string;
+  definitionId: string;
   label: string;
-  stage: Stage;
-  status: NodeStatus;
+  status: DashboardNodeStatus;
   attempt: number | null;
   durationMs: number | null;
   evidenceCount: number;
   needs: string[];
   executionIds: string[];
+  targetClaimIds: string[];
+  expectedOutputs: string[];
+}
+
+export interface DashboardClaim {
+  id: string;
+  description: string;
+  status: RunProjection['claims'][string]['status'];
+  evidenceCount: number;
 }
 
 export interface DashboardRunSummary {
@@ -43,13 +49,18 @@ export interface DashboardRunSummary {
   workspace: string;
   workspacePath: string;
   workspaceId: string;
-  workflowId: string;
   status: RunProjection['status'];
   needsAttention: boolean;
   archived: boolean;
   createdAt: string;
   updatedAt: string;
-  currentStage?: Stage;
+  commitmentRevision?: number;
+  planRevision?: number;
+  planStatus?: Plan['status'];
+  commitmentAcceptanceSatisfied: boolean;
+  acceptanceSatisfied: number;
+  acceptanceTotal: number;
+  unresolvedDecisionCount: number;
   currentNode?: string;
   completedNodes: number;
   totalNodes: number;
@@ -58,6 +69,7 @@ export interface DashboardRunSummary {
 
 export interface DashboardRunDetail extends DashboardRunSummary {
   nodes: DashboardRunNode[];
+  claims: DashboardClaim[];
 }
 
 export interface DashboardServerOptions {
@@ -95,39 +107,57 @@ function humanize(identifier: string): string {
   return text ? `${text[0]!.toUpperCase()}${text.slice(1)}` : identifier;
 }
 
-async function readPlan(store: RunStore, entry: RunIndexEntry): Promise<RunPlan> {
-  return JSON.parse(await readFile(join(store.runDirectory(entry.workspaceId, entry.runId), 'plan.json'), 'utf8')) as RunPlan;
+async function readNodeLabels(store: RunStore, entry: RunIndexEntry): Promise<Record<string, string>> {
+  const source = await readFile(join(store.runDirectory(entry.workspaceId, entry.runId), 'config.snapshot.yaml'), 'utf8');
+  const config = loadYaml(source) as Pick<ResolvedHarnessConfig, 'nodes'>;
+  return Object.fromEntries(Object.entries(config.nodes ?? {}).map(([id, definition]) => [id, definition.name ?? humanize(id)]));
 }
 
-function materializeNodes(plan: RunPlan, projection: RunProjection, events: HarnessEvent[]): DashboardRunNode[] {
-  return STAGES.flatMap((stage) => (plan.stages[stage] ?? []).map((instance) => {
-    const id = instance.id ?? instance.use;
-    const executions = projection.nodeExecutions.filter((execution) => execution.stage === stage && execution.nodeId === id);
+function visiblePlan(projection: RunProjection): Plan | undefined {
+  if (projection.activePlanRevision !== undefined) return projection.plans[projection.activePlanRevision];
+  return Object.values(projection.plans)
+    .filter((plan) => plan.commitmentRevision === projection.activeCommitmentRevision && plan.status === 'proposed')
+    .sort((left, right) => right.revision - left.revision)[0];
+}
+
+function materializeNodes(plan: Plan | undefined, projection: RunProjection, labels: Record<string, string>): DashboardRunNode[] {
+  return (plan?.nodes ?? []).map((plannedNode) => {
+    const executions = projection.nodeExecutions.filter(
+      (execution) => execution.planRevision === plan!.revision && execution.plannedNodeId === plannedNode.id,
+    );
     const latest = executions.at(-1);
-    const evidenceCount = events.filter((event) => event.type === 'evidence.recorded' && (
-      event.payload.nodeId === id || (latest && event.payload.nodeExecutionId === latest.nodeExecutionId)
-    )).length;
+    const evidenceIds = new Set(executions.flatMap((execution) => execution.evidenceIds));
     return {
-      id,
-      label: humanize(id),
-      stage,
-      status: projection.nodeStatuses[`${stage}:${id}`] ?? 'pending',
+      id: plannedNode.id,
+      definitionId: plannedNode.definitionId,
+      label: labels[plannedNode.definitionId] ?? humanize(plannedNode.id),
+      status: projection.nodeStatuses[`${plan!.revision}:${plannedNode.id}`] ?? 'pending',
       attempt: latest?.attempt ?? null,
       durationMs: latest?.durationMs ?? null,
-      evidenceCount,
-      needs: instance.needs ?? [],
-      executionIds: executions.map((execution) => execution.nodeExecutionId),
+      evidenceCount: evidenceIds.size,
+      needs: plannedNode.dependsOn,
+      executionIds: executions.map((execution) => execution.id),
+      targetClaimIds: plannedNode.targetClaimIds ?? [],
+      expectedOutputs: plannedNode.expectedOutputs ?? [],
     };
-  }));
+  });
 }
 
 async function runDetail(store: RunStore, entry: RunIndexEntry): Promise<{ detail: DashboardRunDetail; events: HarnessEvent[] }> {
-  const [projection, plan, events] = await Promise.all([
+  const [projection, labels, events] = await Promise.all([
     store.getProjection(entry.workspaceId, entry.runId),
-    readPlan(store, entry),
+    readNodeLabels(store, entry),
     store.readEvents(entry.workspaceId, entry.runId),
   ]);
-  const nodes = materializeNodes(plan, projection, events);
+  const plan = visiblePlan(projection);
+  const commitment = projection.activeCommitmentRevision === undefined
+    ? undefined
+    : projection.commitments[projection.activeCommitmentRevision];
+  const claims = (commitment?.acceptanceClaimIds ?? []).flatMap((claimId) => {
+    const claim = projection.claims[claimId];
+    return claim ? [{ id: claim.id, description: claim.description, status: claim.status, evidenceCount: claim.evidenceIds.length }] : [];
+  });
+  const nodes = materializeNodes(plan, projection, labels);
   const currentNode = nodes.find((node) => node.status === 'blocked')
     ?? nodes.find((node) => node.status === 'running')
     ?? nodes.find((node) => node.status === 'ready')
@@ -139,17 +169,22 @@ async function runDetail(store: RunStore, entry: RunIndexEntry): Promise<{ detai
       workspace: workspaceLabel(entry.workspacePath),
       workspacePath: entry.workspacePath,
       workspaceId: entry.workspaceId,
-      workflowId: entry.workflowId,
       status: projection.status,
-      needsAttention: projection.status === 'blocked',
+      needsAttention: entry.needsAttention,
       archived: projection.status === 'completed',
       createdAt: entry.createdAt,
       updatedAt: projection.updatedAt,
+      commitmentAcceptanceSatisfied: projection.commitmentAcceptanceSatisfied,
+      acceptanceSatisfied: entry.acceptanceSatisfied,
+      acceptanceTotal: entry.acceptanceTotal,
+      unresolvedDecisionCount: commitment?.unresolvedDecisions.length ?? 0,
       completedNodes: nodes.filter((node) => TERMINAL_NODE_STATUSES.has(node.status)).length,
       totalNodes: nodes.length,
       durationMs: projection.timing.wallTimeMs,
       nodes,
-      ...(projection.currentStage ? { currentStage: projection.currentStage } : {}),
+      claims,
+      ...(projection.activeCommitmentRevision !== undefined ? { commitmentRevision: projection.activeCommitmentRevision } : {}),
+      ...(plan ? { planRevision: plan.revision, planStatus: plan.status } : {}),
       ...(currentNode ? { currentNode: currentNode.label } : {}),
     },
     events,

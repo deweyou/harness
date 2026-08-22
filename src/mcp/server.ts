@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod/v4';
@@ -11,6 +12,9 @@ import { invariant } from '../core/errors.js';
 import { ConfigResourceProvider } from '../core/resources.js';
 import { findConfig, RunStore, type CommandContext } from '../core/state/store.js';
 import type { PlannedNode } from '../core/types.js';
+import { maintainDashboardServer } from '../dashboard/server.js';
+
+export { maintainDashboardServer };
 
 const VERSION = packageManifest.version;
 const commandContextSchema = z.object({
@@ -130,6 +134,15 @@ export function createHarnessServer(): McpServer {
       const store = new RunStore();
       return result(recoverInterrupted ? await store.recoverInterrupted(id, runId, randomUUID()) : await store.rebuildProjection(id, runId));
     },
+  );
+
+  server.registerTool(
+    'run_list',
+    {
+      description: 'List active or archived Harness v2 Runs across workspaces from the rebuildable global Run index.',
+      inputSchema: z.object({ scope: z.enum(['all', 'active', 'archived']).default('all') }),
+    },
+    async ({ scope }) => result({ scope, runs: await new RunStore().listRuns(scope) }),
   );
 
   server.registerTool(
@@ -419,6 +432,22 @@ export function createHarnessServer(): McpServer {
   return server;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1] ?? '')) {
+  const configuredPort = Number.parseInt(process.env.DEWEYOU_DASHBOARD_PORT ?? '7777', 10);
+  const dashboard = process.env.DEWEYOU_DASHBOARD_AUTOSTART === '0'
+    ? undefined
+    : await maintainDashboardServer({
+      port: Number.isInteger(configuredPort) ? configuredPort : 7777,
+      onError: (error) => console.error('Harness Dashboard server error:', error),
+    });
   await serveStdio(() => createHarnessServer());
+  if (dashboard) {
+    const closeDashboard = () => {
+      void dashboard.close().catch((error) => console.error('Harness Dashboard shutdown error:', error));
+    };
+    process.stdin.once('end', closeDashboard);
+    process.once('SIGINT', closeDashboard);
+    process.once('SIGTERM', closeDashboard);
+    if (process.stdin.readableEnded) await dashboard.close();
+  }
 }

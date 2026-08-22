@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { access, appendFile, mkdir, open, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { access, appendFile, mkdir, open, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { dump as dumpYaml } from 'js-yaml';
@@ -21,6 +21,8 @@ import type {
   ResourceProposal,
   ResourceProposalStatus,
   Run,
+  RunIndex,
+  RunIndexEntry,
   RunProjection,
   RunRetrospective,
   WorkspaceRef,
@@ -35,6 +37,8 @@ export interface RunRepository {
   writeEvidence(workspaceId: string, runId: string, digest: string, content: string): Promise<string>;
   readJson<T>(workspaceId: string, runId: string, relativePath: string): Promise<T>;
   writeJson(workspaceId: string, runId: string, relativePath: string, value: unknown): Promise<void>;
+  listRuns(scope?: 'all' | 'active' | 'archived'): Promise<RunIndexEntry[]>;
+  rebuildRunIndex(): Promise<RunIndex>;
   runDirectory(workspaceId: string, runId: string): string;
 }
 
@@ -125,8 +129,38 @@ function workspaceIdentity(path: string): string {
   return createHash('sha256').update(path).digest('hex').slice(0, 20);
 }
 
+function isRunIndex(value: unknown): value is RunIndex {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<RunIndex>;
+  return candidate.schemaVersion === 2 && typeof candidate.updatedAt === 'string' && Array.isArray(candidate.runs);
+}
+
+function runTitle(request: Record<string, unknown>, projection: RunProjection): string {
+  const commitment = projection.activeCommitmentRevision === undefined
+    ? undefined
+    : projection.commitments[projection.activeCommitmentRevision];
+  if (commitment?.objective.trim()) return commitment.objective.trim().replace(/\s+/g, ' ').slice(0, 96);
+  for (const key of ['title', 'task', 'prompt']) {
+    const value = request[key];
+    if (typeof value === 'string' && value.trim()) return value.trim().replace(/\s+/g, ' ').slice(0, 96);
+  }
+  return 'Untitled Run';
+}
+
+function sortRunIndexEntries(left: RunIndexEntry, right: RunIndexEntry): number {
+  const leftArchived = left.status === 'completed';
+  const rightArchived = right.status === 'completed';
+  if (leftArchived !== rightArchived) return leftArchived ? 1 : -1;
+  if (left.needsAttention !== right.needsAttention) return left.needsAttention ? -1 : 1;
+  return right.updatedAt.localeCompare(left.updatedAt);
+}
+
 export class LocalRunRepository implements RunRepository {
-  constructor(private readonly stateRoot = join(homedir(), '.deweyou', 'harness')) {}
+  private readonly stateRoot: string;
+
+  constructor(stateRoot = process.env.DEWEYOU_HARNESS_STATE_ROOT ?? join(homedir(), '.deweyou', 'harness')) {
+    this.stateRoot = stateRoot;
+  }
 
   async initialize(run: Run, request: Record<string, unknown>, config: ResolvedHarnessConfig): Promise<void> {
     const directory = this.runDirectory(run.workspace.id, run.id);
@@ -145,7 +179,7 @@ export class LocalRunRepository implements RunRepository {
   async commitEvent(workspaceId: string, runId: string, input: EventInput): Promise<HarnessEvent> {
     const directory = this.runDirectory(workspaceId, runId);
     await access(join(directory, 'run.json'));
-    return withFileLock(join(directory, '.events.lock'), async () => {
+    const event = await withFileLock(join(directory, '.events.lock'), async () => {
       const events = await this.readEvents(workspaceId, runId);
       verifyEventChain(events);
       if (input.idempotencyKey) {
@@ -175,6 +209,8 @@ export class LocalRunRepository implements RunRepository {
       await this.writeProjection(workspaceId, runId, projection);
       return event;
     });
+    await this.refreshRunIndexEntry(workspaceId, runId);
+    return event;
   }
 
   async readEvents(workspaceId: string, runId: string): Promise<HarnessEvent[]> {
@@ -205,8 +241,144 @@ export class LocalRunRepository implements RunRepository {
     await atomicJson(join(this.runDirectory(workspaceId, runId), relativePath), value);
   }
 
+  async listRuns(scope: 'all' | 'active' | 'archived' = 'all'): Promise<RunIndexEntry[]> {
+    const index = await this.readRunIndex();
+    if (scope === 'active') return index.runs.filter((entry) => entry.status !== 'completed');
+    if (scope === 'archived') return index.runs.filter((entry) => entry.status === 'completed');
+    return index.runs;
+  }
+
+  async rebuildRunIndex(): Promise<RunIndex> {
+    await mkdir(this.indexDirectory(), { recursive: true, mode: 0o700 });
+    return withFileLock(this.indexLockPath(), async () => {
+      const index = await this.scanRunIndex();
+      await atomicJson(this.indexPath(), index);
+      return index;
+    });
+  }
+
   runDirectory(workspaceId: string, runId: string): string {
     return join(this.stateRoot, 'workspaces', workspaceId, 'runs', runId);
+  }
+
+  private indexDirectory(): string {
+    return join(this.stateRoot, 'index');
+  }
+
+  private indexPath(): string {
+    return join(this.indexDirectory(), 'runs.json');
+  }
+
+  private indexLockPath(): string {
+    return join(this.indexDirectory(), '.runs.lock');
+  }
+
+  private async readRunIndex(): Promise<RunIndex> {
+    try {
+      const parsed = JSON.parse(await readFile(this.indexPath(), 'utf8')) as unknown;
+      if (isRunIndex(parsed)) return parsed;
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error ? error.code : undefined;
+      if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error;
+    }
+    return this.rebuildRunIndex();
+  }
+
+  private async refreshRunIndexEntry(workspaceId: string, runId: string): Promise<void> {
+    await mkdir(this.indexDirectory(), { recursive: true, mode: 0o700 });
+    await withFileLock(this.indexLockPath(), async () => {
+      let index: RunIndex;
+      try {
+        const parsed = JSON.parse(await readFile(this.indexPath(), 'utf8')) as unknown;
+        index = isRunIndex(parsed) ? parsed : await this.scanRunIndex();
+      } catch (error) {
+        const code = error instanceof Error && 'code' in error ? error.code : undefined;
+        if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error;
+        index = await this.scanRunIndex();
+      }
+      const entry = await this.buildRunIndexEntry(workspaceId, runId);
+      index.runs = index.runs.filter((candidate) => candidate.runId !== runId || candidate.workspaceId !== workspaceId);
+      index.runs.push(entry);
+      index.runs.sort(sortRunIndexEntries);
+      index.updatedAt = index.runs.reduce(
+        (latest, candidate) => candidate.updatedAt > latest ? candidate.updatedAt : latest,
+        '1970-01-01T00:00:00.000Z',
+      );
+      await atomicJson(this.indexPath(), index);
+    });
+  }
+
+  private async scanRunIndex(): Promise<RunIndex> {
+    const entries: RunIndexEntry[] = [];
+    const workspacesDirectory = join(this.stateRoot, 'workspaces');
+    let workspaces;
+    try {
+      workspaces = await readdir(workspacesDirectory, { withFileTypes: true });
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error ? error.code : undefined;
+      if (code === 'ENOENT') return { schemaVersion: 2, updatedAt: this.nowIso(), runs: [] };
+      throw error;
+    }
+    for (const workspace of workspaces.filter((entry) => entry.isDirectory())) {
+      const runsDirectory = join(workspacesDirectory, workspace.name, 'runs');
+      let runs;
+      try {
+        runs = await readdir(runsDirectory, { withFileTypes: true });
+      } catch (error) {
+        const code = error instanceof Error && 'code' in error ? error.code : undefined;
+        if (code === 'ENOENT') continue;
+        throw error;
+      }
+      for (const run of runs.filter((entry) => entry.isDirectory())) {
+        try {
+          entries.push(await this.buildRunIndexEntry(workspace.name, run.name));
+        } catch (error) {
+          const code = error instanceof Error && 'code' in error ? error.code : undefined;
+          if (code !== 'ENOENT') throw error;
+        }
+      }
+    }
+    entries.sort(sortRunIndexEntries);
+    return {
+      schemaVersion: 2,
+      updatedAt: entries.reduce((latest, entry) => entry.updatedAt > latest ? entry.updatedAt : latest, '1970-01-01T00:00:00.000Z'),
+      runs: entries,
+    };
+  }
+
+  private async buildRunIndexEntry(workspaceId: string, runId: string): Promise<RunIndexEntry> {
+    const directory = this.runDirectory(workspaceId, runId);
+    const [run, request, events] = await Promise.all([
+      readFile(join(directory, 'run.json'), 'utf8').then((content) => JSON.parse(content) as Run),
+      readFile(join(directory, 'request.json'), 'utf8').then((content) => JSON.parse(content) as Record<string, unknown>),
+      this.readEvents(workspaceId, runId),
+    ]);
+    verifyEventChain(events);
+    const projection = projectRun(events);
+    const commitment = projection.activeCommitmentRevision === undefined
+      ? undefined
+      : projection.commitments[projection.activeCommitmentRevision];
+    const acceptanceClaims = commitment?.acceptanceClaimIds.map((claimId) => projection.claims[claimId]).filter(Boolean) ?? [];
+    const workspacePath = run.workspacePath ?? run.workspaceMount ?? run.workspace.id;
+    return {
+      schemaVersion: 2,
+      runId,
+      workspaceId,
+      workspacePath,
+      title: runTitle(request, projection),
+      status: projection.status,
+      needsAttention: projection.status === 'blocked' || Boolean(commitment?.unresolvedDecisions.length),
+      createdAt: run.createdAt,
+      updatedAt: projection.updatedAt,
+      acceptanceSatisfied: acceptanceClaims.filter((claim) => claim?.status === 'satisfied' || claim?.status === 'waived').length,
+      acceptanceTotal: acceptanceClaims.length,
+      ...(projection.activeCommitmentRevision !== undefined ? { activeCommitmentRevision: projection.activeCommitmentRevision } : {}),
+      ...(projection.activePlanRevision !== undefined ? { activePlanRevision: projection.activePlanRevision } : {}),
+    };
+  }
+
+  private nowIso(): string {
+    return new Date().toISOString();
   }
 }
 
@@ -461,6 +633,14 @@ export class RunStore {
     const projection = await this.getProjection(workspaceId, runId);
     await this.repository.writeProjection(workspaceId, runId, projection);
     return projection;
+  }
+
+  async listRuns(scope: 'all' | 'active' | 'archived' = 'all'): Promise<RunIndexEntry[]> {
+    return this.repository.listRuns(scope);
+  }
+
+  async rebuildRunIndex(): Promise<RunIndex> {
+    return this.repository.rebuildRunIndex();
   }
 
   async readEvents(workspaceId: string, runId: string): Promise<HarnessEvent[]> {

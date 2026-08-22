@@ -67,6 +67,28 @@ export interface Run {
   hostSessions: string[];
 }
 
+export interface RunIndexEntry {
+  schemaVersion: 2;
+  runId: string;
+  workspaceId: string;
+  workspacePath: string;
+  title: string;
+  status: RunProjection['status'];
+  needsAttention: boolean;
+  createdAt: string;
+  updatedAt: string;
+  activeCommitmentRevision?: number;
+  activePlanRevision?: number;
+  acceptanceSatisfied: number;
+  acceptanceTotal: number;
+}
+
+export interface RunIndex {
+  schemaVersion: 2;
+  updatedAt: string;
+  runs: RunIndexEntry[];
+}
+
 export interface Commitment {
   id: string;
   runId: string;

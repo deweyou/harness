@@ -12,7 +12,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { CheckCircle, Circle, Clock, SpinnerGap, XCircle } from '@phosphor-icons/react';
 import { useMemo } from 'react';
-import { stageLabels, type NodeStatus, type WorkflowNode } from './data';
+import { type NodeStatus, type PlannedNode } from './data';
 import { cn } from './lib/utils';
 
 function statusIcon(status: NodeStatus) {
@@ -29,7 +29,7 @@ function formatDuration(milliseconds: number | null) {
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-function WorkflowCard({ data, selected }: NodeProps<FlowNode<WorkflowNode>>) {
+function PlanNodeCard({ data, selected }: NodeProps<FlowNode<PlannedNode>>) {
   return (
     <div className={cn('graph-node', `is-${data.status}`, selected && 'is-selected')}>
       <Handle type="target" position={Position.Left} className="graph-handle" />
@@ -46,51 +46,60 @@ function WorkflowCard({ data, selected }: NodeProps<FlowNode<WorkflowNode>>) {
   );
 }
 
-const nodeTypes = { workflow: WorkflowCard };
-const stageX = { align: 24, execute: 202, verify: 380, deliver: 558 };
+const nodeTypes = { plan: PlanNodeCard };
 
 interface GraphViewProps {
-  workflowNodes: WorkflowNode[];
+  planNodes: PlannedNode[];
   selectedNodeId: string;
   onSelectNode: (nodeId: string) => void;
 }
 
-export function GraphView({ workflowNodes, selectedNodeId, onSelectNode }: GraphViewProps) {
+function nodeDepth(node: PlannedNode, nodesById: Map<string, PlannedNode>, visiting = new Set<string>()): number {
+  if (visiting.has(node.id)) return 0;
+  const nextVisiting = new Set(visiting).add(node.id);
+  const dependencies = node.needs.flatMap((id) => {
+    const dependency = nodesById.get(id);
+    return dependency ? [nodeDepth(dependency, nodesById, nextVisiting) + 1] : [];
+  });
+  return dependencies.length ? Math.max(...dependencies) : 0;
+}
+
+export function GraphView({ planNodes, selectedNodeId, onSelectNode }: GraphViewProps) {
   const graphNodes = useMemo(() => {
-    const stagePositions: Partial<Record<keyof typeof stageX, number>> = {};
-    return workflowNodes.map((node): FlowNode<WorkflowNode> => {
-      const stageIndex = stagePositions[node.stage] ?? 0;
-      stagePositions[node.stage] = stageIndex + 1;
+    const nodesById = new Map(planNodes.map((node) => [node.id, node]));
+    const depthPositions = new Map<number, number>();
+    return planNodes.map((node): FlowNode<PlannedNode> => {
+      const depth = nodeDepth(node, nodesById);
+      const row = depthPositions.get(depth) ?? 0;
+      depthPositions.set(depth, row + 1);
       return {
         id: node.id,
-        type: 'workflow',
-        position: { x: stageX[node.stage], y: 66 + stageIndex * 88 },
+        type: 'plan',
+        position: { x: 24 + depth * 210, y: 42 + row * 96 },
         data: node,
       };
     });
-  }, [workflowNodes]);
-  const visibleNodeIds = useMemo(() => new Set(workflowNodes.map((node) => node.id)), [workflowNodes]);
+  }, [planNodes]);
+  const visibleNodeIds = useMemo(() => new Set(planNodes.map((node) => node.id)), [planNodes]);
   const visibleEdges = useMemo(() => {
-    return workflowNodes.flatMap((node) => node.needs.filter((dependency) => visibleNodeIds.has(dependency)).map((dependency, index): Edge => ({
+    return planNodes.flatMap((node) => node.needs.filter((dependency) => visibleNodeIds.has(dependency)).map((dependency, index): Edge => ({
       id: `${dependency}-${node.id}-${index}`,
       source: dependency,
       target: node.id,
       type: 'smoothstep',
       markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
     })));
-  }, [visibleNodeIds, workflowNodes]);
+  }, [visibleNodeIds, planNodes]);
 
   return (
-    <div className="graph-shell" aria-label="Workflow dependency graph">
-      <div className="graph-stages" aria-hidden="true">
-        {(Object.keys(stageLabels) as Array<keyof typeof stageLabels>).map((stage) => <span key={stage}>{stageLabels[stage]}</span>)}
-      </div>
+    <div className="graph-shell" aria-label="Plan dependency graph">
       <ReactFlow
         nodes={graphNodes.map((node) => ({ ...node, selected: node.id === selectedNodeId }))}
         edges={visibleEdges}
         nodeTypes={nodeTypes}
         onNodeClick={(_, node) => onSelectNode(node.id)}
-        defaultViewport={{ x: 8, y: 138, zoom: 0.88 }}
+        fitView
+        fitViewOptions={{ padding: 0.2, minZoom: 0.65, maxZoom: 1 }}
         minZoom={0.55}
         maxZoom={1.4}
         nodesDraggable={false}

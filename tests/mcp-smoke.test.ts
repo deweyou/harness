@@ -29,7 +29,7 @@ describe('Harness MCP server', () => {
         command: 'node',
         args: ['server.mjs'],
         cwd: isolatedPluginRoot,
-        env: { ...process.env, HOME: isolatedPluginRoot } as Record<string, string>,
+        env: { ...process.env, HOME: isolatedPluginRoot, DEWEYOU_DASHBOARD_AUTOSTART: '0' } as Record<string, string>,
         stderr: 'pipe',
       }),
     );
@@ -53,6 +53,7 @@ describe('Harness MCP server', () => {
         'run_complete',
         'run_create',
         'run_get',
+        'run_list',
       ].sort(),
     );
     const inspected = await client.callTool({ name: 'config_inspect', arguments: { workspacePath: isolatedPluginRoot } });

@@ -65,7 +65,17 @@ describe('RunStore v2 semantic commands', () => {
   });
 
   it('records digest Evidence, satisfies the current Claim, and completes explicitly', async () => {
-    const { store, run, claimId } = await setup();
+    const { store, run, claimId, stateRoot } = await setup();
+    expect(await store.listRuns('active')).toEqual([
+      expect.objectContaining({
+        schemaVersion: 2,
+        runId: run.id,
+        title: 'Produce the requested result',
+        activeCommitmentRevision: 1,
+        acceptanceSatisfied: 0,
+        acceptanceTotal: 1,
+      }),
+    ]);
     await activatePlan(store, run, claimId);
     const evidence = await store.recordEvidence(run.workspace.id, run.id, {
       content: 'tests passed',
@@ -86,6 +96,15 @@ describe('RunStore v2 semantic commands', () => {
     expect(completed.status).toBe('completed');
     expect(completed.completedAt).toBeDefined();
     expect(completed.retrospective).toBeDefined();
+    expect(await store.listRuns('active')).toEqual([]);
+    expect(await store.listRuns('archived')).toEqual([
+      expect.objectContaining({ runId: run.id, status: 'completed', acceptanceSatisfied: 1 }),
+    ]);
+
+    await writeFile(join(stateRoot, 'index', 'runs.json'), '{"schemaVersion":1,"runs":[]}\n');
+    expect(await store.listRuns()).toEqual([
+      expect.objectContaining({ runId: run.id, schemaVersion: 2, status: 'completed' }),
+    ]);
   });
 
   it('replays semantic command idempotency and rejects conflicting event content', async () => {

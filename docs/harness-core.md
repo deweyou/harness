@@ -135,6 +135,18 @@ implementation under `~/.deweyou/harness/`. A database or cloud event store can
 implement the same append/read contract later without changing semantic
 commands.
 
+The local repository also maintains `~/.deweyou/harness/index/runs.json` as a
+rebuildable global Run index. It contains only list-level metadata derived from
+each Run's authoritative events and supporting snapshots. The Dashboard and
+`run_list` use this index to show active and archived Runs across workspaces;
+Run detail is always materialized from the verified v2 projection.
+
+The MCP process opportunistically starts one read-only Dashboard server on
+`127.0.0.1:7777`. If a healthy Harness Dashboard already owns that port, a new
+process reuses it instead of starting another server. Set
+`DEWEYOU_DASHBOARD_AUTOSTART=0` to disable startup or
+`DEWEYOU_DASHBOARD_PORT` to override the port.
+
 Old `~/.deweyou/dev/` state is intentionally ignored. v2 never reads, migrates,
 or deletes it.
 
@@ -172,7 +184,7 @@ billing.
 The MCP server exposes semantic operations rather than raw event mutation:
 
 - `config_inspect`
-- `run_create`, `run_get`, `commitment_revise`, `run_complete`
+- `run_create`, `run_get`, `run_list`, `commitment_revise`, `run_complete`
 - `plan_propose`, `plan_activate`, `ready_nodes`
 - `execution_start`, `execution_finish`
 - `evidence_record`, `claim_update`

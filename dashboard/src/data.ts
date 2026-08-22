@@ -1,18 +1,27 @@
 export type RunStatus = 'running' | 'blocked' | 'completed';
 export type NodeStatus = 'pending' | 'ready' | 'running' | 'blocked' | 'succeeded' | 'failed' | 'cancelled' | 'skipped' | 'interrupted';
-export type StageId = 'align' | 'execute' | 'verify' | 'deliver';
+export type ClaimStatus = 'open' | 'satisfied' | 'invalidated' | 'waived';
 
-export interface WorkflowNode {
+export interface PlannedNode {
   [key: string]: unknown;
   id: string;
+  definitionId: string;
   label: string;
-  stage: StageId;
   status: NodeStatus;
   attempt: number | null;
   durationMs: number | null;
   evidenceCount: number;
   needs: string[];
   executionIds: string[];
+  targetClaimIds: string[];
+  expectedOutputs: string[];
+}
+
+export interface DashboardClaim {
+  id: string;
+  description: string;
+  status: ClaimStatus;
+  evidenceCount: number;
 }
 
 export interface DashboardRun {
@@ -21,18 +30,24 @@ export interface DashboardRun {
   workspace: string;
   workspacePath: string;
   workspaceId: string;
-  workflowId: string;
   status: RunStatus;
   needsAttention: boolean;
   archived: boolean;
   createdAt: string;
   updatedAt: string;
-  currentStage?: StageId;
+  commitmentRevision?: number;
+  planRevision?: number;
+  planStatus?: 'proposed' | 'active' | 'superseded';
+  commitmentAcceptanceSatisfied: boolean;
+  acceptanceSatisfied: number;
+  acceptanceTotal: number;
+  unresolvedDecisionCount: number;
   currentNode?: string;
   completedNodes: number;
   totalNodes: number;
   durationMs: number;
-  nodes: WorkflowNode[];
+  nodes: PlannedNode[];
+  claims: DashboardClaim[];
 }
 
 export interface HarnessEvent {
@@ -43,13 +58,6 @@ export interface HarnessEvent {
   type: string;
   payload: Record<string, unknown>;
 }
-
-export const stageLabels: Record<StageId, string> = {
-  align: 'Align',
-  execute: 'Execute',
-  verify: 'Verify',
-  deliver: 'Deliver',
-};
 
 export class DashboardApiError extends Error {
   constructor(readonly status: number, message: string) {

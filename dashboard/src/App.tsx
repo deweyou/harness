@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, CaretDown, CaretRight, CheckCircle, Clock, FileText, Graph, ListBullets, MagnifyingGlass, Moon, SpinnerGap, Sun, Warning, X, XCircle } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, CheckCircle, Clock, FileText, Graph, ListBullets, MagnifyingGlass, Moon, SpinnerGap, Sun, Warning, X, XCircle } from '@phosphor-icons/react';
 import { Link, Navigate, Route, Routes, useParams } from 'react-router-dom';
-import { DashboardApiError, fetchRun, fetchRunEvents, fetchRuns, stageLabels, type DashboardRun, type HarnessEvent, type NodeStatus, type RunStatus, type StageId, type WorkflowNode } from './data';
+import { DashboardApiError, fetchRun, fetchRunEvents, fetchRuns, type DashboardRun, type HarnessEvent, type NodeStatus, type PlannedNode, type RunStatus } from './data';
 import { Button } from './components/ui/button';
 import { cn } from './lib/utils';
 
@@ -64,7 +64,7 @@ function RunsPage() {
     const normalized = query.trim().toLowerCase();
     return runs
       .filter((run) => scope === 'archived' ? run.archived : !run.archived && (scope !== 'attention' || run.needsAttention))
-      .filter((run) => !normalized || `${run.title} ${run.workspace} ${run.workflowId}`.toLowerCase().includes(normalized));
+      .filter((run) => !normalized || `${run.title} ${run.workspace}`.toLowerCase().includes(normalized));
   }, [query, runs, scope]);
 
   return <main className="runs-page page-container">
@@ -79,31 +79,26 @@ function RunsPage() {
         {runsQuery.isError && <ErrorState error={runsQuery.error} onRetry={() => void runsQuery.refetch()} />}
         {runsQuery.isSuccess && visibleRuns.map((run) => { const progress = run.totalNodes ? Math.round((run.completedNodes / run.totalNodes) * 100) : 0; return <Link className="run-card" to={`/runs/${run.id}`} key={run.id}>
           <span className={`run-card__status status-icon status-icon--${run.status}`}>{statusIcon(run.status, 19)}</span>
-          <div className="run-card__body"><div className="run-card__title"><strong>{run.title}</strong>{run.needsAttention && <span className="attention-pill"><Clock weight="fill" /> Attention</span>}</div><div className="run-card__meta"><span>{run.workspace}</span><i /><span>{run.workflowId}</span><i /><span>{run.archived ? 'Duration' : 'Elapsed'} {formatDuration(run.durationMs)}</span></div><div className="progress-row"><span className="progress-track"><i style={{ width: `${progress}%` }} /></span><span>{run.completedNodes}/{run.totalNodes} nodes</span></div></div>
-          <div className="run-card__current"><small>{run.archived ? 'Result' : run.currentStage ? stageLabels[run.currentStage] : 'Run'}</small><strong>{run.archived ? statusLabel(run.status) : run.currentNode ?? 'Preparing run'}</strong><span className={`status status--${run.status}`}>{statusIcon(run.status, 14)} {statusLabel(run.status)}</span></div><ArrowRight className="run-card__arrow" />
+          <div className="run-card__body"><div className="run-card__title"><strong>{run.title}</strong>{run.needsAttention && <span className="attention-pill"><Clock weight="fill" /> Attention</span>}</div><div className="run-card__meta"><span>{run.workspace}</span><i /><span>{run.commitmentRevision ? `Commitment r${run.commitmentRevision}` : 'No commitment'}</span><i /><span>{run.archived ? 'Duration' : 'Elapsed'} {formatDuration(run.durationMs)}</span></div><div className="progress-row"><span className="progress-track"><i style={{ width: `${progress}%` }} /></span><span>{run.totalNodes ? `${run.completedNodes}/${run.totalNodes} nodes` : `${run.acceptanceSatisfied}/${run.acceptanceTotal} claims`}</span></div></div>
+          <div className="run-card__current"><small>{run.archived ? 'Result' : run.planRevision ? `Plan r${run.planRevision}` : 'Run'}</small><strong>{run.archived ? statusLabel(run.status) : run.currentNode ?? 'Awaiting plan'}</strong><span className={`status status--${run.status}`}>{statusIcon(run.status, 14)} {statusLabel(run.status)}</span></div><ArrowRight className="run-card__arrow" />
         </Link>; })}
-        {runsQuery.isSuccess && visibleRuns.length === 0 && <div className="empty-state"><MagnifyingGlass /><strong>{query ? 'No matching runs' : `No ${scope === 'attention' ? 'runs needing attention' : `${scope} runs`}`}</strong><span>{query ? 'Try a different title, workspace, or workflow.' : 'Runs will appear here when their state is indexed.'}</span></div>}
+        {runsQuery.isSuccess && visibleRuns.length === 0 && <div className="empty-state"><MagnifyingGlass /><strong>{query ? 'No matching runs' : `No ${scope === 'attention' ? 'runs needing attention' : `${scope} runs`}`}</strong><span>{query ? 'Try a different title or workspace.' : 'Runs will appear here when their state is indexed.'}</span></div>}
       </div>
     </section>
   </main>;
 }
 
-function NodeTable({ workflowNodes, selectedNodeId, onSelectNode }: { workflowNodes: WorkflowNode[]; selectedNodeId: string; onSelectNode: (id: string) => void }) {
-  const [collapsed, setCollapsed] = useState<Set<StageId>>(new Set());
-  const toggleStage = (stage: StageId) => setCollapsed((current) => { const next = new Set(current); next.has(stage) ? next.delete(stage) : next.add(stage); return next; });
-  return <div className="node-table"><div className="node-table__header"><span>Node</span><span>Status</span><span>Duration</span></div>{(Object.keys(stageLabels) as StageId[]).map((stage) => {
-    const stageNodes = workflowNodes.filter((node) => node.stage === stage); if (stageNodes.length === 0) return null;
-    return <section key={stage}><button className="stage-row" type="button" onClick={() => toggleStage(stage)} aria-expanded={!collapsed.has(stage)}><span className="stage-caret" aria-hidden="true">{collapsed.has(stage) ? <CaretRight weight="bold" /> : <CaretDown weight="bold" />}</span><strong>{stageLabels[stage]}</strong><span>{stageNodes.length}</span></button>{!collapsed.has(stage) && stageNodes.map((node) => <button key={`${node.stage}:${node.id}`} type="button" className={cn('node-row', selectedNodeId === node.id && 'is-selected')} onClick={() => onSelectNode(node.id)}><span className="node-row__name">{node.label}</span><span className={`status status--${node.status}`}>{statusIcon(node.status)} {statusLabel(node.status)}</span><span>{formatDuration(node.durationMs)}</span></button>)}</section>;
-  })}</div>;
+function NodeTable({ planNodes, selectedNodeId, onSelectNode }: { planNodes: PlannedNode[]; selectedNodeId: string; onSelectNode: (id: string) => void }) {
+  return <div className="node-table"><div className="node-table__header"><span>Node</span><span>Status</span><span>Duration</span></div>{planNodes.map((node) => <button key={node.id} type="button" className={cn('node-row', selectedNodeId === node.id && 'is-selected')} onClick={() => onSelectNode(node.id)}><span className="node-row__name"><strong>{node.label}</strong><small>{node.needs.length ? `After ${node.needs.join(', ')}` : node.definitionId}</small></span><span className={`status status--${node.status}`}>{statusIcon(node.status)} {statusLabel(node.status)}</span><span>{formatDuration(node.durationMs)}</span></button>)}</div>;
 }
 
-function EvidencePanel({ workflowNodes, events, selectedNodeId, onClose }: { workflowNodes: WorkflowNode[]; events: HarnessEvent[]; selectedNodeId: string; onClose: () => void }) {
-  const selectedNode = workflowNodes.find((node) => node.id === selectedNodeId) ?? workflowNodes[0]!;
-  const evidence = events.filter((event) => event.type === 'evidence.recorded');
-  const activity = events.filter((event) => event.payload.nodeId === selectedNode.id || selectedNode.executionIds.includes(String(event.payload.nodeExecutionId ?? '')));
+function EvidencePanel({ planNodes, events, selectedNodeId, onClose }: { planNodes: PlannedNode[]; events: HarnessEvent[]; selectedNodeId: string; onClose: () => void }) {
+  const selectedNode = planNodes.find((node) => node.id === selectedNodeId) ?? planNodes[0]!;
+  const evidence = events.flatMap((event) => event.type === 'evidence.recorded' && typeof event.payload.evidence === 'object' && event.payload.evidence !== null ? [{ event, evidence: event.payload.evidence as Record<string, unknown> }] : []);
+  const activity = events.filter((event) => event.payload.plannedNodeId === selectedNode.id || selectedNode.executionIds.includes(String(event.payload.executionId ?? '')));
   return <aside className="detail-panel" aria-label="Node details"><div className="detail-panel__scroll">
     <header className="detail-header"><div><span className={`status status--${selectedNode.status}`}>{statusIcon(selectedNode.status)} {statusLabel(selectedNode.status)}</span><h2>{selectedNode.label}</h2><p>Attempt {selectedNode.attempt ?? '—'} · {formatDuration(selectedNode.durationMs)} · {selectedNode.needs.length ? `Depends on ${selectedNode.needs.join(', ')}` : 'No dependencies'}</p></div><Button variant="ghost" size="icon" onClick={onClose} aria-label="Close node details"><X /></Button></header>
-    <section className="detail-section"><h3>Run evidence</h3><div className="evidence-list">{evidence.map((item) => <article className="evidence-row" key={item.id}><FileText size={21} /><div><strong>{String(item.payload.summary ?? 'Recorded evidence')}</strong><span className="mono">{String(item.payload.path ?? item.payload.evidenceId ?? item.id)}</span><small>{new Date(item.timestamp).toLocaleString()}</small></div><CheckCircle className="success" weight="fill" /></article>)}</div>{evidence.length === 0 && <div className="panel-empty">No evidence has been recorded for this run.</div>}{selectedNode.status === 'blocked' && <div className="warning-callout"><Warning size={20} weight="fill" /><div><strong>Node is blocked</strong><p>Review its activity and external context before continuing.</p></div></div>}</section>
+    <section className="detail-section"><h3>Run evidence</h3><div className="evidence-list">{evidence.map(({ event, evidence: item }) => <article className="evidence-row" key={event.id}><FileText size={21} /><div><strong>{String(item.summary ?? 'Recorded evidence')}</strong><span className="mono">{String(item.locator ?? item.id ?? event.id)}</span><small>{new Date(String(item.createdAt ?? event.timestamp)).toLocaleString()}</small></div><CheckCircle className="success" weight="fill" /></article>)}</div>{evidence.length === 0 && <div className="panel-empty">No evidence has been recorded for this run.</div>}{selectedNode.status === 'blocked' && <div className="warning-callout"><Warning size={20} weight="fill" /><div><strong>Node is blocked</strong><p>Review its activity and external context before continuing.</p></div></div>}</section>
     <details className="activity-disclosure" open><summary>Node activity <span>{activity.length} events</span></summary>{activity.length ? <div className="timeline">{activity.map((item) => <div className={item.type === 'node.blocked' ? 'is-current' : ''} key={item.id}>{item.type === 'node.blocked' ? <Clock weight="fill" /> : <CheckCircle weight="fill" />} {eventLabel(item.type)}</div>)}</div> : <div className="panel-empty">No node events recorded yet.</div>}</details>
   </div></aside>;
 }
@@ -127,11 +122,11 @@ function RunDetailPage() {
   const selectNode = (nodeId: string) => { setSelectedNodeId(nodeId); setDetailOpen(true); };
   const blockedNode = run.nodes.find((node) => node.status === 'blocked');
   return <main className={cn('run-detail-layout', detailOpen && 'has-detail')}><section className="workspace">
-    <header className="workspace-header"><Link className="back-link" to="/runs"><ArrowLeft /> All runs</Link><div className="workspace-title"><h1>{run.title}</h1><p><span className={`run-state status--${run.status}`}><i />{statusLabel(run.status)}</span><span />{run.workspace}<span />{run.workflowId}<span />{formatDuration(run.durationMs)}</p></div></header>
-    {run.needsAttention && <section className="attention-banner"><Clock size={19} weight="fill" /><div><strong>Run needs attention</strong><p>{blockedNode ? `${blockedNode.label} is blocked.` : 'Review the current run state before continuing.'}</p></div><Button onClick={() => selectNode(blockedNode?.id ?? run.nodes[0]?.id ?? '')}>Review</Button></section>}
+    <header className="workspace-header"><Link className="back-link" to="/runs"><ArrowLeft /> All runs</Link><div className="workspace-title"><h1>{run.title}</h1><p><span className={`run-state status--${run.status}`}><i />{statusLabel(run.status)}</span><span />{run.workspace}{run.commitmentRevision && <><span />Commitment r{run.commitmentRevision}</>}{run.planRevision && <><span />Plan r{run.planRevision}</>}<span />{formatDuration(run.durationMs)}</p></div></header>
+    {run.needsAttention && <section className="attention-banner"><Clock size={19} weight="fill" /><div><strong>Run needs attention</strong><p>{blockedNode ? `${blockedNode.label} is blocked.` : `${run.unresolvedDecisionCount} unresolved decision${run.unresolvedDecisionCount === 1 ? '' : 's'} remain.`}</p></div>{run.nodes.length > 0 && <Button onClick={() => selectNode(blockedNode?.id ?? run.nodes[0]!.id)}>Review</Button>}</section>}
     <div className="view-toolbar"><div className="segmented" role="tablist" aria-label="Execution view"><button className={view === 'list' ? 'is-active' : ''} onClick={() => setView('list')} role="tab" aria-selected={view === 'list'}><ListBullets /> List</button><button className={view === 'graph' ? 'is-active' : ''} onClick={() => setView('graph')} role="tab" aria-selected={view === 'graph'}><Graph /> Graph</button></div></div>
-    <div className="execution-view">{run.nodes.length === 0 ? <div className="empty-state"><ListBullets /><strong>No workflow nodes</strong><span>The run plan does not contain executable nodes.</span></div> : view === 'list' ? <NodeTable workflowNodes={run.nodes} selectedNodeId={detailOpen ? selectedNodeId : ''} onSelectNode={selectNode} /> : <Suspense fallback={<div className="graph-loading"><SpinnerGap className="animate-spin" /> Loading graph…</div>}><GraphView workflowNodes={run.nodes} selectedNodeId={detailOpen ? selectedNodeId : ''} onSelectNode={selectNode} /></Suspense>}</div>
-  </section>{detailOpen && selectedNodeId && <div className="detail-column"><EvidencePanel workflowNodes={run.nodes} events={eventsQuery.data ?? []} selectedNodeId={selectedNodeId} onClose={() => setDetailOpen(false)} /></div>}</main>;
+    <div className="execution-view">{run.nodes.length === 0 ? <div className="empty-state"><ListBullets /><strong>No planned nodes</strong><span>This Run is awaiting a Plan with executable nodes.</span></div> : view === 'list' ? <NodeTable planNodes={run.nodes} selectedNodeId={detailOpen ? selectedNodeId : ''} onSelectNode={selectNode} /> : <Suspense fallback={<div className="graph-loading"><SpinnerGap className="animate-spin" /> Loading graph…</div>}><GraphView planNodes={run.nodes} selectedNodeId={detailOpen ? selectedNodeId : ''} onSelectNode={selectNode} /></Suspense>}</div>
+  </section>{detailOpen && selectedNodeId && <div className="detail-column"><EvidencePanel planNodes={run.nodes} events={eventsQuery.data ?? []} selectedNodeId={selectedNodeId} onClose={() => setDetailOpen(false)} /></div>}</main>;
 }
 
 export function App() {
