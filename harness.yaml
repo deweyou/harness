@@ -10,12 +10,63 @@ resources:
       path: AGENTS.md
 
 nodes:
-  harness-change:
-    name: Work on Harness change
-    description: Implement or review a scoped Harness change under the active Commitment and task-owned Plan.
+  implement-change:
+    name: Implement change
+    description: Implement a scoped Harness change under the active Commitment and task-owned Plan.
     resources: [project-rules]
     outputs: [implementation, verification-evidence]
     claimTypes: [acceptance]
     authority: [read-workspace, write-workspace]
+    executor:
+      kind: agent
+
+  lint-assets:
+    name: Lint plugin assets
+    outputs: [asset-lint-result]
+    executor:
+      kind: command
+      argv: [pnpm, run, lint:assets]
+
+  typecheck:
+    name: Typecheck workspace
+    outputs: [typecheck-result]
+    executor:
+      kind: command
+      argv: [pnpm, run, typecheck]
+
+  test:
+    name: Run tests
+    outputs: [test-result]
+    executor:
+      kind: command
+      argv: [pnpm, test]
+
+  test-coverage:
+    name: Verify test coverage
+    outputs: [coverage-result]
+    executor:
+      kind: command
+      argv: [pnpm, run, test:coverage]
+
+  build:
+    name: Build plugin
+    outputs: [plugin-bundle]
+    executor:
+      kind: command
+      argv: [pnpm, run, build]
+
+  validate-plugin:
+    name: Validate plugin package
+    outputs: [plugin-validation-result]
+    executor:
+      kind: command
+      argv: [pnpm, run, validate:plugin]
+
+  summarize-delivery:
+    name: Summarize delivery
+    description: Summarize changes, evidence, remaining risks, and delivery gates.
+    resources: [project-rules]
+    inputs: [implementation, verification-evidence]
+    outputs: [delivery-summary]
     executor:
       kind: agent
