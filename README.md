@@ -2,8 +2,11 @@
 
 Deweyou Harness is a cross-agent plugin for durable, domain-neutral agent work in
 Codex, Claude Code, Cursor, Trae, OpenClaw, and Hermes Agent. The plugin contains
-one user-facing skill, `/dhw`, and a bundled local MCP server that governs Runs,
+one user-facing skill, `/harness-work`, and a bundled local MCP server that governs Runs,
 Commitments, evidence-backed Claims, task-scoped Plans, and node executions.
+The same skill creates, updates, or migrates `harness.yaml` when the user asks
+for configuration work or run preflight finds that configuration is missing or
+unsupported.
 
 The Harness owns no coding, writing, video, product, or repository policy.
 Workspaces declare reusable skills, rules, knowledge, and node capabilities
@@ -13,7 +16,7 @@ workflow or fixed stages.
 ## Requirements
 
 - Node.js 22.5 or newer
-- A workspace `harness.yaml`
+- Workspace write access when `/harness-work` needs to create or update `harness.yaml`
 
 ## Install
 
@@ -26,7 +29,7 @@ codex plugin marketplace add deweyou/harness
 codex plugin add deweyou-harness@deweyou
 ```
 
-Start a new Codex session after installation, then invoke `/dhw`.
+Start a new Codex session after installation, then invoke `/harness-work`.
 
 ### Claude Code
 
@@ -38,7 +41,7 @@ claude plugin install deweyou-harness@deweyou
 ```
 
 Run `/reload-plugins` in Claude Code, then invoke
-`/deweyou-harness:dhw`. Claude Code namespaces plugin skills by plugin name.
+`/deweyou-harness:harness-work`. Claude Code namespaces plugin skills by plugin name.
 
 For one-session local development without installing a marketplace, run:
 
@@ -55,7 +58,7 @@ into Cursor's local plugin directory:
 git clone https://github.com/deweyou/harness.git ~/.cursor/plugins/local/deweyou-harness
 ```
 
-Restart Cursor or run `Developer: Reload Window`, then invoke `/dhw`. For local
+Restart Cursor or run `Developer: Reload Window`, then invoke `/harness-work`. For local
 development, symlink a checkout instead:
 
 ```bash
@@ -75,20 +78,20 @@ Paste the following prompt into Trae:
 ```text
 Install Deweyou Harness from https://github.com/deweyou/harness as a native Trae
 plugin. Treat the repository root as the plugin root. Discover it through
-.trae-plugin/plugin.json, register the dhw Skill through
-skills/dhw/agents/openai.yaml, and load its MCP configuration from
+.trae-plugin/plugin.json, register the harness-work Skill through
+skills/harness-work/agents/openai.yaml, and load its MCP configuration from
 .trae-mcp.json. Use the tracked dist/server.mjs bundle; do not run pnpm install.
 After installation, report the resolved plugin root and verify that the manifest,
-the dhw Skill, and the deweyou-harness MCP server were discovered. If the plugin
+the harness-work Skill, and the deweyou-harness MCP server were discovered. If the plugin
 must be enabled by the user, ask me to enable it in Trae's plugin settings; do not
 edit Trae's internal plugin configuration directly.
 ```
 
 Enable **Deweyou Harness** in Trae's plugin settings if prompted, start a new
-session, and invoke `/dhw`. You can then ask Trae to list the
+session, and invoke `/harness-work`. You can then ask Trae to list the
 `deweyou-harness` MCP tools to verify the runtime connection.
 
-The plugin and Skill use the same four-node Harness mark so the `/dhw` entry is
+The plugin and Skill use the same four-node Harness mark so the `/harness-work` entry is
 easy to recognize at menu and sidebar sizes.
 
 ### OpenClaw
@@ -107,7 +110,7 @@ Verify that the shared Skill and MCP server were discovered:
 openclaw plugins inspect deweyou-harness
 ```
 
-Start a new session, then invoke `/dhw` or reference `$dhw` in a prompt.
+Start a new session, then invoke `/harness-work` or reference `$harness-work` in a prompt.
 
 ### Hermes Agent
 
@@ -118,7 +121,7 @@ hermes plugins install deweyou/harness --enable
 hermes plugins list
 ```
 
-Start a new Hermes session and ask it to use the Deweyou Harness `dhw` skill.
+Start a new Hermes session and ask it to use the Deweyou Harness `harness-work` skill.
 Portable plugin skills are read-only and namespaced; use `skills_list` when you
 need the fully qualified name, then load it through `skill_view`.
 

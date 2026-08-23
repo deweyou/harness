@@ -5,8 +5,11 @@ durable agent work. Agents decide how to explore and perform work. Core records
 what has been committed, which claims define acceptance, which task-scoped Plan
 is active, what each execution produced, and whether the Run may complete.
 
-There is no Workflow or fixed Stage model in v2. Version 1 configuration and
-events are rejected rather than translated.
+There is no Workflow or fixed Stage model in v2. Core rejects unsupported
+configuration and event versions rather than translating them during Run
+execution. The `harness-work` Skill may migrate workspace configuration before
+Run creation, with user-visible handling for semantic changes; historical Run
+events are never rewritten.
 
 ## Boundary
 

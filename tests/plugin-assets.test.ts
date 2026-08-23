@@ -1,10 +1,10 @@
-import { access, lstat, readFile } from 'node:fs/promises';
+import { access, lstat, readFile, readdir } from 'node:fs/promises';
 import { describe, expect, test } from 'vitest';
 
 const packageVersion = JSON.parse(await readFile('package.json', 'utf8')).version;
 
 describe('cross-agent plugin package', () => {
-  test('exposes only dhw and the bundled MCP server to Codex', async () => {
+  test('exposes only harness-work and the bundled MCP server to Codex', async () => {
     const manifest = JSON.parse(await readFile('.codex-plugin/plugin.json', 'utf8'));
     const mcp = JSON.parse(await readFile('.mcp.json', 'utf8'));
     expect(manifest).toMatchObject({
@@ -17,7 +17,10 @@ describe('cross-agent plugin package', () => {
       command: 'node',
       args: ['${CLAUDE_PLUGIN_ROOT}/dist/server.mjs'],
     });
-    await expect(readFile('skills/dhw/SKILL.md', 'utf8')).resolves.toContain('name: dhw');
+    await expect(readdir('skills')).resolves.toEqual(['harness-work']);
+    await expect(readFile('skills/harness-work/SKILL.md', 'utf8')).resolves.toContain(
+      'name: harness-work',
+    );
     await expect(lstat('CLAUDE.md')).resolves.toMatchObject({});
   });
 
@@ -78,12 +81,14 @@ describe('cross-agent plugin package', () => {
       args: ['./dist/server.mjs'],
       cwd: '.',
     });
-    await expect(readFile('skills/dhw/agents/openai.yaml', 'utf8')).resolves.toContain(
+    await expect(readFile('skills/harness-work/agents/openai.yaml', 'utf8')).resolves.toContain(
       'display_name: "Deweyou Harness"',
     );
     await expect(readFile('assets/harness-small.svg', 'utf8')).resolves.toContain('#4F46E5');
     await expect(access('assets/dashboard/index.html')).resolves.toBeUndefined();
-    await expect(readFile('skills/dhw/assets/dhw-small.svg', 'utf8')).resolves.toContain('#22D3EE');
+    await expect(
+      readFile('skills/harness-work/assets/harness-work-small.svg', 'utf8'),
+    ).resolves.toContain('#22D3EE');
   });
 
   test('provides an OpenClaw plugin over the shared skill and MCP bundle', async () => {
@@ -113,7 +118,7 @@ describe('cross-agent plugin package', () => {
     await expect(readFile('adapters/openclaw/index.mjs', 'utf8')).resolves.toContain(
       'registerDeweyouHarness',
     );
-    const skill = await readFile('skills/dhw/SKILL.md', 'utf8');
+    const skill = await readFile('skills/harness-work/SKILL.md', 'utf8');
     expect(skill.split('---')[1]).toContain('user-invocable: true');
   });
 
@@ -135,7 +140,7 @@ describe('cross-agent plugin package', () => {
   test('documents the new state root without executable legacy state references', async () => {
     const sources = await Promise.all([
       readFile('src/core/state/store.ts', 'utf8'),
-      readFile('skills/dhw/SKILL.md', 'utf8'),
+      readFile('skills/harness-work/SKILL.md', 'utf8'),
       readFile('docs/harness-core.md', 'utf8'),
     ]);
     expect(sources[0]).toContain("'.deweyou', 'harness'");

@@ -1,17 +1,19 @@
 ---
-name: dhw
+name: harness-work
 description: >
-  Deweyou Harness Work. Use when the user invokes /dhw or asks to start or
-  resume durable work governed by a Commitment, evidence-backed Claims, and a
-  task-scoped Plan. Keeps exploration free, activates capabilities
-  progressively, delegates bounded node executions, and records replayable
-  state through the Deweyou Harness MCP server.
+  Deweyou Harness Work. Use when the user invokes /harness-work; asks to
+  create, update, or migrate harness.yaml; or asks to start or resume durable
+  work governed by a Commitment, evidence-backed Claims, and a task-scoped
+  Plan. Keeps exploration free, activates capabilities progressively,
+  delegates bounded node executions, and records replayable state through the
+  Deweyou Harness MCP server.
 user-invocable: true
 ---
 
 # Deweyou Harness Work
 
-`/dhw` is a domain-neutral controller for durable agent work. The agent may
+`/harness-work` is the plugin's single user-facing entry for configuration and
+durable agent work. The agent may
 explore and discuss freely. Create a Run only when the work needs a durable
 commitment, acceptance record, delegation, recovery, or delivery boundary.
 
@@ -41,7 +43,12 @@ authority.
 
 Read [commitment.md](references/commitment.md) before creating durable state.
 
-1. Find the workspace root and call `config_inspect`.
+1. Find the workspace root and inspect its Harness configuration. Read
+   [configuration.md](references/configuration.md) when `harness.yaml` is
+   absent and the user requested Harness execution or configuration, when the
+   user explicitly requests a configuration change, or when `config_inspect`
+   reports an unsupported version. Do not create a Run until the resulting
+   configuration passes `config_inspect`.
 2. Explore enough to understand whether durable execution is useful. Do not
    create a Run for a read-only explanation or a small conversational answer.
 3. Call `run_create` with the local workspace path. Core resolves it to a

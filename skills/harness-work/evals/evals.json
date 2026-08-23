@@ -1,9 +1,9 @@
 {
-  "skill_name": "dhw",
+  "skill_name": "harness-work",
   "evals": [
     {
       "id": 0,
-      "prompt": "/dhw Please implement this request and keep durable acceptance evidence.",
+      "prompt": "/harness-work Please implement this request and keep durable acceptance evidence.",
       "expected_output": "Inspect config, establish a Commitment, propose and activate a task-scoped Plan, then dispatch bounded node executions.",
       "files": [],
       "expectations": [
@@ -15,7 +15,7 @@
     },
     {
       "id": 1,
-      "prompt": "Explain what /dhw does. Do not start work.",
+      "prompt": "Explain what /harness-work does. Do not start work.",
       "expected_output": "Explain the Commitment, Claim, Plan, and capability model without creating a Run.",
       "files": [],
       "expectations": [
@@ -25,7 +25,7 @@
     },
     {
       "id": 2,
-      "prompt": "/dhw Resume run 2026-example after the previous context was compacted.",
+      "prompt": "/harness-work Resume run 2026-example after the previous context was compacted.",
       "expected_output": "Recover interrupted executions, rebuild state from events, and reactivate current capabilities with fresh receipts.",
       "files": [],
       "expectations": [
@@ -36,7 +36,7 @@
     },
     {
       "id": 3,
-      "prompt": "/dhw The requested outcome changed after two nodes completed.",
+      "prompt": "/harness-work The requested outcome changed after two nodes completed.",
       "expected_output": "Create a new Commitment revision, invalidate affected Claims, supersede the active Plan, and preserve prior executions and Evidence.",
       "files": [],
       "expectations": [
@@ -47,7 +47,7 @@
     },
     {
       "id": 4,
-      "prompt": "/dhw Two independent planned nodes are ready and a third depends on both.",
+      "prompt": "/harness-work Two independent planned nodes are ready and a third depends on both.",
       "expected_output": "Dispatch the independent nodes concurrently, then dispatch the dependent node only after both succeed.",
       "files": [],
       "expectations": [
@@ -58,7 +58,7 @@
     },
     {
       "id": 5,
-      "prompt": "/dhw All planned nodes succeeded, but one acceptance Claim has no current Evidence.",
+      "prompt": "/harness-work All planned nodes succeeded, but one acceptance Claim has no current Evidence.",
       "expected_output": "Refuse Run completion and obtain relevant Evidence or an authorized waiver.",
       "files": [],
       "expectations": [
@@ -69,13 +69,46 @@
     },
     {
       "id": 6,
-      "prompt": "/dhw Upload the final video, but I have not specified the account or visibility.",
+      "prompt": "/harness-work Upload the final video, but I have not specified the account or visibility.",
       "expected_output": "Prepare and verify safely if possible, then ask for destination and authority without uploading.",
       "files": [],
       "expectations": [
         "Requires current Commitment authority for external delivery",
         "Does not guess the destination or visibility",
         "Does not claim the Run is complete"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/harness-work Start durable work in this repository, which has no harness.yaml.",
+      "expected_output": "Create a minimal repository-appropriate Harness configuration, validate it, then continue the requested Run flow.",
+      "files": [],
+      "expectations": [
+        "Does not call run_create before configuration validation succeeds",
+        "Creates reusable resources and Node Definitions without Workflows or Stages",
+        "Continues the original run request after config_inspect succeeds"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/harness-work Update harness.yaml with a reusable documentation validation node.",
+      "expected_output": "Make the narrow requested configuration change, preserve unrelated entries, and validate the result.",
+      "files": [],
+      "expectations": [
+        "Routes directly to configuration update without creating a Run",
+        "Preserves unrelated valid configuration",
+        "Validates the edited configuration with config_inspect"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "/harness-work Run this task, but preflight reports that harness.yaml uses an unsupported older version with workflow stages.",
+      "expected_output": "Route through configuration migration, keep reusable capabilities, avoid copying workflow structure into v2 config, validate, and then resume the run request.",
+      "files": [],
+      "expectations": [
+        "Does not silently copy Workflow, Stage, or dependency fields into Node Definitions",
+        "Requests a decision when migration would change semantics or authority",
+        "Does not create a Run until the migrated configuration validates"
       ]
     }
   ]

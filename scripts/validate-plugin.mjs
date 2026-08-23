@@ -85,11 +85,11 @@ if (
 ) {
   throw new Error('Trae MCP server must use plugin-root-relative paths without host variables');
 }
-await access('skills/dhw/agents/openai.yaml');
+await access('skills/harness-work/agents/openai.yaml');
 await access('assets/harness-small.svg');
 await access('assets/harness.png');
-await access('skills/dhw/assets/dhw-small.svg');
-await access('skills/dhw/assets/dhw.png');
+await access('skills/harness-work/assets/harness-work-small.svg');
+await access('skills/harness-work/assets/harness-work.png');
 
 const packageManifest = JSON.parse(await readFile('package.json', 'utf8'));
 const openClawManifest = JSON.parse(await readFile('openclaw.plugin.json', 'utf8'));

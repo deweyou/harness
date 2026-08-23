@@ -2,6 +2,12 @@
 
 All notable changes to Deweyou Harness are recorded here.
 
+## Unreleased
+
+- Renamed the single user-facing Skill from `dhw` to `harness-work`.
+- Added user-triggered configuration creation and updates plus preflight
+  migration guidance before Run creation.
+
 ## [1.2.0] - 2026-08-21
 
 - feat: redesign harness around nodes and commitments (99ce60a)

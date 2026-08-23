@@ -69,7 +69,8 @@ filesystem sandboxes, or credential boundaries.
 | Cordis capability lifecycle | `src/core/capabilities.ts` |
 | Workspace resource provider | `src/core/resources.ts` |
 | Public semantic MCP tools | `src/mcp/server.ts` |
-| Controller behavior | `skills/dhw/SKILL.md` |
+| Controller behavior | `skills/harness-work/SKILL.md` |
+| Configuration lifecycle | `skills/harness-work/references/configuration.md` |
 | Public contract | `docs/harness-core.md` |
 
 ## Future seams, not current features
@@ -92,4 +93,4 @@ When changing Core:
 3. Add a semantic command instead of exposing raw event mutation.
 4. Ensure the event projection rejects the same invalid transition.
 5. Test stale revision, idempotency, replay, and completion invariants.
-6. Update `docs/harness-core.md`, this Wiki, schemas, and `/dhw` together.
+6. Update `docs/harness-core.md`, this Wiki, schemas, and `/harness-work` together.

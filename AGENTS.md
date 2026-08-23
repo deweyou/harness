@@ -12,7 +12,7 @@ This repository contains the cross-agent Deweyou Harness plugin package.
 
 - Keep the Harness domain-neutral. Do not bundle coding, writing, publishing,
   product, or repository-specific resources.
-- `skills/dhw/` is the only bundled user-facing skill.
+- `skills/harness-work/` is the only bundled user-facing skill.
 - `harness.yaml` is the workspace-owned source of reusable Node Definitions and
   resource refs. Dependencies belong to a Run-scoped Plan, never configuration.
 - Workflow and fixed Stage concepts are not part of v2. Do not add compatibility

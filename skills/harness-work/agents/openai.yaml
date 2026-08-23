@@ -1,0 +1,6 @@
+interface:
+  display_name: "Deweyou Harness"
+  short_description: "Run commitment-driven durable work"
+  icon_small: "./assets/harness-work-small.svg"
+  icon_large: "./assets/harness-work.png"
+  default_prompt: "Use $harness-work to configure, run, or resume durable Harness work, establish a Commitment, propose a task-scoped Plan, activate capabilities, and record Claim evidence."
