@@ -1,8 +1,11 @@
 # Repository Knowledge Maintenance
 
 Use this workflow when the user explicitly asks to preserve repository
-knowledge, accepts a Knowledge resource proposal, or requests a knowledge health
-review. Do not invoke it merely because a question produced a useful answer.
+knowledge, accepts a Knowledge resource proposal, requests a knowledge health
+review, or when authorized repository work at any stage establishes a durable
+change that would otherwise leave active knowledge missing, stale, or
+contradictory. Do not invoke it merely because a question produced a useful
+answer.
 
 Repository knowledge has three layers:
 
@@ -17,6 +20,11 @@ Harness owns Evidence, attribution, proposals, decisions, and validation state.
 The repository remains the owner of `AGENTS.md` and `docs/`. An accepted
 proposal authorizes a separate maintenance task; it does not rewrite knowledge
 inside the completed Run.
+
+Knowledge maintenance does not wait for Retrospective. Update it alongside the
+implementation when a verified current fact, invariant, contract, or operating
+procedure changes. Retrospective audits for omissions and conflicts; it is not
+the first publication gate.
 
 ## Choose The Scope
 
@@ -60,6 +68,25 @@ plausible answer is not sufficient source Evidence.
 Do not preserve secrets, personal data, raw environment dumps, transient status,
 or logs whose only value is one execution. Record locators and concise
 conclusions instead of copying large Evidence into documentation.
+
+## Keep Current Truth Separate From Design History
+
+Active repository knowledge is a current-state model, not a chronological
+account. Publish only the conclusion that remains useful now. When design A is
+replaced by B, update the canonical knowledge to describe B directly; do not
+teach future agents that A was tried, disappointed, and then became B.
+
+Keep alternatives, experiments, rejected approaches, trade-offs, and the path
+from A to B in the task Spec, Run events, decision Evidence, or Git history.
+Retain an obsolete approach in active knowledge only when it still affects
+correct present behavior, such as a supported legacy format, compatibility or
+migration constraint, rollback procedure, or a recurring diagnostic hazard.
+Label that surviving constraint precisely instead of preserving general history.
+
+Before publishing, remove claims that are now false, redundant, superseded, or
+useful only for understanding the completed task. Retrieval and resource
+activation should expose the current canonical page by default; historical
+Evidence remains available for deliberate audit rather than ordinary guidance.
 
 ## Write Durable Knowledge
 

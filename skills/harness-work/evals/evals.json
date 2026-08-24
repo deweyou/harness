@@ -189,6 +189,18 @@
         "Preserves prior Attempts and current Evidence",
         "Includes only affected patch and verification work in the new Plan revision"
       ]
+    },
+    {
+      "id": 17,
+      "prompt": "/harness-work During implementation we replaced design A with B. B is now the only supported behavior, while the task Spec already records why A was rejected. Keep repository knowledge accurate.",
+      "expected_output": "Update the canonical repository knowledge during implementation to describe only current design B, while preserving the A-to-B reasoning in the task Spec and Run Evidence.",
+      "files": [],
+      "expectations": [
+        "Does not wait for Retrospective to correct stale active knowledge",
+        "Does not narrate the obsolete A-to-B history in canonical knowledge",
+        "Keeps design alternatives and reasoning in the Spec or Run Evidence",
+        "Retains A in active knowledge only if a current operational constraint still depends on it"
+      ]
     }
   ]
 }

@@ -71,6 +71,12 @@ proposal, decision, and validation lineage, not the knowledge content or index.
 An accepted proposal becomes a separate maintenance task against the owning
 repository or Knowledge Provider.
 
+Necessary knowledge updates may also happen inline with authorized
+implementation rather than waiting for Retrospective. Canonical knowledge
+describes the current useful system state. Specs and Run Evidence retain design
+alternatives and evolution; active knowledge retains an older approach only
+when compatibility, migration, rollback, or diagnosis still depends on it.
+
 For repository-owned knowledge, `AGENTS.md` is a concise instruction and routing
 layer while `docs/` contains maintained explanations and synthesis. Complex
 repositories may repeat that pair at durable module boundaries. The root owns

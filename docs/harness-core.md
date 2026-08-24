@@ -37,6 +37,12 @@ than mutating the provider inside the completed Run. Repository providers may
 use scoped `AGENTS.md` and `docs/` files; that layout is a provider convention,
 not a Core storage contract.
 
+Knowledge publication may occur during any authorized Run stage when current
+repository behavior changes. Activated knowledge should describe the current
+useful state; superseded alternatives and design evolution remain in Specs, Run
+events, Evidence, and version history unless a legacy constraint is still
+operationally relevant.
+
 Cordis is used behind the project-owned `CapabilityRuntime` boundary. It owns
 dynamic provider registration, scoped capability lookup, and lifecycle cleanup.
 It never owns Run or acceptance authority. Cordis isolation is in-process

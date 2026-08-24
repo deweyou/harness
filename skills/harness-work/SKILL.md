@@ -4,8 +4,8 @@ description: >
   Deweyou Harness Work. Use when the user invokes /harness-work; asks to
   create, update, or migrate harness.yaml; or asks to start or resume durable
   work governed by a Commitment, evidence-backed Claims, and a task-scoped
-  Plan; or explicitly asks to preserve, review, or improve repository knowledge
-  in AGENTS.md and docs. Keeps exploration free, activates capabilities
+  Plan; or repository work reveals a necessary update to durable knowledge in
+  AGENTS.md and docs. Keeps exploration free, activates capabilities
   progressively, delegates bounded node executions, and records replayable
   state through the Deweyou Harness MCP server.
 user-invocable: true
@@ -153,14 +153,19 @@ completed Run.
 
 Read [knowledge-maintenance.md](references/knowledge-maintenance.md) when the
 user explicitly asks to preserve or review repository knowledge, or accepts a
-proposal targeting a Knowledge resource. Ordinary questions and useful answers
-do not implicitly authorize knowledge-base edits.
+proposal targeting a Knowledge resource. Also read it during any stage of
+authorized repository work when a verified change would otherwise leave current
+repository knowledge missing, stale, or contradictory. Ordinary questions and
+useful answers alone do not implicitly authorize knowledge-base edits.
 
 Treat an accepted proposal as input to a separate maintenance task. Prepare the
 configured workspace before editing repository knowledge, preserve source
 Evidence and the prior resource digest, and record validation against the new
 digest. Keep Harness domain-neutral: concrete repository knowledge remains in
 the target repository and is activated through a configured Knowledge Provider.
+Publish only current useful knowledge. Keep superseded alternatives and the
+reasoning that led from one design to another in the task Spec, Run, or Evidence,
+not in the active knowledge consumed by future agents.
 
 ## Privacy
 

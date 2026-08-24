@@ -15,6 +15,8 @@ All notable changes to Deweyou Harness are recorded here.
   generated `reports/retrospective.md` preview in the global Dashboard.
 - Made in-progress iteration incremental by default: reuse unaffected work and
   limit revised Plans to affected patches and focused verification.
+- Allowed necessary knowledge updates during any Run stage while keeping active
+  knowledge current-state only and design history in Specs or Run Evidence.
 
 ## [1.2.0] - 2026-08-21
 
