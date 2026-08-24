@@ -54,12 +54,12 @@ async function fixture() {
   const projection = await store.getProjection(run.workspace.id, run.id);
   const claimId = Object.keys(projection.claims)[0]!;
   const plan = await store.proposePlan(run.workspace.id, run.id, 1, [{
-    id: 'work-1', definitionId: 'work', dependsOn: [], targetClaimIds: [claimId], expectedOutputs: ['dashboard'],
+    id: 'work-1', definitionId: 'work', dependsOn: [], input: { route: '/runs' }, targetClaimIds: [claimId], expectedOutputs: ['dashboard'],
   }], context('plan'));
   await store.activatePlan(run.workspace.id, run.id, plan.revision, context('activate'));
   const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('start'));
-  await store.finishExecution(run.workspace.id, run.id, execution.executionId, 'blocked', [], context('blocked'));
-  return { assetRoot, run, store };
+  await store.finishExecution(run.workspace.id, run.id, execution.executionId, 'blocked', [], context('blocked'), { reason: 'waiting' });
+  return { assetRoot, claimId, run, store };
 }
 
 async function request(handler: ReturnType<typeof createDashboardRequestHandler>, url: string, method = 'GET') {
@@ -103,7 +103,15 @@ describe('Dashboard HTTP server', () => {
     ]);
     const detail = (await request(handler, `/api/runs/${encodeURIComponent(run.id)}`)).json() as { run: { nodes: unknown[] } };
     expect(detail.run.nodes).toEqual([
-      expect.objectContaining({ id: 'work-1', definitionId: 'work', label: 'Do work', status: 'blocked', attempt: 1, durationMs: 1000 }),
+      expect.objectContaining({
+        id: 'work-1',
+        definitionId: 'work',
+        label: 'Do work',
+        status: 'blocked',
+        attempt: 1,
+        durationMs: 1000,
+        attempts: [expect.objectContaining({ attempt: 1, input: { route: '/runs' }, output: { reason: 'waiting' } })],
+      }),
     ]);
     const events = (await request(handler, `/api/runs/${encodeURIComponent(run.id)}/events`)).json() as { events: unknown[] };
     expect(events.events).toHaveLength(6);
@@ -116,12 +124,41 @@ describe('Dashboard HTTP server', () => {
     expect((await request(handler, '/api/runs?scope=invalid')).json()).toMatchObject({ scope: 'all' });
     expect((await request(handler, '/api/runs/missing')).status).toBe(404);
     expect((await request(handler, '/api/runs/missing/events')).status).toBe(404);
+    expect((await request(handler, '/api/runs/missing/retrospective')).status).toBe(404);
     expect((await request(handler, '/api/missing')).status).toBe(404);
     expect((await request(handler, '/missing.js')).status).toBe(404);
     expect((await request(handler, '/%2e%2e%2foutside')).status).toBe(404);
     expect((await request(handler, '/%')).status).toBe(500);
     expect((await request(handler, '/api/runs', 'POST')).status).toBe(405);
     expect((await request(handler, '/runs', 'POST')).status).toBe(405);
+  });
+
+  test('serves a generated retrospective Markdown report for a completed Run', async () => {
+    const { assetRoot, claimId, run, store } = await fixture();
+    const retry = await store.startExecution(run.workspace.id, run.id, 'work-1', context('retry'));
+    const evidence = await store.recordEvidence(run.workspace.id, run.id, {
+      content: 'dashboard verified',
+      kind: 'test',
+      summary: 'Dashboard tests passed',
+      commitmentRevision: 1,
+    }, context('report-evidence'));
+    await store.finishExecution(
+      run.workspace.id,
+      run.id,
+      retry.executionId,
+      'succeeded',
+      [evidence.id],
+      context('retry-finish'),
+      { route: '/runs', verified: true },
+    );
+    await store.updateClaim(run.workspace.id, run.id, claimId, 'satisfied', [evidence.id], context('report-claim'));
+    await store.completeRun(run.workspace.id, run.id, 1, 1, 'user', context('report-complete'));
+
+    const handler = createDashboardRequestHandler({ assetRoot, store });
+    const response = await request(handler, `/api/runs/${encodeURIComponent(run.id)}/retrospective`);
+    expect(response.status).toBe(200);
+    expect(response.json()).toMatchObject({ runId: run.id });
+    expect((response.json() as { markdown: string }).markdown).toContain('# Retrospective: Global dashboard work');
   });
 
   test('renders a Run that has a Commitment but no Plan yet', async () => {

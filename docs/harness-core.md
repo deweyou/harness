@@ -30,6 +30,13 @@ Agents and host adapters own:
 - host-native approvals and external side effects
 - domain-specific verification meaning
 
+Knowledge Providers own source content, indexes, retrieval, and publication.
+Core may record Evidence-backed feedback and lifecycle state for a proposed
+knowledge change, but acceptance authorizes a separate maintenance task rather
+than mutating the provider inside the completed Run. Repository providers may
+use scoped `AGENTS.md` and `docs/` files; that layout is a provider convention,
+not a Core storage contract.
+
 Cordis is used behind the project-owned `CapabilityRuntime` boundary. It owns
 dynamic provider registration, scoped capability lookup, and lifecycle cleanup.
 It never owns Run or acceptance authority. Cordis isolation is in-process
@@ -107,11 +114,17 @@ declared by the current Commitment.
 
 A Plan is a proposed, active, or superseded DAG bound to one Commitment
 revision. Plans are immutable and revisions are contiguous inside a Run.
+Revising a Plan does not imply replaying previous work. A controller may propose
+a minimal executable delta containing only affected or newly required nodes;
+unaffected executions and current Evidence remain available through Run history.
 
 A Node Execution is one attempt of one Planned Node. Attempts are contiguous
 per Plan revision and Planned Node. Starting, finishing, retrying, and
 interrupting executions are semantic commands; clients do not allocate attempts
-or append arbitrary events.
+or append arbitrary events. Starting an attempt snapshots its Planned Node input
+into the event stream. Finishing it may record a concise structured output. Each
+payload is limited to 64 KiB; large results, raw logs, and binary artifacts belong
+in digest-addressed Evidence instead.
 
 ### Evidence And Artifacts
 
@@ -159,7 +172,12 @@ The MCP process opportunistically starts one read-only Dashboard server on
 `127.0.0.1:7777`. If a healthy Harness Dashboard already owns that port, a new
 process reuses it instead of starting another server. Set
 `DEWEYOU_DASHBOARD_AUTOSTART=0` to disable startup or
-`DEWEYOU_DASHBOARD_PORT` to override the port.
+`DEWEYOU_DASHBOARD_PORT` to override the port. Run detail exposes every Node
+Execution attempt's structured input, output, Evidence links, and activity.
+After completion, Core also writes a rebuildable
+`reports/retrospective.md` inside the Run bundle and the Dashboard exposes it as
+a read-only Report view. Events and retrospective JSON remain authoritative;
+the Markdown file is a presentation projection.
 
 Old `~/.deweyou/dev/` state is intentionally ignored. Harness never reads, migrates,
 or deletes it.

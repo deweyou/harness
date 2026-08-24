@@ -154,6 +154,41 @@
         "Prepares before the first mutating command when a fix is needed",
         "Reuses the same prepared workspace for the remainder of the task"
       ]
+    },
+    {
+      "id": 14,
+      "prompt": "/harness-work Preserve what we learned about the payments package in this monorepo. It has independent commands and domain rules; shared service contracts are documented at the root.",
+      "expected_output": "Use evidence-backed knowledge maintenance, keep shared contracts at the root, and update or create concise package-level routing and documentation only at the payments module boundary.",
+      "files": [],
+      "expectations": [
+        "Does not put all module knowledge in the root AGENTS.md",
+        "Does not create AGENTS.md files in ordinary child directories",
+        "Keeps cross-module contracts in root documentation",
+        "Prepares the task workspace before editing knowledge files"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "/harness-work Explain the runtime architecture. Do not preserve or update repository knowledge.",
+      "expected_output": "Answer from existing sources without editing AGENTS.md or docs and without creating a knowledge proposal merely because the answer may be reusable.",
+      "files": [],
+      "expectations": [
+        "Does not treat an ordinary answer as permission to maintain knowledge",
+        "Does not mutate repository knowledge or Git state",
+        "Uses existing documentation as a source rather than rewriting it"
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "/harness-work The implementation is halfway done. Please make this small spacing correction without restarting the technical design or the completed implementation work.",
+      "expected_output": "Keep the current Commitment, classify work as reuse, rerun, or add, and propose a minimal patch Plan containing only the affected edit and focused verification.",
+      "files": [],
+      "expectations": [
+        "Does not rerun unaffected design or implementation nodes",
+        "Keeps the current Commitment because material boundaries are unchanged",
+        "Preserves prior Attempts and current Evidence",
+        "Includes only affected patch and verification work in the new Plan revision"
+      ]
     }
   ]
 }

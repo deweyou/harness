@@ -167,6 +167,8 @@ export interface NodeExecution {
   plannedNodeId: string;
   attempt: number;
   status: NodeExecutionStatus;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
   evidenceIds: string[];
   startedAt?: string;
   endedAt?: string;

@@ -34,6 +34,19 @@ export interface DashboardRunNode {
   executionIds: string[];
   targetClaimIds: string[];
   expectedOutputs: string[];
+  attempts: DashboardExecutionAttempt[];
+}
+
+export interface DashboardExecutionAttempt {
+  id: string;
+  attempt: number;
+  status: NodeExecutionStatus;
+  input: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  evidenceIds: string[];
+  startedAt?: string;
+  endedAt?: string;
+  durationMs: number | null;
 }
 
 export interface DashboardClaim {
@@ -139,6 +152,17 @@ function materializeNodes(plan: Plan | undefined, projection: RunProjection, lab
       executionIds: executions.map((execution) => execution.id),
       targetClaimIds: plannedNode.targetClaimIds ?? [],
       expectedOutputs: plannedNode.expectedOutputs ?? [],
+      attempts: executions.map((execution) => ({
+        id: execution.id,
+        attempt: execution.attempt,
+        status: execution.status,
+        input: execution.input ?? plannedNode.input ?? {},
+        ...(execution.output !== undefined ? { output: execution.output } : {}),
+        evidenceIds: execution.evidenceIds,
+        ...(execution.startedAt ? { startedAt: execution.startedAt } : {}),
+        ...(execution.endedAt ? { endedAt: execution.endedAt } : {}),
+        durationMs: execution.durationMs ?? null,
+      })),
     };
   });
 }
@@ -271,6 +295,14 @@ export function createDashboardRequestHandler(options: DashboardServerOptions = 
         const entry = await findRun(store, runId);
         if (!entry) return json(response, 404, { error: 'Run not found' }, head);
         json(response, 200, { runId, events: await store.readEvents(entry.workspaceId, entry.runId) }, head);
+        return;
+      }
+      const retrospectiveMatch = /^\/api\/runs\/([^/]+)\/retrospective$/.exec(url.pathname);
+      if (retrospectiveMatch) {
+        const runId = decodeURIComponent(retrospectiveMatch[1]!);
+        const entry = await findRun(store, runId);
+        if (!entry) return json(response, 404, { error: 'Run not found' }, head);
+        json(response, 200, { runId, markdown: await store.getRetrospectiveReport(entry.workspaceId, entry.runId) }, head);
         return;
       }
       const runMatch = /^\/api\/runs\/([^/]+)$/.exec(url.pathname);

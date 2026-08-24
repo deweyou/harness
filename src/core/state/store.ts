@@ -7,6 +7,7 @@ import { dump as dumpYaml } from 'js-yaml';
 import { invariant } from '../errors.js';
 import { readyPlannedNodes } from '../graph.js';
 import { buildRetrospective } from '../retrospective.js';
+import { buildRetrospectiveReport } from '../retrospective-report.js';
 import type {
   Claim,
   ClaimStatus,
@@ -37,6 +38,7 @@ export interface RunRepository {
   writeEvidence(workspaceId: string, runId: string, digest: string, content: string): Promise<string>;
   readJson<T>(workspaceId: string, runId: string, relativePath: string): Promise<T>;
   writeJson(workspaceId: string, runId: string, relativePath: string, value: unknown): Promise<void>;
+  writeText(workspaceId: string, runId: string, relativePath: string, value: string): Promise<void>;
   listRuns(scope?: 'all' | 'active' | 'archived'): Promise<RunIndexEntry[]>;
   rebuildRunIndex(): Promise<RunIndex>;
   runDirectory(workspaceId: string, runId: string): string;
@@ -82,11 +84,32 @@ export interface EvidenceInput {
 }
 
 const delay = (milliseconds: number): Promise<void> => new Promise((accept) => setTimeout(accept, milliseconds));
+const MAX_STRUCTURED_PAYLOAD_BYTES = 64 * 1_024;
 
 async function atomicJson(path: string, value: unknown): Promise<void> {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
   await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
   await rename(temporary, path);
+}
+
+async function atomicText(path: string, value: string): Promise<void> {
+  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(temporary, value, { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+function assertStructuredPayloadSize(label: string, value: Record<string, unknown>): void {
+  let content: string;
+  try {
+    content = JSON.stringify(value);
+  } catch {
+    throw new Error(`${label} must be JSON serializable`);
+  }
+  invariant(
+    Buffer.byteLength(content) <= MAX_STRUCTURED_PAYLOAD_BYTES,
+    'STRUCTURED_PAYLOAD_TOO_LARGE',
+    `${label} exceeds ${MAX_STRUCTURED_PAYLOAD_BYTES} bytes; store large content as Evidence`,
+  );
 }
 
 async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): Promise<T> {
@@ -167,6 +190,7 @@ export class LocalRunRepository implements RunRepository {
     await Promise.all([
       mkdir(join(directory, 'evidence'), { recursive: true, mode: 0o700 }),
       mkdir(join(directory, 'proposals'), { recursive: true, mode: 0o700 }),
+      mkdir(join(directory, 'reports'), { recursive: true, mode: 0o700 }),
     ]);
     await Promise.all([
       atomicJson(join(directory, 'run.json'), run),
@@ -239,6 +263,10 @@ export class LocalRunRepository implements RunRepository {
 
   async writeJson(workspaceId: string, runId: string, relativePath: string, value: unknown): Promise<void> {
     await atomicJson(join(this.runDirectory(workspaceId, runId), relativePath), value);
+  }
+
+  async writeText(workspaceId: string, runId: string, relativePath: string, value: string): Promise<void> {
+    await atomicText(join(this.runDirectory(workspaceId, runId), relativePath), value);
   }
 
   async listRuns(scope: 'all' | 'active' | 'archived' = 'all'): Promise<RunIndexEntry[]> {
@@ -465,6 +493,7 @@ export class RunStore {
     if (replay) return replay.payload.plan as Plan;
     const projection = await this.getProjection(workspaceId, runId);
     invariant(projection.activeCommitmentRevision === commitmentRevision, 'STALE_COMMITMENT_REVISION', 'Plan must target the active Commitment revision');
+    for (const node of nodes) assertStructuredPayloadSize(`Planned node '${node.id}' input`, node.input ?? {});
     const revision = Math.max(0, ...Object.keys(projection.plans).map(Number)) + 1;
     const plan: Plan = {
       schemaVersion: 2,
@@ -502,11 +531,14 @@ export class RunStore {
     );
     const executionId = randomUUID();
     const attempt = attempts.length + 1;
+    const plan = projection.plans[projection.activePlanRevision];
+    const input = plan?.nodes.find((node) => node.id === plannedNodeId)?.input ?? {};
     await this.commitEvent(workspaceId, runId, this.eventInput('node.started', context, {
       executionId,
       planRevision: projection.activePlanRevision,
       plannedNodeId,
       attempt,
+      input,
     }));
     return { executionId, attempt };
   }
@@ -518,8 +550,14 @@ export class RunStore {
     status: Exclude<NodeExecutionStatus, 'ready' | 'running'>,
     evidenceIds: string[],
     context: CommandContext,
+    output?: Record<string, unknown>,
   ): Promise<RunProjection> {
-    await this.commitEvent(workspaceId, runId, this.eventInput(`node.${status}` as EventInput['type'], context, { executionId, evidenceIds }));
+    if (output) assertStructuredPayloadSize(`Node execution '${executionId}' output`, output);
+    await this.commitEvent(workspaceId, runId, this.eventInput(
+      `node.${status}` as EventInput['type'],
+      context,
+      { executionId, evidenceIds, ...(output !== undefined ? { output } : {}) },
+    ));
     return this.getProjection(workspaceId, runId);
   }
 
@@ -671,6 +709,12 @@ export class RunStore {
       });
     }
     await this.repository.writeJson(workspaceId, runId, 'retrospective.json', generated.retrospective);
+    await this.repository.writeText(
+      workspaceId,
+      runId,
+      'reports/retrospective.md',
+      buildRetrospectiveReport(await this.getProjection(workspaceId, runId), generated.retrospective, generated.proposals),
+    );
     await this.commitEvent(workspaceId, runId, {
       type: 'retrospective.generated',
       traceId,
@@ -697,6 +741,11 @@ export class RunStore {
     return { retrospective, proposals };
   }
 
+  async getRetrospectiveReport(workspaceId: string, runId: string): Promise<string> {
+    const { retrospective, proposals } = await this.getRetrospective(workspaceId, runId);
+    return buildRetrospectiveReport(await this.getProjection(workspaceId, runId), retrospective, proposals);
+  }
+
   async decideProposal(
     workspaceId: string,
     runId: string,
@@ -716,7 +765,15 @@ export class RunStore {
         { proposalId, ...(reason ? { reason } : {}) },
       ));
     }
-    return { ...proposal, status: decision, decision: { decidedAt: this.now().toISOString(), ...(reason ? { reason } : {}) } };
+    const decided = { ...proposal, status: decision, decision: { decidedAt: this.now().toISOString(), ...(reason ? { reason } : {}) } };
+    const { retrospective, proposals } = await this.getRetrospective(workspaceId, runId);
+    await this.repository.writeText(
+      workspaceId,
+      runId,
+      'reports/retrospective.md',
+      buildRetrospectiveReport(await this.getProjection(workspaceId, runId), retrospective, proposals),
+    );
+    return decided;
   }
 
   runDirectory(workspaceId: string, runId: string): string {

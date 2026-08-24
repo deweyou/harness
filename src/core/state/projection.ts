@@ -186,19 +186,26 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       if (!plan?.nodes.some((node) => node.id === plannedNodeId)) throw new Error(`Unknown planned node '${plannedNodeId}' in Plan ${planRevision}`);
       nodeStatuses[`${planRevision}:${plannedNodeId}`] = 'ready';
     } else if (event.type === 'node.started') {
+      const planRevision = numberValue(event.payload, 'planRevision');
+      const plannedNodeId = stringValue(event.payload, 'plannedNodeId');
+      const plan = plans.get(planRevision);
+      if (!plan) throw new Error(`Node execution refers to unknown Plan ${planRevision}`);
+      const plannedNode = plan.nodes.find((node) => node.id === plannedNodeId);
+      if (!plannedNode) throw new Error(`Unknown planned node '${plannedNodeId}' in Plan ${planRevision}`);
       const execution: NodeExecution = {
         id: stringValue(event.payload, 'executionId'),
         runId: run.id,
-        planRevision: numberValue(event.payload, 'planRevision'),
-        plannedNodeId: stringValue(event.payload, 'plannedNodeId'),
+        planRevision,
+        plannedNodeId,
         attempt: numberValue(event.payload, 'attempt'),
         status: 'running',
+        input: event.payload.input === undefined
+          ? plannedNode.input ?? {}
+          : objectValue<Record<string, unknown>>(event.payload, 'input'),
         evidenceIds: [],
         startedAt: event.timestamp,
       };
       if (executions.has(execution.id)) throw new Error(`Duplicate node execution '${execution.id}'`);
-      const plan = plans.get(execution.planRevision);
-      if (!plan) throw new Error(`Node execution '${execution.id}' refers to unknown Plan ${execution.planRevision}`);
       assertNodeExecution(plan, execution, [...executions.values()]);
       executions.set(execution.id, execution);
       nodeStatuses[`${execution.planRevision}:${execution.plannedNodeId}`] = 'running';
@@ -215,6 +222,9 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       const updated: NodeExecution = {
         ...current,
         status: terminalStatus,
+        ...(event.payload.output === undefined
+          ? {}
+          : { output: objectValue<Record<string, unknown>>(event.payload, 'output') }),
         evidenceIds,
         endedAt: event.timestamp,
         durationMs: Math.max(0, endedAt - startedAt),

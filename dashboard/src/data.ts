@@ -15,6 +15,19 @@ export interface PlannedNode {
   executionIds: string[];
   targetClaimIds: string[];
   expectedOutputs: string[];
+  attempts: ExecutionAttempt[];
+}
+
+export interface ExecutionAttempt {
+  id: string;
+  attempt: number;
+  status: NodeStatus;
+  input: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  evidenceIds: string[];
+  startedAt?: string;
+  endedAt?: string;
+  durationMs: number | null;
 }
 
 export interface DashboardClaim {
@@ -82,4 +95,8 @@ export async function fetchRun(runId: string): Promise<DashboardRun> {
 
 export async function fetchRunEvents(runId: string): Promise<HarnessEvent[]> {
   return (await getJson<{ events: HarnessEvent[] }>(`/api/runs/${encodeURIComponent(runId)}/events`)).events;
+}
+
+export async function fetchRetrospective(runId: string): Promise<string> {
+  return (await getJson<{ markdown: string }>(`/api/runs/${encodeURIComponent(runId)}/retrospective`)).markdown;
 }

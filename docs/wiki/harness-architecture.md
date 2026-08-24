@@ -30,8 +30,11 @@ The important separations are:
   trigger it.
 - A Commitment owns current intent, scope, authority, destination, acceptance,
   and unresolved decisions.
-- A Plan owns dependencies for one Run and Commitment revision.
-- A Node Execution owns one immutable attempt.
+- A Plan owns the currently executable dependencies for one Run and Commitment
+  revision. A later revision may be a minimal patch delta; it does not restart
+  unaffected design, implementation, or verification work.
+- A Node Execution owns one immutable attempt, including a bounded structured
+  input snapshot and optional structured output.
 - Evidence owns a digest identity, locator, Commitment revision, and input
   digests.
 
@@ -45,10 +48,37 @@ projection. Config snapshots and digest-addressed Evidence are immutable
 supporting artifacts. Resource activation is also recorded in the event chain,
 so no mutable resource-lock side file can override replay.
 
+Completed Runs also contain `reports/retrospective.md`. It is generated from the
+retrospective and proposal projection for human review and Dashboard preview;
+it is rebuildable and never replaces the event chain or JSON data.
+
 A Run is only eligible for `run_complete` after the active Commitment has no
 unresolved decision and every acceptance Claim is satisfied or validly waived
 with current Evidence. Eligibility does not itself complete the Run; completion
 is an explicit semantic command.
+
+During incremental iteration, the controller classifies work as `reuse`,
+`rerun`, or `add`. Only the latter two become nodes in the revised Plan.
+Unchanged material boundaries keep the current Commitment; changes to objective,
+scope, acceptance, authority, destination, or unresolved material decisions
+create a new Commitment revision.
+
+## Knowledge maintenance
+
+Harness may attribute evidence-backed feedback to an activated Knowledge
+resource and generate a post-completion proposal. It owns the Evidence,
+proposal, decision, and validation lineage, not the knowledge content or index.
+An accepted proposal becomes a separate maintenance task against the owning
+repository or Knowledge Provider.
+
+For repository-owned knowledge, `AGENTS.md` is a concise instruction and routing
+layer while `docs/` contains maintained explanations and synthesis. Complex
+repositories may repeat that pair at durable module boundaries. The root owns
+cross-module knowledge; nested files record local differences without copying
+root instructions.
+
+The repository-specific convention is recorded in the
+[knowledge maintenance decision](../raw/sources/2026-08-24-repository-knowledge-maintenance-decision.md).
 
 ## Capability Runtime
 
@@ -70,6 +100,7 @@ filesystem sandboxes, or credential boundaries.
 | Plan DAG and ready nodes | `src/core/graph.ts` |
 | Commitment, Plan, Claim invariants | `src/core/runtime.ts` |
 | Event replay projection | `src/core/state/projection.ts` |
+| Retrospective Markdown projection | `src/core/retrospective-report.ts` |
 | Repository boundary and semantic commands | `src/core/state/store.ts` |
 | Cordis capability lifecycle | `src/core/capabilities.ts` |
 | Workspace resource provider | `src/core/resources.ts` |

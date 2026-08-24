@@ -47,6 +47,7 @@ async function activatePlan(store: RunStore, run: Run, claimId: string): Promise
     id: 'work-1',
     definitionId: 'work',
     dependsOn: [],
+    input: { task: 'compile', options: { strict: true } },
     targetClaimIds: [claimId],
     authority: ['read-workspace'],
   }], context('plan'));
@@ -58,11 +59,65 @@ describe('RunStore semantic commands', () => {
     const { store, run, claimId } = await setup();
     await activatePlan(store, run, claimId);
     const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('start'));
-    await store.finishExecution(run.workspace.id, run.id, execution.executionId, 'succeeded', [], context('finish'));
+    await store.finishExecution(run.workspace.id, run.id, execution.executionId, 'succeeded', [], context('finish'), { result: 'compiled' });
 
     await expect(store.completeRun(run.workspace.id, run.id, 1, 1, 'user', context('complete-early')))
       .rejects.toMatchObject({ code: 'ACCEPTANCE_INCOMPLETE' });
     expect((await store.getProjection(run.workspace.id, run.id)).status).toBe('running');
+    expect((await store.getProjection(run.workspace.id, run.id)).nodeExecutions[0]).toMatchObject({
+      input: { task: 'compile', options: { strict: true } },
+      output: { result: 'compiled' },
+    });
+  });
+
+  it('rejects oversized structured node data in favor of Evidence', async () => {
+    const { store, run, claimId } = await setup();
+    await expect(store.proposePlan(run.workspace.id, run.id, 1, [{
+      id: 'large-input',
+      definitionId: 'work',
+      dependsOn: [],
+      input: { content: 'x'.repeat(70_000) },
+      targetClaimIds: [claimId],
+    }], context('large-plan'))).rejects.toMatchObject({ code: 'STRUCTURED_PAYLOAD_TOO_LARGE' });
+
+    await activatePlan(store, run, claimId);
+    const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('large-output-start'));
+    await expect(store.finishExecution(
+      run.workspace.id,
+      run.id,
+      execution.executionId,
+      'succeeded',
+      [],
+      context('large-output-finish'),
+      { content: 'x'.repeat(70_000) },
+    )).rejects.toMatchObject({ code: 'STRUCTURED_PAYLOAD_TOO_LARGE' });
+  });
+
+  it('supports a minimal patch Plan without replaying unaffected executions', async () => {
+    const { store, run, claimId } = await setup();
+    await activatePlan(store, run, claimId);
+    const original = await store.startExecution(run.workspace.id, run.id, 'work-1', context('original-start'));
+    await store.finishExecution(run.workspace.id, run.id, original.executionId, 'succeeded', [], context('original-finish'));
+
+    const patchPlan = await store.proposePlan(run.workspace.id, run.id, 1, [{
+      id: 'spacing-patch',
+      definitionId: 'work',
+      dependsOn: [],
+      input: { target: 'button-spacing' },
+      targetClaimIds: [claimId],
+    }], context('patch-plan'));
+    await store.activatePlan(run.workspace.id, run.id, patchPlan.revision, context('patch-activate'));
+
+    const projection = await store.getProjection(run.workspace.id, run.id);
+    expect(projection.activeCommitmentRevision).toBe(1);
+    expect(projection.activePlanRevision).toBe(2);
+    expect(projection.plans[1]?.status).toBe('superseded');
+    expect(projection.nodeExecutions).toEqual([
+      expect.objectContaining({ id: original.executionId, planRevision: 1, plannedNodeId: 'work-1', status: 'succeeded' }),
+    ]);
+    await expect(store.readyNodes(run.workspace.id, run.id)).resolves.toEqual([
+      expect.objectContaining({ id: 'spacing-patch', input: { target: 'button-spacing' } }),
+    ]);
   });
 
   it('records digest Evidence, satisfies the current Claim, and completes explicitly', async () => {
@@ -158,6 +213,10 @@ describe('RunStore semantic commands', () => {
     const accepted = await store.decideProposal(run.workspace.id, run.id, proposalId, 'accepted', context('accept-proposal'), 'confirmed');
     expect(accepted.status).toBe('accepted');
     expect((await store.getRetrospective(run.workspace.id, run.id)).proposals[0]?.status).toBe('accepted');
+    const report = await store.getRetrospectiveReport(run.workspace.id, run.id);
+    expect(report).toContain('# Retrospective: Produce the requested result');
+    expect(report).toContain('- accepted: review-skill');
+    expect(await readFile(join(store.runDirectory(run.workspace.id, run.id), 'reports', 'retrospective.md'), 'utf8')).toBe(report);
 
     const second = await setup();
     await activatePlan(second.store, second.run, second.claimId);

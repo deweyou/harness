@@ -261,18 +261,27 @@ export function createHarnessServer(): McpServer {
   server.registerTool(
     'execution_finish',
     {
-      description: 'Finish one running Node Execution exactly once with structured status and Evidence identities.',
+      description: 'Finish one running Node Execution exactly once with status, bounded structured output, and Evidence identities.',
       inputSchema: z.object({
         workspacePath: z.string(),
         runId: z.string(),
         executionId: z.string(),
         status: z.enum(['blocked', 'succeeded', 'failed', 'cancelled', 'skipped', 'interrupted']),
         evidenceIds: z.array(z.string()).default([]),
+        output: z.record(z.string(), z.unknown()).optional(),
         command: commandContextSchema,
       }),
     },
-    async ({ workspacePath, runId, executionId, status, evidenceIds, command }) => result(
-      await new RunStore().finishExecution(await workspaceId(workspacePath), runId, executionId, status, evidenceIds, commandContext(command)),
+    async ({ workspacePath, runId, executionId, status, evidenceIds, output, command }) => result(
+      await new RunStore().finishExecution(
+        await workspaceId(workspacePath),
+        runId,
+        executionId,
+        status,
+        evidenceIds,
+        commandContext(command),
+        output,
+      ),
     ),
   );
 

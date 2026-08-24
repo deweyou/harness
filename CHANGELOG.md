@@ -9,6 +9,12 @@ All notable changes to Deweyou Harness are recorded here.
   migration guidance before Run creation.
 - Added the root `strategy` setting for branch or worktree preparation before a
   new Run.
+- Added an evidence-backed repository knowledge maintenance SOP with root and
+  module-level `AGENTS.md` and `docs/` scoping guidance.
+- Added bounded per-attempt structured input and output inspection plus a
+  generated `reports/retrospective.md` preview in the global Dashboard.
+- Made in-progress iteration incremental by default: reuse unaffected work and
+  limit revised Plans to affected patches and focused verification.
 
 ## [1.2.0] - 2026-08-21
 

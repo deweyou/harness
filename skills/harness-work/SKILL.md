@@ -4,9 +4,10 @@ description: >
   Deweyou Harness Work. Use when the user invokes /harness-work; asks to
   create, update, or migrate harness.yaml; or asks to start or resume durable
   work governed by a Commitment, evidence-backed Claims, and a task-scoped
-  Plan. Keeps exploration free, activates capabilities progressively,
-  delegates bounded node executions, and records replayable state through the
-  Deweyou Harness MCP server.
+  Plan; or explicitly asks to preserve, review, or improve repository knowledge
+  in AGENTS.md and docs. Keeps exploration free, activates capabilities
+  progressively, delegates bounded node executions, and records replayable
+  state through the Deweyou Harness MCP server.
 user-invocable: true
 ---
 
@@ -99,6 +100,12 @@ instructions.
 
 Read [execution-loop.md](references/execution-loop.md) before dispatching work.
 
+Before revising an in-progress Plan, perform a bounded impact analysis. Classify
+prior work as `reuse`, `rerun`, or `add`. Reuse unaffected executions and current
+Evidence; include only `rerun` and `add` work in the new Plan revision. Do not
+rerun discovery, design, implementation, or broad verification merely because
+the Plan revision changed.
+
 1. Ask Core for ready planned nodes in the active Plan revision.
 2. For each ready node, activate its declared capabilities and inspect its
    authority boundary.
@@ -117,6 +124,11 @@ Independent ready nodes may run concurrently when their mutation and authority
 boundaries do not overlap. A changed requirement creates a new Commitment
 revision and supersedes the active Plan; preserve all prior executions and
 Evidence.
+
+For a small correction that leaves objective, scope, acceptance, authority, and
+destination unchanged, keep the current Commitment. Propose a minimal patch Plan
+containing only affected implementation and verification nodes. Escalate to a
+new Commitment revision only when one of those material boundaries changes.
 
 ## Verification And Completion
 
@@ -137,9 +149,24 @@ and states every remaining uncertainty. Retrospective resource suggestions are
 evidence-attributed follow-up work; they never rewrite a resource inside the
 completed Run.
 
+## Knowledge Maintenance
+
+Read [knowledge-maintenance.md](references/knowledge-maintenance.md) when the
+user explicitly asks to preserve or review repository knowledge, or accepts a
+proposal targeting a Knowledge resource. Ordinary questions and useful answers
+do not implicitly authorize knowledge-base edits.
+
+Treat an accepted proposal as input to a separate maintenance task. Prepare the
+configured workspace before editing repository knowledge, preserve source
+Evidence and the prior resource digest, and record validation against the new
+digest. Keep Harness domain-neutral: concrete repository knowledge remains in
+the target repository and is activated through a configured Knowledge Provider.
+
 ## Privacy
 
 The Run bundle under `~/.deweyou/harness/` is replayable state. Record the
 minimum structured context needed to reconstruct decisions, assignments,
 Evidence, and outcomes. Never record secrets, environment dumps, unrelated
-conversation, or unredacted large logs.
+conversation, or unredacted large logs. Node input and output are persisted and
+visible in the Dashboard, so sanitize them before calling execution commands;
+use Evidence for large or raw content.
