@@ -82,7 +82,7 @@ export function createHarnessServer(): McpServer {
   server.registerTool(
     'config_inspect',
     {
-      description: 'Load Harness v2 config and list reusable resources and Node Definitions. Workflow and Stage fields are rejected.',
+      description: 'Load Harness config and return its branch/worktree strategy, reusable resources, and Node Definitions. Workflow and Stage fields are rejected.',
       inputSchema: z.object({ workspacePath: z.string(), configPath: z.string().optional() }),
     },
     async ({ workspacePath, configPath }) => {
@@ -90,6 +90,7 @@ export function createHarnessServer(): McpServer {
       return result({
         configPath: loaded.path,
         version: loaded.config.version,
+        strategy: loaded.config.strategy,
         nodes: availableNodes(loaded.config),
         resources: Object.entries(loaded.config.resources).map(([id, resource]) => ({ id, kind: resource.kind, description: resource.description ?? id })),
         sourceFiles: loaded.config.sourceFiles,
@@ -139,7 +140,7 @@ export function createHarnessServer(): McpServer {
   server.registerTool(
     'run_list',
     {
-      description: 'List active or archived Harness v2 Runs across workspaces from the rebuildable global Run index.',
+      description: 'List active or archived Harness Runs across workspaces from the rebuildable global Run index.',
       inputSchema: z.object({ scope: z.enum(['all', 'active', 'archived']).default('all') }),
     },
     async ({ scope }) => result({ scope, runs: await new RunStore().listRuns(scope) }),

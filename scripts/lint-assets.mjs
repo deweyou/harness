@@ -22,6 +22,7 @@ const requiredFiles = [
   'skills/harness-work/README_ZH.md',
   'skills/harness-work/evals/evals.json',
   'skills/harness-work/agents/openai.yaml',
+  'skills/harness-work/references/workspace-preparation.md',
   'skills/harness-work/assets/harness-work-small.svg',
   'skills/harness-work/assets/harness-work.png',
   'schemas/harness.schema.json',

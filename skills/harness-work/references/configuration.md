@@ -33,8 +33,11 @@ upgrading the plugin. Do not attempt a downgrade.
 Inspect the repository only as far as needed to identify real reusable
 resources, executors, and Node Definitions. Preserve repository-owned naming
 and commands. Keep `harness.yaml` domain-neutral: it may declare imports,
-resources, and reusable nodes, but not task-specific dependencies, Workflows,
-or fixed Stages. Dependencies belong to each Run's Plan.
+the root workspace strategy, resources, and reusable nodes, but not
+task-specific dependencies, Workflows, or fixed Stages. `strategy` is only
+`branch` or `worktree`; do not add configuration for base branches, remotes,
+branch names, or synchronization mechanics. Dependencies belong to each Run's
+Plan.
 
 For an update, preserve unrelated valid entries and the user's formatting when
 practical. Do not replace the whole file for a narrow change.

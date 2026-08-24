@@ -39,7 +39,7 @@ const plan: Plan = {
   ],
 };
 
-describe('v2 Plan graph and runtime invariants', () => {
+describe('Plan graph and runtime invariants', () => {
   test('keeps dependencies on run-scoped PlannedNodes and calculates readiness', () => {
     validatePlanGraph(plan);
     expect(readyPlannedNodes(plan, []).map((node) => node.id)).toEqual(['implement']);

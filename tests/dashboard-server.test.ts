@@ -18,6 +18,7 @@ afterEach(async () => {
 
 const config: ResolvedHarnessConfig = {
   version: 2,
+  strategy: 'branch',
   sourceFiles: [],
   resources: {},
   nodes: { work: { name: 'Do work', executor: { kind: 'agent' } } },
@@ -47,7 +48,7 @@ async function fixture() {
       scope: ['dashboard'],
       authority: ['read-workspace', 'deliver:user'],
       destination: 'user',
-      acceptance: [{ description: 'Dashboard exposes v2 Run state' }],
+      acceptance: [{ description: 'Dashboard exposes Run state' }],
     },
   });
   const projection = await store.getProjection(run.workspace.id, run.id);

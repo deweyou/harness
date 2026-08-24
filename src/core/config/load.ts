@@ -2,10 +2,11 @@ import { readFile, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { load as loadYaml } from 'js-yaml';
 import { invariant } from '../errors.js';
-import type { HarnessImport, NodeDefinition, ResourceDefinition, ResolvedHarnessConfig } from '../types.js';
+import type { HarnessImport, NodeDefinition, ResourceDefinition, ResolvedHarnessConfig, WorkspaceStrategy } from '../types.js';
 import { validateConfigDocument } from './validate.js';
 
 interface LoadedFragment {
+  strategy?: WorkspaceStrategy;
   sourceFiles: string[];
   resources: Record<string, ResourceDefinition>;
   nodes: Record<string, NodeDefinition>;
@@ -61,6 +62,7 @@ async function loadFragment(configPath: string, stack: string[]): Promise<Loaded
   invariant(!stack.includes(canonicalPath), 'IMPORT_CYCLE', `Config import cycle: ${[...stack, canonicalPath].join(' -> ')}`);
   const document = loadYaml(await readFile(canonicalPath, 'utf8'));
   validateConfigDocument(document, canonicalPath);
+  invariant(stack.length === 0 || document.strategy === undefined, 'INVALID_IMPORT', `Imported config '${canonicalPath}' must not set strategy`);
   const fragment = emptyFragment();
 
   for (const rawImport of document.imports ?? []) {
@@ -74,6 +76,7 @@ async function loadFragment(configPath: string, stack: string[]): Promise<Loaded
   }
 
   fragment.sourceFiles.push(canonicalPath);
+  if (document.strategy !== undefined) fragment.strategy = document.strategy;
   insertUnique(fragment.resources, resolveWorkspaceSources(document.resources ?? {}, dirname(canonicalPath)), 'Resource');
   insertUnique(fragment.nodes, document.nodes ?? {}, 'Node');
   return fragment;
@@ -96,6 +99,7 @@ export async function loadHarnessConfig(configPath: string): Promise<ResolvedHar
   const fragment = await loadFragment(resolve(configPath), []);
   const config: ResolvedHarnessConfig = {
     version: 2,
+    strategy: fragment.strategy ?? 'branch',
     sourceFiles: [...new Set(fragment.sourceFiles)],
     resources: fragment.resources,
     nodes: fragment.nodes,

@@ -7,6 +7,7 @@ import type { ResolvedHarnessConfig, Run } from '../src/core/types.js';
 
 const config: ResolvedHarnessConfig = {
   version: 2,
+  strategy: 'branch',
   sourceFiles: [],
   resources: {},
   nodes: { work: { executor: { kind: 'agent' }, outputs: ['result'], claimTypes: ['acceptance'] } },
@@ -22,8 +23,8 @@ function clock(): () => Date {
 }
 
 async function setup(): Promise<{ store: RunStore; run: Run; workspace: string; stateRoot: string; claimId: string }> {
-  const workspace = await mkdtemp(join(tmpdir(), 'harness-v2-state-workspace-'));
-  const stateRoot = await mkdtemp(join(tmpdir(), 'harness-v2-state-root-'));
+  const workspace = await mkdtemp(join(tmpdir(), 'harness-state-workspace-'));
+  const stateRoot = await mkdtemp(join(tmpdir(), 'harness-state-root-'));
   const store = new RunStore({ stateRoot, now: clock() });
   const run = await store.createRun({
     workspacePath: workspace,
@@ -52,7 +53,7 @@ async function activatePlan(store: RunStore, run: Run, claimId: string): Promise
   await store.activatePlan(run.workspace.id, run.id, plan.revision, context('activate'));
 }
 
-describe('RunStore v2 semantic commands', () => {
+describe('RunStore semantic commands', () => {
   it('does not complete from successful nodes without accepted Claims', async () => {
     const { store, run, claimId } = await setup();
     await activatePlan(store, run, claimId);

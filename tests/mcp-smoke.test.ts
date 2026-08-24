@@ -21,7 +21,7 @@ describe('Harness MCP server', () => {
     const isolatedPluginRoot = await mkdtemp(join(tmpdir(), 'harness-bundle-'));
     temporaryDirectories.push(isolatedPluginRoot);
     await copyFile('dist/server.mjs', join(isolatedPluginRoot, 'server.mjs'));
-    await writeFile(join(isolatedPluginRoot, 'harness.yaml'), 'version: 2\nnodes:\n  work:\n    executor: { kind: agent }\n');
+    await writeFile(join(isolatedPluginRoot, 'harness.yaml'), 'version: 2\nstrategy: worktree\nnodes:\n  work:\n    executor: { kind: agent }\n');
     const client = new Client({ name: 'harness-test', version: '0.1.0' });
     clients.push(client);
     await client.connect(
@@ -57,7 +57,7 @@ describe('Harness MCP server', () => {
       ].sort(),
     );
     const inspected = await client.callTool({ name: 'config_inspect', arguments: { workspacePath: isolatedPluginRoot } });
-    expect(inspected.structuredContent).toMatchObject({ version: 2, nodes: [{ id: 'work' }] });
+    expect(inspected.structuredContent).toMatchObject({ version: 2, strategy: 'worktree', nodes: [{ id: 'work' }] });
     const created = await client.callTool({
       name: 'run_create',
       arguments: {

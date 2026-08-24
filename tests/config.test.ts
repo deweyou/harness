@@ -4,13 +4,20 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { availableNodes, loadHarnessConfig } from '../src/core/config/load.js';
 
-describe('Harness v2 config', () => {
+describe('Harness config', () => {
+  it('uses an isolated worktree for this repository', async () => {
+    await expect(loadHarnessConfig('harness.yaml')).resolves.toMatchObject({
+      strategy: 'worktree',
+    });
+  });
+
   it('loads resources and reusable node definitions without workflows or dependencies', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'harness-v2-config-'));
+    const directory = await mkdtemp(join(tmpdir(), 'harness-config-'));
     await mkdir(join(directory, 'skills', 'review'), { recursive: true });
     await writeFile(join(directory, 'skills', 'review', 'SKILL.md'), '# Review');
     await writeFile(join(directory, 'harness.yaml'), `
 version: 2
+strategy: worktree
 resources:
   review-skill:
     kind: skill
@@ -27,13 +34,32 @@ nodes:
 
     const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
     expect(config.version).toBe(2);
+    expect(config.strategy).toBe('worktree');
     expect(config).not.toHaveProperty('workflows');
     expect(config.nodes.review).not.toHaveProperty('needs');
     expect(availableNodes(config)).toEqual([{ id: 'review', name: 'Review', description: 'Review a bounded change' }]);
   });
 
+  it('defaults workspace preparation to a local branch', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-strategy-default-'));
+    await writeFile(join(directory, 'harness.yaml'), 'version: 2\n');
+
+    await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).resolves.toMatchObject({
+      strategy: 'branch',
+    });
+  });
+
+  it('rejects unknown workspace preparation strategies', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-strategy-invalid-'));
+    await writeFile(join(directory, 'harness.yaml'), 'version: 2\nstrategy: checkout\n');
+
+    await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({
+      code: 'INVALID_STRATEGY',
+    });
+  });
+
   it('namespaces imported resources and node references', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'harness-v2-import-'));
+    const directory = await mkdtemp(join(tmpdir(), 'harness-import-'));
     await writeFile(join(directory, 'shared.yaml'), `
 version: 2
 resources:
@@ -54,6 +80,16 @@ imports:
     const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
     expect(config.nodes['shared.inspect']?.executor).toEqual({ kind: 'agent', skills: ['shared.inspect'] });
     expect(config.nodes['shared.inspect']?.resources).toEqual(['shared.inspect']);
+  });
+
+  it('keeps strategy owned by the root configuration', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-import-strategy-'));
+    await writeFile(join(directory, 'shared.yaml'), 'version: 2\nstrategy: worktree\n');
+    await writeFile(join(directory, 'harness.yaml'), 'version: 2\nimports: [shared.yaml]\n');
+
+    await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({
+      code: 'INVALID_IMPORT',
+    });
   });
 
   it('rejects every v1 workflow field instead of translating it', async () => {
@@ -81,7 +117,7 @@ nodes:
   });
 
   it('validates structured command and capability executors with execution policy', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'harness-v2-executors-'));
+    const directory = await mkdtemp(join(tmpdir(), 'harness-executors-'));
     await writeFile(join(directory, 'harness.yaml'), `
 version: 2
 nodes:

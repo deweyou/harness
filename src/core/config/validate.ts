@@ -52,8 +52,11 @@ function validateResource(id: string, value: unknown): asserts value is Resource
 
 export function validateConfigDocument(value: unknown, source: string): asserts value is HarnessConfig {
   invariant(isRecord(value), 'INVALID_CONFIG', `${source} must contain a YAML object`);
-  assertKnownKeys(value, ['$schema', 'version', 'imports', 'resources', 'nodes'], source);
+  assertKnownKeys(value, ['$schema', 'version', 'strategy', 'imports', 'resources', 'nodes'], source);
   invariant(value.version === 2, 'UNSUPPORTED_CONFIG_VERSION', `${source} must set version: 2`);
+  if (value.strategy !== undefined) {
+    invariant(['branch', 'worktree'].includes(String(value.strategy)), 'INVALID_STRATEGY', `${source} strategy must be branch or worktree`);
+  }
 
   if (value.imports !== undefined) {
     invariant(Array.isArray(value.imports), 'INVALID_IMPORT', `${source} imports must be an array`);

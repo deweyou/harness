@@ -1,8 +1,8 @@
-# Harness v2 architecture
+# Harness architecture
 
 ## Summary
 
-Harness v2 is not a Workflow engine. It lets an agent explore freely, then adds
+Harness is not a Workflow engine. It lets an agent explore freely, then adds
 durable control only when work needs a Commitment, acceptance Claims, a
 task-scoped Plan, delegated execution, recovery, or delivery authority.
 
@@ -22,7 +22,12 @@ Run
 
 The important separations are:
 
-- `harness.yaml` owns reusable resources and Node Definitions.
+- `harness.yaml` owns the branch/worktree strategy, reusable resources, and Node
+  Definitions.
+- Workspace preparation is lazy: it happens after implementation intent is
+  known and before the first project mutation or mutation-bearing Run. It is
+  not a Plan node; read-only questions and configuration-only maintenance never
+  trigger it.
 - A Commitment owns current intent, scope, authority, destination, acceptance,
   and unresolved decisions.
 - A Plan owns dependencies for one Run and Commitment revision.
@@ -75,7 +80,7 @@ filesystem sandboxes, or credential boundaries.
 
 ## Future seams, not current features
 
-The local v2 implementation reserves logical workspace identity, a
+The local implementation reserves logical workspace identity, a
 `RunRepository` interface, digest-based artifact identity, structured executor
 contracts, cancellation, idempotency, and global identifiers. These keep a
 future cloud or cross-device executor from forcing a Core rewrite.

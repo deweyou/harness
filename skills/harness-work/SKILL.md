@@ -21,6 +21,25 @@ commitment, acceptance record, delegation, recovery, or delivery boundary.
 declare a workflow. The Plan belongs to one Run and may be revised when the
 Commitment changes.
 
+## Workspace Preparation Gate
+
+Loading this Skill does not authorize or trigger Git workspace preparation.
+Explore in the current checkout until task implementation is actually intended.
+
+Do not prepare a branch or worktree for questions, explanations, code reading,
+Dashboard or Run inspection, diagnosis, review, planning, or other read-only
+work. Prepare only when the user explicitly asks to implement a repository
+change, or when an ongoing task reaches its first necessary project mutation
+and that mutation is within the user's authority. Commands that generate or
+rewrite tracked files count as mutation.
+
+Creating, updating, or migrating `harness.yaml` follows the configuration
+lifecycle and does not by itself prepare a task workspace or create a Run.
+
+Once prepared, keep using the returned workspace for the rest of the task. Do
+not prepare again for each command, Plan revision, or node. If exploration ends
+without mutation, leave Git state unchanged and do not create an empty Run.
+
 ## Controller Boundary
 
 The main agent must:
@@ -43,21 +62,31 @@ authority.
 
 Read [commitment.md](references/commitment.md) before creating durable state.
 
-1. Find the workspace root and inspect its Harness configuration. Read
+1. Find the workspace root and explore read-only until the workspace preparation gate
+   is resolved. A conversational or read-only result ends here without Git
+   preparation or Run creation.
+2. Resume an existing Run from its recorded workspace. Do not prepare another
+   branch or worktree for it.
+3. Inspect the Harness configuration. Read
    [configuration.md](references/configuration.md) when `harness.yaml` is
    absent and the user requested Harness execution or configuration, when the
    user explicitly requests a configuration change, or when `config_inspect`
-   reports an unsupported version. Do not create a Run until the resulting
-   configuration passes `config_inspect`.
-2. Explore enough to understand whether durable execution is useful. Do not
-   create a Run for a read-only explanation or a small conversational answer.
-3. Call `run_create` with the local workspace path. Core resolves it to a
+   reports an unsupported version. Apply and validate requested configuration
+   lifecycle work in the current workspace. A configuration-only request ends
+   here without task workspace preparation or Run creation.
+4. For new implementation work, before the first project mutation, read
+   [workspace-preparation.md](references/workspace-preparation.md) and prepare
+   the workspace using the inspected `strategy`. Validate the configuration
+   again from the prepared workspace and use that path for all Run commands.
+5. Create durable state only when the work needs a Commitment, acceptance
+   record, delegation, recovery, or delivery boundary. Call `run_create` with
+   the prepared workspace path. Core resolves it to a
    stable logical WorkspaceRef for the local repository, plus an initial
    Commitment: objective, scope, authority, intended destination, acceptance
    Claims, and unresolved material decisions.
-4. Use `capabilities_list` for summaries. Load full content with
+6. Use `capabilities_list` for summaries. Load full content with
    `capability_activate` only when it is relevant to the current Run or node.
-5. Propose a Plan containing node instances, dependencies, inputs, expected
+7. Propose a Plan containing node instances, dependencies, inputs, expected
    outputs, Claim links, and authority. Call `plan_propose`, inspect the result,
    then call `plan_activate` when it matches the current Commitment revision.
 

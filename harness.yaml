@@ -1,5 +1,6 @@
 $schema: ./schemas/harness.schema.json
 version: 2
+strategy: worktree
 
 resources:
   project-rules:

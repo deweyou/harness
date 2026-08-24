@@ -63,7 +63,7 @@ function events(...entries: Array<{ type: HarnessEventType; payload: Record<stri
   }));
 }
 
-describe('v2 Run projection', () => {
+describe('Run projection', () => {
   test('accepts explicit completion for the active Plan and accepted Commitment', () => {
     const projection = projectRun(events(
       { type: 'run.created', payload: { run } },

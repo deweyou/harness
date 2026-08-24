@@ -116,7 +116,7 @@ function eventHash(event: Omit<HarnessEvent, 'hash'>): string {
 function verifyEventChain(events: HarnessEvent[]): void {
   let previousHash: string | null = null;
   for (const [index, event] of events.entries()) {
-    invariant(event.schemaVersion === 2, 'UNSUPPORTED_EVENT_VERSION', `Event ${index + 1} is not v2`);
+    invariant(event.schemaVersion === 2, 'UNSUPPORTED_EVENT_VERSION', `Event ${index + 1} has unsupported schema version ${event.schemaVersion}`);
     invariant(event.sequence === index + 1, 'INVALID_EVENT_SEQUENCE', `Expected event sequence ${index + 1}`);
     invariant(event.previousHash === previousHash, 'INVALID_EVENT_CHAIN', `Broken event chain at sequence ${event.sequence}`);
     const { hash, ...withoutHash } = event;

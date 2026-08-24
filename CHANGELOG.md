@@ -7,6 +7,8 @@ All notable changes to Deweyou Harness are recorded here.
 - Renamed the single user-facing Skill from `dhw` to `harness-work`.
 - Added user-triggered configuration creation and updates plus preflight
   migration guidance before Run creation.
+- Added the root `strategy` setting for branch or worktree preparation before a
+  new Run.
 
 ## [1.2.0] - 2026-08-21
 

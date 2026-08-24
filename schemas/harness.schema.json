@@ -1,13 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/deweyou/harness/schemas/harness.schema.json",
-  "title": "Deweyou Harness v2 configuration",
+  "title": "Deweyou Harness configuration",
   "type": "object",
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
     "$schema": { "type": "string" },
     "version": { "const": 2 },
+    "strategy": { "enum": ["branch", "worktree"], "default": "branch" },
     "imports": {
       "type": "array",
       "items": {

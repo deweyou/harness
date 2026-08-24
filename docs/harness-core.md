@@ -1,11 +1,11 @@
-# Harness Core v2
+# Harness Core
 
 Harness Core is a deterministic, domain-neutral control and state plane for
 durable agent work. Agents decide how to explore and perform work. Core records
 what has been committed, which claims define acceptance, which task-scoped Plan
 is active, what each execution produced, and whether the Run may complete.
 
-There is no Workflow or fixed Stage model in v2. Core rejects unsupported
+There is no Workflow or fixed Stage model. Core rejects unsupported
 configuration and event versions rather than translating them during Run
 execution. The `harness-work` Skill may migrate workspace configuration before
 Run creation, with user-visible handling for semantic changes; historical Run
@@ -37,10 +37,12 @@ lifecycle isolation, not a security sandbox.
 
 ## Configuration
 
-`harness.yaml` declares reusable resources and Node Definitions:
+`harness.yaml` selects one workspace preparation strategy and declares reusable
+resources and Node Definitions:
 
 ```yaml
 version: 2
+strategy: worktree
 
 resources:
   review-skill:
@@ -64,6 +66,15 @@ nodes:
       idempotent: true
       timeoutMs: 900000
 ```
+
+`strategy` is either `branch` or `worktree` and defaults to `branch`. It is
+owned by the root configuration and cannot be set by imports. `harness-work`
+does not prepare Git state for questions, other read-only work, or
+configuration-only maintenance. After implementation intent is known and before
+the first project mutation or mutation-bearing Run, it fetches the resolved
+remote base and creates a task branch in the current checkout or a separate
+worktree. A user-requested base branch overrides the inferred remote default,
+but base selection and Git mechanics are not additional configuration fields.
 
 Node Definitions do not contain dependencies. A Planned Node binds a reusable
 definition to Run-specific inputs, dependencies, expected outputs, target
@@ -133,7 +144,7 @@ active Plan views, and dashboards are rebuildable projections. Immutable config
 snapshots and digest-addressed blobs are supporting artifacts, not mutable
 authority.
 
-Core depends on a `RunRepository` interface. v2 ships a local filesystem
+Core depends on a `RunRepository` interface. Harness ships a local filesystem
 implementation under `~/.deweyou/harness/`. A database or cloud event store can
 implement the same append/read contract later without changing semantic
 commands.
@@ -142,7 +153,7 @@ The local repository also maintains `~/.deweyou/harness/index/runs.json` as a
 rebuildable global Run index. It contains only list-level metadata derived from
 each Run's authoritative events and supporting snapshots. The Dashboard and
 `run_list` use this index to show active and archived Runs across workspaces;
-Run detail is always materialized from the verified v2 projection.
+Run detail is always materialized from the verified event projection.
 
 The MCP process opportunistically starts one read-only Dashboard server on
 `127.0.0.1:7777`. If a healthy Harness Dashboard already owns that port, a new
@@ -150,7 +161,7 @@ process reuses it instead of starting another server. Set
 `DEWEYOU_DASHBOARD_AUTOSTART=0` to disable startup or
 `DEWEYOU_DASHBOARD_PORT` to override the port.
 
-Old `~/.deweyou/dev/` state is intentionally ignored. v2 never reads, migrates,
+Old `~/.deweyou/dev/` state is intentionally ignored. Harness never reads, migrates,
 or deletes it.
 
 ## Completion
@@ -168,7 +179,7 @@ Successful nodes alone never complete a Run.
 
 ## Future Extension Seams
 
-v2 reserves inexpensive seams for cloud and multi-agent execution:
+Harness reserves inexpensive seams for cloud and multi-agent execution:
 
 - logical workspace identity separate from mounts
 - repository abstraction and store-authoritative ordering
@@ -177,7 +188,7 @@ v2 reserves inexpensive seams for cloud and multi-agent execution:
 - digest-addressed Artifacts and Evidence
 - globally unique identities and semantic commands
 
-v2 intentionally does not implement a cloud coordinator, remote scheduler,
+Harness intentionally does not implement a cloud coordinator, remote scheduler,
 device or agent registry, lease and heartbeat protocol, object store,
 cross-device sync, mailbox, P2P transport, multi-tenancy, cloud auth, vault, or
 billing.

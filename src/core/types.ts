@@ -36,14 +36,17 @@ export interface NodeDefinition {
 }
 
 export interface HarnessImport { path: string; as?: string }
+export type WorkspaceStrategy = 'branch' | 'worktree';
 export interface HarnessConfig {
   version: 2;
+  strategy?: WorkspaceStrategy;
   imports?: Array<string | HarnessImport>;
   resources?: Record<string, ResourceDefinition>;
   nodes?: Record<string, NodeDefinition>;
 }
 export interface ResolvedHarnessConfig {
   version: 2;
+  strategy: WorkspaceStrategy;
   sourceFiles: string[];
   resources: Record<string, ResourceDefinition>;
   nodes: Record<string, NodeDefinition>;

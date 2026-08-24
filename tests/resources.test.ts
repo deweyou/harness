@@ -14,6 +14,7 @@ describe('ConfigResourceProvider', () => {
     await writeFile(join(skillDirectory, 'SKILL.md'), '---\nname: review\ndescription: review changes\n---\n\n# Full instructions');
     const config: ResolvedHarnessConfig = {
       version: 2,
+      strategy: 'branch',
       sourceFiles: [],
       resources: { review: { kind: 'skill', source: { type: 'workspace', path: skillDirectory } } },
       nodes: { review: { executor: { kind: 'agent', skills: ['review'] } } },
@@ -42,6 +43,7 @@ describe('ConfigResourceProvider', () => {
     await writeFile(join(repository, 'knowledge', 'README.md'), '# Knowledge\n\nDetails');
     const config: ResolvedHarnessConfig = {
       version: 2,
+      strategy: 'branch',
       sourceFiles: [],
       resources: {
         rule: { kind: 'rule', source: { type: 'git', repo: `file://${repository}`, path: 'rule' } },

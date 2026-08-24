@@ -103,12 +103,56 @@
     {
       "id": 9,
       "prompt": "/harness-work Run this task, but preflight reports that harness.yaml uses an unsupported older version with workflow stages.",
-      "expected_output": "Route through configuration migration, keep reusable capabilities, avoid copying workflow structure into v2 config, validate, and then resume the run request.",
+      "expected_output": "Route through configuration migration, keep reusable capabilities, avoid copying workflow structure into the current config, validate, and then resume the run request.",
       "files": [],
       "expectations": [
         "Does not silently copy Workflow, Stage, or dependency fields into Node Definitions",
         "Requests a decision when migration would change semantics or authority",
         "Does not create a Run until the migrated configuration validates"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "/harness-work Start this task from the repository's default branch. config_inspect reports strategy worktree.",
+      "expected_output": "Fetch the remote default base, create an isolated task branch and worktree from the fetched base, validate config in the new path, and only then create the Run there.",
+      "files": [],
+      "expectations": [
+        "Does not rewrite or rebase the user's base branch",
+        "Uses the prepared worktree path for config_inspect and run_create",
+        "Stops before Run creation when fetch or workspace preparation fails"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "/harness-work Start this task. config_inspect reports strategy branch, but the current checkout has unrelated changes.",
+      "expected_output": "Stop workspace preparation and ask the user how to handle the dirty checkout without stashing, committing, or discarding it automatically.",
+      "files": [],
+      "expectations": [
+        "Does not switch branches with a dirty checkout",
+        "Does not automatically stash, commit, or discard unrelated changes",
+        "Does not create a Run before workspace preparation succeeds"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "/harness-work Why does this repository use a worktree strategy? Please only explain it.",
+      "expected_output": "Inspect only what is needed and answer without creating or switching a branch, creating a worktree, or creating a Run.",
+      "files": [],
+      "expectations": [
+        "Does not invoke workspace preparation for a question",
+        "Does not mutate Git state or repository files",
+        "Does not create an empty Run"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "/harness-work First investigate why the test fails. Only fix it if the investigation shows a repository change is needed.",
+      "expected_output": "Investigate in the current checkout, then prepare exactly one workspace immediately before the first necessary repository mutation and continue there.",
+      "files": [],
+      "expectations": [
+        "Does not prepare a workspace during read-only investigation",
+        "Prepares before the first mutating command when a fix is needed",
+        "Reuses the same prepared workspace for the remainder of the task"
       ]
     }
   ]
