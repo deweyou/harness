@@ -25,9 +25,24 @@ export interface ExecutionAttempt {
   input: Record<string, unknown>;
   output?: Record<string, unknown>;
   evidenceIds: string[];
+  exports: ExecutionExport[];
   startedAt?: string;
   endedAt?: string;
   durationMs: number | null;
+}
+
+export interface ExecutionExport {
+  id: string;
+  runId: string;
+  executionId: string;
+  commitmentRevision: number;
+  name: string;
+  mediaType: 'application/json' | 'text/markdown';
+  digest: string;
+  locator: string;
+  sourceLocator?: string;
+  role?: string;
+  sizeBytes: number;
 }
 
 export interface DashboardClaim {
@@ -99,4 +114,8 @@ export async function fetchRunEvents(runId: string): Promise<HarnessEvent[]> {
 
 export async function fetchRetrospective(runId: string): Promise<string> {
   return (await getJson<{ markdown: string }>(`/api/runs/${encodeURIComponent(runId)}/retrospective`)).markdown;
+}
+
+export async function fetchExecutionExport(runId: string, exportId: string): Promise<{ export: ExecutionExport; content: string }> {
+  return getJson(`/api/runs/${encodeURIComponent(runId)}/exports/${encodeURIComponent(exportId)}`);
 }

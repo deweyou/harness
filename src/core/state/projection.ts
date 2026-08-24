@@ -1,5 +1,5 @@
 import { assertClaimDecision, assertCommitmentRevision, assertNodeExecution, assertPlanRevision, isCommitmentAccepted } from '../runtime.js';
-import type { Claim, Commitment, Evidence, HarnessEvent, NodeExecution, NodeExecutionStatus, Plan, Run, RunProjection } from '../types.js';
+import type { Claim, Commitment, Evidence, ExecutionExport, HarnessEvent, NodeExecution, NodeExecutionStatus, Plan, Run, RunProjection } from '../types.js';
 
 const NODE_TERMINAL = new Map<string, NodeExecutionStatus>([
   ['node.succeeded', 'succeeded'],
@@ -32,6 +32,26 @@ function objectValue<T extends object>(payload: Record<string, unknown>, key: st
   const value = payload[key];
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`Event payload.${key} must be an object`);
   return value as T;
+}
+
+function executionExports(payload: Record<string, unknown>, executionId: string, runId: string, commitmentRevision: number): ExecutionExport[] {
+  if (payload.exports === undefined) return [];
+  if (!Array.isArray(payload.exports)) throw new Error('Event payload.exports must be an array');
+  const exports = payload.exports as ExecutionExport[];
+  const ids = new Set<string>();
+  for (const item of exports) {
+    if (typeof item !== 'object' || item === null) throw new Error('Every execution Export must be an object');
+    if (item.runId !== runId || item.executionId !== executionId) throw new Error(`Export '${item.id}' belongs to another Run or execution`);
+    if (!item.id || ids.has(item.id)) throw new Error(`Duplicate or empty Export id '${item.id}'`);
+    if (item.commitmentRevision !== commitmentRevision) throw new Error(`Export '${item.id}' targets a stale Commitment revision`);
+    if (typeof item.name !== 'string' || item.name.length === 0) throw new Error(`Export '${item.id}' has an invalid name`);
+    if (!['application/json', 'text/markdown'].includes(item.mediaType)) throw new Error(`Export '${item.id}' has unsupported media type`);
+    if (!/^[a-f0-9]{64}$/.test(item.digest)) throw new Error(`Export '${item.id}' has an invalid digest`);
+    if (!Number.isInteger(item.sizeBytes) || item.sizeBytes < 0) throw new Error(`Export '${item.id}' has an invalid size`);
+    if (!item.locator.startsWith('exports/') || item.locator.includes('..')) throw new Error(`Export '${item.id}' has an invalid locator`);
+    ids.add(item.id);
+  }
+  return exports;
 }
 
 function latestByRevision(values: Iterable<Commitment>): Commitment | undefined {
@@ -203,6 +223,7 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
           ? plannedNode.input ?? {}
           : objectValue<Record<string, unknown>>(event.payload, 'input'),
         evidenceIds: [],
+        exports: [],
         startedAt: event.timestamp,
       };
       if (executions.has(execution.id)) throw new Error(`Duplicate node execution '${execution.id}'`);
@@ -216,6 +237,8 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       if (current.status !== 'running') throw new Error(`Node execution '${executionId}' is already terminal`);
       const terminalStatus = NODE_TERMINAL.get(event.type)!;
       const evidenceIds = event.payload.evidenceIds === undefined ? [] : stringArray(event.payload, 'evidenceIds');
+      const plan = plans.get(current.planRevision)!;
+      const exports = executionExports(event.payload, executionId, run.id, plan.commitmentRevision);
       for (const evidenceId of evidenceIds) if (!evidence[evidenceId]) throw new Error(`Node execution '${executionId}' refers to missing Evidence '${evidenceId}'`);
       const endedAt = Date.parse(event.timestamp);
       const startedAt = Date.parse(current.startedAt!);
@@ -226,6 +249,7 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
           ? {}
           : { output: objectValue<Record<string, unknown>>(event.payload, 'output') }),
         evidenceIds,
+        exports,
         endedAt: event.timestamp,
         durationMs: Math.max(0, endedAt - startedAt),
       };

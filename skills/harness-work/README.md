@@ -15,5 +15,12 @@ routers, while durable explanations live in the appropriately scoped `docs/`.
 In-progress feedback uses minimal incremental Plans: unaffected work is reused,
 while only affected nodes and focused verification are rerun or added.
 
+Problem framing stays conversational and lightweight. Durable Specs are
+published through the same immutable Markdown Export contract used by other
+node results, and the Dashboard renders both Markdown and JSON Exports.
+Knowledge initialization can safely share `AGENTS.md` with Claude through a
+symlink, uses Mermaid when relationships benefit from a diagram, and keeps a
+compact update footer on maintained pages.
+
 See [Harness Core](../../docs/harness-core.md) for configuration and runtime
 contracts.

@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load as loadYaml } from 'js-yaml';
-import type { HarnessEvent, NodeExecutionStatus, Plan, ResolvedHarnessConfig, RunIndexEntry, RunProjection } from '../core/types.js';
+import type { ExecutionExport, HarnessEvent, NodeExecutionStatus, Plan, ResolvedHarnessConfig, RunIndexEntry, RunProjection } from '../core/types.js';
 import { RunStore } from '../core/state/store.js';
 
 type DashboardNodeStatus = NodeExecutionStatus | 'pending';
@@ -44,6 +44,7 @@ export interface DashboardExecutionAttempt {
   input: Record<string, unknown>;
   output?: Record<string, unknown>;
   evidenceIds: string[];
+  exports: ExecutionExport[];
   startedAt?: string;
   endedAt?: string;
   durationMs: number | null;
@@ -159,6 +160,7 @@ function materializeNodes(plan: Plan | undefined, projection: RunProjection, lab
         input: execution.input ?? plannedNode.input ?? {},
         ...(execution.output !== undefined ? { output: execution.output } : {}),
         evidenceIds: execution.evidenceIds,
+        exports: execution.exports ?? [],
         ...(execution.startedAt ? { startedAt: execution.startedAt } : {}),
         ...(execution.endedAt ? { endedAt: execution.endedAt } : {}),
         durationMs: execution.durationMs ?? null,
@@ -305,6 +307,16 @@ export function createDashboardRequestHandler(options: DashboardServerOptions = 
         json(response, 200, { runId, markdown: await store.getRetrospectiveReport(entry.workspaceId, entry.runId) }, head);
         return;
       }
+      const exportMatch = /^\/api\/runs\/([^/]+)\/exports\/([^/]+)$/.exec(url.pathname);
+      if (exportMatch) {
+        const runId = decodeURIComponent(exportMatch[1]!);
+        const exportId = decodeURIComponent(exportMatch[2]!);
+        const entry = await findRun(store, runId);
+        if (!entry) return json(response, 404, { error: 'Run not found' }, head);
+        const item = await store.getExecutionExport(entry.workspaceId, entry.runId, exportId);
+        json(response, 200, item, head);
+        return;
+      }
       const runMatch = /^\/api\/runs\/([^/]+)$/.exec(url.pathname);
       if (runMatch) {
         const runId = decodeURIComponent(runMatch[1]!);
@@ -323,7 +335,7 @@ export function createDashboardRequestHandler(options: DashboardServerOptions = 
       }
       await serveAsset(response, assetRoot, url.pathname, head);
     } catch (error) {
-      json(response, errorCode(error) === 'ENOENT' ? 404 : 500, {
+      json(response, ['ENOENT', 'EXPORT_NOT_FOUND'].includes(errorCode(error) ?? '') ? 404 : 500, {
         error: error instanceof Error ? error.message : 'Unexpected dashboard error',
       }, head);
     }

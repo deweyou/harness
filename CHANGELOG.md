@@ -17,6 +17,10 @@ All notable changes to Deweyou Harness are recorded here.
   limit revised Plans to affected patches and focused verification.
 - Allowed necessary knowledge updates during any Run stage while keeping active
   knowledge current-state only and design history in Specs or Run Evidence.
+- Added generic immutable JSON and Markdown Node Exports with Dashboard viewers;
+  task Specs use the same Export contract with role `spec`.
+- Added lightweight Problem Framing and Spec lifecycle guidance plus safe
+  `CLAUDE.md` initialization, Mermaid-first documentation, and update footers.
 
 ## [1.2.0] - 2026-08-21
 

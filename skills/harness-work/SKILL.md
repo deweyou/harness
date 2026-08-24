@@ -62,6 +62,11 @@ authority.
 ## Start Or Resume
 
 Read [commitment.md](references/commitment.md) before creating durable state.
+When the requested outcome is ambiguous, has meaningful alternatives, asks for
+critique, or needs a durable Spec, also read
+[framing-and-spec.md](references/framing-and-spec.md). Framing is a natural
+conversation before or during durable work; it is not a fixed Stage and does
+not require a Run by itself.
 
 1. Find the workspace root and explore read-only until the workspace preparation gate
    is resolved. A conversational or read-only result ends here without Git
@@ -113,8 +118,11 @@ the Plan revision changed.
 4. Let the host adapter invoke the configured project-owned StructuredExecutor
    boundary. Pass cancellation and idempotency through unchanged; Cordis owns
    only the executor capability's scoped lifecycle.
-5. Store large or raw output as Evidence. Call `execution_finish` exactly once
-   with a concise structured result and Evidence references.
+5. Store large or raw verification material as Evidence. Publish durable,
+   human-readable or machine-readable node results as immutable Markdown or
+   JSON Exports. A task Spec is a Markdown Export with role `spec`; it is not a
+   special Core object. Call `execution_finish` exactly once with a concise
+   structured result, Evidence references, and any Exports.
 6. Evaluate affected Claims explicitly. A successful node does not satisfy a
    Claim by itself.
 7. Continue until no node is ready, the Commitment changes, or a material

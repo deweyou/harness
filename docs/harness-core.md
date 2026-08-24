@@ -16,7 +16,7 @@ events are never rewritten.
 Core owns:
 
 - Run, Commitment, Claim, Plan, Planned Node, Node Execution, Evidence, and
-  Artifact contracts
+  Export contracts
 - semantic command validation, identifiers, revisions, attempts, timestamps,
   event ordering, and replay
 - Plan DAG validation and ready-node calculation
@@ -129,15 +129,22 @@ per Plan revision and Planned Node. Starting, finishing, retrying, and
 interrupting executions are semantic commands; clients do not allocate attempts
 or append arbitrary events. Starting an attempt snapshots its Planned Node input
 into the event stream. Finishing it may record a concise structured output. Each
-payload is limited to 64 KiB; large results, raw logs, and binary artifacts belong
-in digest-addressed Evidence instead.
+structured payload is limited to 64 KiB. The same terminal command may attach
+immutable JSON or Markdown Exports, either from inline content or a source file
+inside the Run workspace. Core snapshots source files into the Run bundle and
+records their digest and Run-relative locator. Raw verification material and
+binary content belong in digest-addressed Evidence instead.
 
-### Evidence And Artifacts
+### Evidence And Exports
 
-Evidence and Artifacts use a digest as identity plus a locator. A bare local
-path is never an identity. Evidence records its Commitment revision and relevant
-input digests so Core can reject stale proof after inputs or requirements
-change.
+Evidence proves Claims. It records its Commitment revision and relevant input
+digests so Core can reject stale proof after inputs or requirements change.
+
+Exports present durable Node results for people or tools. An Export records its
+execution, Commitment revision, media type, digest, size, and immutable snapshot
+locator. `role` is an optional domain-neutral hint such as `spec`, `report`, or
+`result`; Core does not assign special lifecycle behavior to it. A bare local
+path is never Export identity.
 
 ## Capability Runtime
 
@@ -179,7 +186,9 @@ The MCP process opportunistically starts one read-only Dashboard server on
 process reuses it instead of starting another server. Set
 `DEWEYOU_DASHBOARD_AUTOSTART=0` to disable startup or
 `DEWEYOU_DASHBOARD_PORT` to override the port. Run detail exposes every Node
-Execution attempt's structured input, output, Evidence links, and activity.
+Execution attempt's structured input, output, Evidence links, Exports, and
+activity. JSON Exports use the generic JSON viewer and Markdown Exports use the
+generic Markdown viewer; a Spec is simply a Markdown Export with role `spec`.
 After completion, Core also writes a rebuildable
 `reports/retrospective.md` inside the Run bundle and the Dashboard exposes it as
 a read-only Report view. Events and retrospective JSON remain authoritative;
@@ -209,7 +218,7 @@ Harness reserves inexpensive seams for cloud and multi-agent execution:
 - repository abstraction and store-authoritative ordering
 - Node Definition, Planned Node, and Node Execution separation
 - structured executors with cancellation and idempotency
-- digest-addressed Artifacts and Evidence
+- digest-addressed Exports and Evidence
 - globally unique identities and semantic commands
 
 Harness intentionally does not implement a cloud coordinator, remote scheduler,
@@ -232,3 +241,5 @@ The MCP server exposes semantic operations rather than raw event mutation:
 
 The server does not launch subagents, choose product intent, or grant external
 authority.
+
+_Last updated: 2026-08-24 — documented generic Node Exports and Dashboard viewers._

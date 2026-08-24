@@ -261,7 +261,7 @@ export function createHarnessServer(): McpServer {
   server.registerTool(
     'execution_finish',
     {
-      description: 'Finish one running Node Execution exactly once with status, bounded structured output, and Evidence identities.',
+      description: 'Finish one running Node Execution exactly once with status, bounded structured output, Evidence identities, and immutable JSON or Markdown Exports.',
       inputSchema: z.object({
         workspacePath: z.string(),
         runId: z.string(),
@@ -269,10 +269,19 @@ export function createHarnessServer(): McpServer {
         status: z.enum(['blocked', 'succeeded', 'failed', 'cancelled', 'skipped', 'interrupted']),
         evidenceIds: z.array(z.string()).default([]),
         output: z.record(z.string(), z.unknown()).optional(),
+        exports: z.array(z.object({
+          name: z.string().min(1),
+          mediaType: z.enum(['application/json', 'text/markdown']),
+          role: z.string().min(1).optional(),
+          content: z.string().optional(),
+          sourcePath: z.string().min(1).optional(),
+        }).refine((item) => (item.content !== undefined) !== (item.sourcePath !== undefined), {
+          message: 'Provide exactly one of content or sourcePath',
+        })).default([]),
         command: commandContextSchema,
       }),
     },
-    async ({ workspacePath, runId, executionId, status, evidenceIds, output, command }) => result(
+    async ({ workspacePath, runId, executionId, status, evidenceIds, output, exports, command }) => result(
       await new RunStore().finishExecution(
         await workspaceId(workspacePath),
         runId,
@@ -281,6 +290,13 @@ export function createHarnessServer(): McpServer {
         evidenceIds,
         commandContext(command),
         output,
+        exports.map((item) => ({
+          name: item.name,
+          mediaType: item.mediaType,
+          ...(item.role !== undefined ? { role: item.role } : {}),
+          ...(item.content !== undefined ? { content: item.content } : {}),
+          ...(item.sourcePath !== undefined ? { sourcePath: item.sourcePath } : {}),
+        })),
       ),
     ),
   );

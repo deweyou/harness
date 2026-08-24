@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, appendFile, mkdir, open, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { dump as dumpYaml } from 'js-yaml';
 import { invariant } from '../errors.js';
 import { readyPlannedNodes } from '../graph.js';
@@ -14,6 +14,8 @@ import type {
   Commitment,
   EventInput,
   Evidence,
+  ExecutionExport,
+  ExecutionExportMediaType,
   HarnessEvent,
   NodeExecutionStatus,
   Plan,
@@ -39,6 +41,7 @@ export interface RunRepository {
   readJson<T>(workspaceId: string, runId: string, relativePath: string): Promise<T>;
   writeJson(workspaceId: string, runId: string, relativePath: string, value: unknown): Promise<void>;
   writeText(workspaceId: string, runId: string, relativePath: string, value: string): Promise<void>;
+  readText(workspaceId: string, runId: string, relativePath: string): Promise<string>;
   listRuns(scope?: 'all' | 'active' | 'archived'): Promise<RunIndexEntry[]>;
   rebuildRunIndex(): Promise<RunIndex>;
   runDirectory(workspaceId: string, runId: string): string;
@@ -83,8 +86,17 @@ export interface EvidenceInput {
   inputDigests?: Record<string, string>;
 }
 
+export interface ExecutionExportInput {
+  name: string;
+  mediaType: ExecutionExportMediaType;
+  role?: string;
+  content?: string;
+  sourcePath?: string;
+}
+
 const delay = (milliseconds: number): Promise<void> => new Promise((accept) => setTimeout(accept, milliseconds));
 const MAX_STRUCTURED_PAYLOAD_BYTES = 64 * 1_024;
+const MAX_EXPORT_BYTES = 1_024 * 1_024;
 
 async function atomicJson(path: string, value: unknown): Promise<void> {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
@@ -191,6 +203,7 @@ export class LocalRunRepository implements RunRepository {
       mkdir(join(directory, 'evidence'), { recursive: true, mode: 0o700 }),
       mkdir(join(directory, 'proposals'), { recursive: true, mode: 0o700 }),
       mkdir(join(directory, 'reports'), { recursive: true, mode: 0o700 }),
+      mkdir(join(directory, 'exports'), { recursive: true, mode: 0o700 }),
     ]);
     await Promise.all([
       atomicJson(join(directory, 'run.json'), run),
@@ -267,6 +280,10 @@ export class LocalRunRepository implements RunRepository {
 
   async writeText(workspaceId: string, runId: string, relativePath: string, value: string): Promise<void> {
     await atomicText(join(this.runDirectory(workspaceId, runId), relativePath), value);
+  }
+
+  async readText(workspaceId: string, runId: string, relativePath: string): Promise<string> {
+    return readFile(join(this.runDirectory(workspaceId, runId), relativePath), 'utf8');
   }
 
   async listRuns(scope: 'all' | 'active' | 'archived' = 'all'): Promise<RunIndexEntry[]> {
@@ -551,14 +568,91 @@ export class RunStore {
     evidenceIds: string[],
     context: CommandContext,
     output?: Record<string, unknown>,
+    exportInputs: ExecutionExportInput[] = [],
   ): Promise<RunProjection> {
     if (output) assertStructuredPayloadSize(`Node execution '${executionId}' output`, output);
+    const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
+    const exports = await this.prepareExecutionExports(workspaceId, runId, executionId, exportInputs, Boolean(replay));
     await this.commitEvent(workspaceId, runId, this.eventInput(
       `node.${status}` as EventInput['type'],
       context,
-      { executionId, evidenceIds, ...(output !== undefined ? { output } : {}) },
+      { executionId, evidenceIds, ...(exports.length ? { exports } : {}), ...(output !== undefined ? { output } : {}) },
     ));
     return this.getProjection(workspaceId, runId);
+  }
+
+  async getExecutionExport(
+    workspaceId: string,
+    runId: string,
+    exportId: string,
+  ): Promise<{ export: ExecutionExport; content: string }> {
+    const projection = await this.getProjection(workspaceId, runId);
+    const item = projection.nodeExecutions.flatMap((execution) => execution.exports ?? []).find((candidate) => candidate.id === exportId);
+    invariant(item, 'EXPORT_NOT_FOUND', `Export '${exportId}' does not exist in Run '${runId}'`);
+    const content = await this.repository.readText(workspaceId, runId, item.locator);
+    invariant(createHash('sha256').update(content).digest('hex') === item.digest, 'EXPORT_DIGEST_MISMATCH', `Export '${exportId}' content does not match its digest`);
+    return { export: item, content };
+  }
+
+  private async prepareExecutionExports(
+    workspaceId: string,
+    runId: string,
+    executionId: string,
+    inputs: ExecutionExportInput[],
+    allowTerminalReplay = false,
+  ): Promise<ExecutionExport[]> {
+    if (inputs.length === 0) return [];
+    const projection = await this.getProjection(workspaceId, runId);
+    const execution = projection.nodeExecutions.find((candidate) => candidate.id === executionId);
+    invariant(execution && (execution.status === 'running' || allowTerminalReplay), 'EXECUTION_NOT_RUNNING', `Node execution '${executionId}' is not running`);
+    const plan = projection.plans[execution.planRevision];
+    invariant(plan, 'PLAN_NOT_FOUND', `Plan revision ${execution.planRevision} does not exist`);
+    const run = await this.repository.readJson<Run>(workspaceId, runId, 'run.json');
+    const workspacePath = run.workspacePath ?? run.workspaceMount;
+    invariant(workspacePath, 'WORKSPACE_PATH_MISSING', `Run '${runId}' has no workspace path`);
+    const canonicalWorkspace = await realpath(workspacePath);
+    const prepared: ExecutionExport[] = [];
+    for (const [index, input] of inputs.entries()) {
+      invariant(input.name.trim().length > 0, 'INVALID_EXPORT_NAME', 'Export name must be non-empty');
+      invariant(['application/json', 'text/markdown'].includes(input.mediaType), 'UNSUPPORTED_EXPORT_MEDIA_TYPE', `Export '${input.name}' has unsupported media type '${input.mediaType}'`);
+      invariant((input.content !== undefined) !== (input.sourcePath !== undefined), 'INVALID_EXPORT_SOURCE', `Export '${input.name}' must provide exactly one of content or sourcePath`);
+      let content: string;
+      let sourceLocator: string | undefined;
+      if (input.sourcePath) {
+        const requested = resolve(canonicalWorkspace, input.sourcePath);
+        const canonicalSource = await realpath(requested);
+        const pathFromWorkspace = relative(canonicalWorkspace, canonicalSource);
+        invariant(pathFromWorkspace !== '..' && !pathFromWorkspace.startsWith(`..${sep}`) && !isAbsolute(pathFromWorkspace), 'EXPORT_SOURCE_OUTSIDE_WORKSPACE', `Export '${input.name}' source must stay inside the Run workspace`);
+        content = await readFile(canonicalSource, 'utf8');
+        sourceLocator = pathFromWorkspace;
+      } else {
+        content = input.content!;
+      }
+      const sizeBytes = Buffer.byteLength(content);
+      invariant(sizeBytes <= MAX_EXPORT_BYTES, 'EXPORT_TOO_LARGE', `Export '${input.name}' exceeds ${MAX_EXPORT_BYTES} bytes`);
+      if (input.mediaType === 'application/json') {
+        try { JSON.parse(content); } catch { throw new Error(`Export '${input.name}' must contain valid JSON`); }
+      }
+      const digest = createHash('sha256').update(content).digest('hex');
+      const id = createHash('sha256').update(JSON.stringify({ executionId, index, name: input.name, mediaType: input.mediaType, digest })).digest('hex');
+      const extension = input.mediaType === 'text/markdown' ? 'md' : 'json';
+      const locator = `exports/${id}.${extension}`;
+      await this.repository.writeText(workspaceId, runId, locator, content);
+      prepared.push({
+        id,
+        runId,
+        executionId,
+        commitmentRevision: plan.commitmentRevision,
+        name: input.name,
+        mediaType: input.mediaType,
+        digest,
+        locator,
+        ...(sourceLocator ? { sourceLocator } : {}),
+        ...(input.role ? { role: input.role } : {}),
+        sizeBytes,
+      });
+    }
+    return prepared;
   }
 
   async recordEvidence(workspaceId: string, runId: string, input: EvidenceInput, context: CommandContext): Promise<Evidence> {

@@ -11,13 +11,17 @@ The current design decision is recorded in
 
 ## Model
 
-```text
-Run
- ├─ Commitment revision -> acceptance Claim IDs
- ├─ Claim -> Evidence digests
- ├─ Plan revision -> Planned Nodes + dependencies
- │                    └─ Node Definition from harness.yaml
- └─ Node Execution attempts
+```mermaid
+flowchart TD
+  Run --> Commitment[Commitment revision]
+  Commitment --> Claim[Acceptance Claim]
+  Claim --> Evidence
+  Run --> Plan[Plan revision]
+  Plan --> PlannedNode[Planned Node]
+  PlannedNode --> NodeDefinition[Node Definition from harness.yaml]
+  PlannedNode --> Execution[Node Execution attempt]
+  Execution --> Evidence
+  Execution --> Export[JSON or Markdown Export]
 ```
 
 The important separations are:
@@ -34,7 +38,8 @@ The important separations are:
   revision. A later revision may be a minimal patch delta; it does not restart
   unaffected design, implementation, or verification work.
 - A Node Execution owns one immutable attempt, including a bounded structured
-  input snapshot and optional structured output.
+  input snapshot, optional structured output, Evidence links, and immutable
+  JSON/Markdown Exports. Spec is an Export role, not a special Core object.
 - Evidence owns a digest identity, locator, Commitment revision, and input
   digests.
 
@@ -45,7 +50,8 @@ revision, attempt, identity, timestamp, or sequence fields.
 
 `events.jsonl` is the authoritative hash chain. `state.json` is a rebuildable
 projection. Config snapshots and digest-addressed Evidence are immutable
-supporting artifacts. Resource activation is also recorded in the event chain,
+supporting artifacts. Node Exports are copied into `exports/` in the Run bundle
+and verified by digest before Dashboard preview. Resource activation is also recorded in the event chain,
 so no mutable resource-lock side file can override replay.
 
 Completed Runs also contain `reports/retrospective.md`. It is generated from the
@@ -107,18 +113,20 @@ filesystem sandboxes, or credential boundaries.
 | Commitment, Plan, Claim invariants | `src/core/runtime.ts` |
 | Event replay projection | `src/core/state/projection.ts` |
 | Retrospective Markdown projection | `src/core/retrospective-report.ts` |
+| Generic Export snapshot and lookup | `src/core/state/store.ts` |
 | Repository boundary and semantic commands | `src/core/state/store.ts` |
 | Cordis capability lifecycle | `src/core/capabilities.ts` |
 | Workspace resource provider | `src/core/resources.ts` |
 | Public semantic MCP tools | `src/mcp/server.ts` |
 | Controller behavior | `skills/harness-work/SKILL.md` |
+| Problem framing and Spec lifecycle | `skills/harness-work/references/framing-and-spec.md` |
 | Configuration lifecycle | `skills/harness-work/references/configuration.md` |
 | Public contract | `docs/harness-core.md` |
 
 ## Future seams, not current features
 
 The local implementation reserves logical workspace identity, a
-`RunRepository` interface, digest-based artifact identity, structured executor
+`RunRepository` interface, digest-based Export identity, structured executor
 contracts, cancellation, idempotency, and global identifiers. These keep a
 future cloud or cross-device executor from forcing a Core rewrite.
 
@@ -136,3 +144,5 @@ When changing Core:
 4. Ensure the event projection rejects the same invalid transition.
 5. Test stale revision, idempotency, replay, and completion invariants.
 6. Update `docs/harness-core.md`, this Wiki, schemas, and `/harness-work` together.
+
+_Last updated: 2026-08-24 — added generic Exports and lightweight Spec framing._

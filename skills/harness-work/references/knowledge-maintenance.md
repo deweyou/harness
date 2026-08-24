@@ -94,6 +94,17 @@ Prepare the configured task workspace before the first knowledge repository
 edit. Apply the narrowest change that keeps navigation and related pages
 consistent.
 
+When initializing repository instructions, create `AGENTS.md` as the canonical
+file. If `CLAUDE.md` is absent, create a relative `CLAUDE.md -> AGENTS.md`
+symlink so both hosts read the same contract. If `CLAUDE.md` already exists as
+a real file or points elsewhere, do not replace it without explicit user
+approval; reconcile its useful current rules deliberately instead.
+
+Use Mermaid first when architecture, state transitions, lifecycle, dependency,
+or cross-module relationships are materially clearer as a diagram. Prefer
+plain prose or a small table for simple facts; diagrams are explanatory
+projections, not authoritative state.
+
 Prefer colocating exact implementation facts with code, schemas, configuration,
 or tests. Documentation should explain intent, boundaries, interactions,
 diagnosis, decisions, and facts that span sources. Do not restate a signature,
@@ -109,6 +120,12 @@ is available.
 Maintain a content-oriented `docs/index.md` when the documentation is large
 enough to need routing. Do not add a second chronological `log.md` when Git and
 Harness events already provide the authoritative history.
+
+End maintained Specs and knowledge pages with a compact update footer in this
+form: `_Last updated: YYYY-MM-DD — reason. Run: id; Evidence: locator._` Omit
+unavailable Run or Evidence fields. Replace the footer on later updates rather
+than accumulating a change log. Immutable Raw sources instead keep their
+original capture metadata and must not receive a mutable update footer.
 
 ## Validate And Publish
 

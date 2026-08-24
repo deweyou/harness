@@ -14,6 +14,7 @@ Every assignment includes:
 - activated capability receipts and full skill instructions where required
 - allowed mutation and external-action boundaries
 - expected structured output, Evidence, and Claim links
+- expected JSON or Markdown Exports and their optional roles
 - cancellation signal, idempotency key, timeout, and retry policy
 
 `execution_start` snapshots the Planned Node's structured input for that
@@ -22,6 +23,12 @@ attempt has useful machine-readable output. Input and output are each limited to
 64 KiB. Put large payloads, raw command output, logs, and files in Evidence and
 reference their identities from the attempt. Do not place secrets, credentials,
 tokens, or unredacted environment data in either structured payload.
+
+Use Exports for durable results that should be inspected directly by people or
+tools. Inline small content or reference a source file inside the Run workspace;
+Core snapshots it into the Run bundle. JSON must be valid and Markdown is
+rendered as text-safe content in the Dashboard. Evidence remains the proof used
+to decide Claims; an Export does not satisfy a Claim by itself.
 
 Retry only an evidence-backed technical failure. A retry creates a new
 execution identity and preserves the previous attempt. Changes to objective,

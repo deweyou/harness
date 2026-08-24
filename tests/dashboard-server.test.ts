@@ -58,7 +58,19 @@ async function fixture() {
   }], context('plan'));
   await store.activatePlan(run.workspace.id, run.id, plan.revision, context('activate'));
   const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('start'));
-  await store.finishExecution(run.workspace.id, run.id, execution.executionId, 'blocked', [], context('blocked'), { reason: 'waiting' });
+  await store.finishExecution(
+    run.workspace.id,
+    run.id,
+    execution.executionId,
+    'blocked',
+    [],
+    context('blocked'),
+    { reason: 'waiting' },
+    [
+      { name: 'Run spec', mediaType: 'text/markdown', role: 'spec', content: '# Dashboard spec\n' },
+      { name: 'Result data', mediaType: 'application/json', content: '{"waiting":true}' },
+    ],
+  );
   return { assetRoot, claimId, run, store };
 }
 
@@ -101,7 +113,7 @@ describe('Dashboard HTTP server', () => {
         totalNodes: 1,
       }),
     ]);
-    const detail = (await request(handler, `/api/runs/${encodeURIComponent(run.id)}`)).json() as { run: { nodes: unknown[] } };
+    const detail = (await request(handler, `/api/runs/${encodeURIComponent(run.id)}`)).json() as { run: { nodes: Array<{ attempts: Array<{ exports: Array<{ id: string }> }> }> } };
     expect(detail.run.nodes).toEqual([
       expect.objectContaining({
         id: 'work-1',
@@ -113,6 +125,10 @@ describe('Dashboard HTTP server', () => {
         attempts: [expect.objectContaining({ attempt: 1, input: { route: '/runs' }, output: { reason: 'waiting' } })],
       }),
     ]);
+    const exportId = detail.run.nodes[0]!.attempts[0]!.exports[0]!.id;
+    const exported = await request(handler, `/api/runs/${encodeURIComponent(run.id)}/exports/${exportId}`);
+    expect(exported.status).toBe(200);
+    expect(exported.json()).toMatchObject({ export: { role: 'spec', mediaType: 'text/markdown' }, content: '# Dashboard spec\n' });
     const events = (await request(handler, `/api/runs/${encodeURIComponent(run.id)}/events`)).json() as { events: unknown[] };
     expect(events.events).toHaveLength(6);
     expect((await request(handler, `/runs/${run.id}`)).text()).toContain('Dashboard shell');
@@ -125,6 +141,7 @@ describe('Dashboard HTTP server', () => {
     expect((await request(handler, '/api/runs/missing')).status).toBe(404);
     expect((await request(handler, '/api/runs/missing/events')).status).toBe(404);
     expect((await request(handler, '/api/runs/missing/retrospective')).status).toBe(404);
+    expect((await request(handler, `/api/runs/${run.id}/exports/missing`)).status).toBe(404);
     expect((await request(handler, '/api/missing')).status).toBe(404);
     expect((await request(handler, '/missing.js')).status).toBe(404);
     expect((await request(handler, '/%2e%2e%2foutside')).status).toBe(404);

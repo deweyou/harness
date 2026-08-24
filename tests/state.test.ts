@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -91,6 +91,86 @@ describe('RunStore semantic commands', () => {
       context('large-output-finish'),
       { content: 'x'.repeat(70_000) },
     )).rejects.toMatchObject({ code: 'STRUCTURED_PAYLOAD_TOO_LARGE' });
+  });
+
+  it('snapshots JSON and Markdown Exports and rejects unsafe sources', async () => {
+    const { store, run, claimId, workspace } = await setup();
+    await mkdir(join(workspace, 'docs'));
+    await writeFile(join(workspace, 'docs', 'spec.md'), '# Current spec\n');
+    await activatePlan(store, run, claimId);
+    const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('export-start'));
+    const projection = await store.finishExecution(
+      run.workspace.id,
+      run.id,
+      execution.executionId,
+      'succeeded',
+      [],
+      context('export-finish'),
+      { result: 'compiled' },
+      [
+        { name: 'Implementation spec', mediaType: 'text/markdown', role: 'spec', sourcePath: 'docs/spec.md' },
+        { name: 'Result data', mediaType: 'application/json', role: 'result', content: '{"ok":true}' },
+      ],
+    );
+    const exports = projection.nodeExecutions[0]!.exports!;
+    expect(exports).toEqual([
+      expect.objectContaining({ name: 'Implementation spec', role: 'spec', sourceLocator: 'docs/spec.md', mediaType: 'text/markdown' }),
+      expect.objectContaining({ name: 'Result data', role: 'result', mediaType: 'application/json' }),
+    ]);
+    await expect(store.finishExecution(
+      run.workspace.id,
+      run.id,
+      execution.executionId,
+      'succeeded',
+      [],
+      context('export-finish'),
+      { result: 'compiled' },
+      [
+        { name: 'Implementation spec', mediaType: 'text/markdown', role: 'spec', sourcePath: 'docs/spec.md' },
+        { name: 'Result data', mediaType: 'application/json', role: 'result', content: '{"ok":true}' },
+      ],
+    )).resolves.toMatchObject({ nodeExecutions: [expect.objectContaining({ id: execution.executionId })] });
+    await expect(store.getExecutionExport(run.workspace.id, run.id, exports[0]!.id)).resolves.toMatchObject({ content: '# Current spec\n' });
+    await expect(readFile(join(store.runDirectory(run.workspace.id, run.id), exports[0]!.locator), 'utf8')).resolves.toBe('# Current spec\n');
+    await writeFile(join(store.runDirectory(run.workspace.id, run.id), exports[0]!.locator), '# Tampered\n');
+    await expect(store.getExecutionExport(run.workspace.id, run.id, exports[0]!.id)).rejects.toMatchObject({ code: 'EXPORT_DIGEST_MISMATCH' });
+
+    const second = await setup();
+    await activatePlan(second.store, second.run, second.claimId);
+    const unsafe = await second.store.startExecution(second.run.workspace.id, second.run.id, 'work-1', context('unsafe-export-start'));
+    const outsideSource = join(second.stateRoot, 'outside.md');
+    await writeFile(outsideSource, '# Outside\n');
+    await symlink(outsideSource, join(second.workspace, 'outside-link.md'));
+    await expect(second.store.finishExecution(
+      second.run.workspace.id,
+      second.run.id,
+      unsafe.executionId,
+      'succeeded',
+      [],
+      context('unsafe-export-finish'),
+      undefined,
+      [{ name: 'Outside', mediaType: 'text/markdown', sourcePath: 'outside-link.md' }],
+    )).rejects.toMatchObject({ code: 'EXPORT_SOURCE_OUTSIDE_WORKSPACE' });
+    await expect(second.store.finishExecution(
+      second.run.workspace.id,
+      second.run.id,
+      unsafe.executionId,
+      'succeeded',
+      [],
+      context('invalid-json-export'),
+      undefined,
+      [{ name: 'Invalid JSON', mediaType: 'application/json', content: '{' }],
+    )).rejects.toThrow('must contain valid JSON');
+    await expect(second.store.finishExecution(
+      second.run.workspace.id,
+      second.run.id,
+      unsafe.executionId,
+      'succeeded',
+      [],
+      context('oversized-export'),
+      undefined,
+      [{ name: 'Too large', mediaType: 'text/markdown', content: 'x'.repeat(1_024 * 1_024 + 1) }],
+    )).rejects.toMatchObject({ code: 'EXPORT_TOO_LARGE' });
   });
 
   it('supports a minimal patch Plan without replaying unaffected executions', async () => {

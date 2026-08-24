@@ -129,6 +129,22 @@ export interface Evidence {
   inputDigests: Record<string, string>;
 }
 
+export type ExecutionExportMediaType = 'application/json' | 'text/markdown';
+
+export interface ExecutionExport {
+  id: string;
+  runId: string;
+  executionId: string;
+  commitmentRevision: number;
+  name: string;
+  mediaType: ExecutionExportMediaType;
+  digest: string;
+  locator: string;
+  sourceLocator?: string;
+  role?: string;
+  sizeBytes: number;
+}
+
 export interface PlannedNode {
   id: string;
   definitionId: string;
@@ -170,6 +186,7 @@ export interface NodeExecution {
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;
   evidenceIds: string[];
+  exports?: ExecutionExport[];
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;

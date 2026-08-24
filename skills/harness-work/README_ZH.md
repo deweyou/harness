@@ -14,4 +14,9 @@ Commitment，为当前任务提出 Plan，把边界清晰的节点执行优先�
 执行中的小改动默认走最小增量 Plan：复用未受影响的成果，只重跑受影响节点并
 补充必要的局部验证，不重新执行整套方案和实现。
 
+问题澄清保持轻量、自然，不会变成固定阶段。需要长期保留的 Spec 通过通用
+Markdown Export 沉淀，Dashboard 统一预览 Markdown 和 JSON Export。初始化仓库
+知识时可以安全建立 `CLAUDE.md -> AGENTS.md`，关系复杂时优先用 Mermaid，并为
+持续维护的文档保留简洁的更新时间 footer。
+
 配置与运行时契约见 [Harness Core](../../docs/harness-core.md)。

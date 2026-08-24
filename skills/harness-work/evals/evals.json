@@ -201,6 +201,41 @@
         "Keeps design alternatives and reasoning in the Spec or Run Evidence",
         "Retains A in active knowledge only if a current operational constraint still depends on it"
       ]
+    },
+    {
+      "id": 18,
+      "prompt": "/harness-work Help me improve a non-coding operating process. The desired outcome is still ambiguous and there are several plausible approaches.",
+      "expected_output": "Use lightweight problem framing to clarify the outcome and compare alternatives without forcing a Run, fixed Stage, or coding template.",
+      "files": [],
+      "expectations": [
+        "Applies framing outside coding work",
+        "Asks only questions that materially change the outcome or authority",
+        "Does not create a Run solely for exploration",
+        "Does not introduce a fixed problem-framing Stage"
+      ]
+    },
+    {
+      "id": 19,
+      "prompt": "/harness-work This is a small correction inside a large ongoing feature whose Spec already exists. Keep the durable design accurate.",
+      "expected_output": "Assess the whole feature context, update the existing Spec when the correction changes durable behavior, and export the current Markdown Spec from the affected node attempt.",
+      "files": [],
+      "expectations": [
+        "Does not classify Spec need from the edit size alone",
+        "Updates the existing canonical Spec rather than creating a competing file",
+        "Publishes the Spec as a Markdown Export with role spec",
+        "Keeps the Plan limited to affected work"
+      ]
+    },
+    {
+      "id": 20,
+      "prompt": "/harness-work Make an obvious, self-contained wording correction with no durable design impact.",
+      "expected_output": "Proceed directly with the smallest authorized change and verification without manufacturing framing documents or a Spec.",
+      "files": [],
+      "expectations": [
+        "Uses direct mode",
+        "Does not create a Spec without durable value",
+        "Does not add a framing node or fixed Stage"
+      ]
     }
   ]
 }
