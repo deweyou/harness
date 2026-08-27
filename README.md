@@ -9,7 +9,7 @@ for configuration work or run preflight finds that configuration is missing or
 unsupported.
 
 The Harness owns no coding, writing, video, product, or repository policy.
-Workspaces declare reusable skills, rules, knowledge, and node capabilities
+Workspaces declare reusable skills, context, and node capabilities
 through `harness.yaml`. A single `strategy` setting chooses a local task branch
 or an isolated worktree. Plans are created for a Run; configuration does not own
 a workflow or fixed stages.

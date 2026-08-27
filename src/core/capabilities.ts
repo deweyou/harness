@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Context, type Fiber } from '@deepseek-ai/cordis';
 import { invariant } from './errors.js';
 
-export type CapabilityKind = 'skill' | 'rule' | 'knowledge' | 'executor' | 'host' | 'approval' | 'telemetry';
+export type CapabilityKind = 'skill' | 'context' | 'executor' | 'host' | 'approval' | 'telemetry';
 export type CapabilityLoadMode = 'metadata' | 'full';
 
 export interface CapabilityScope {
@@ -21,6 +21,7 @@ export interface CapabilitySummary {
 export interface LoadedCapability extends CapabilitySummary {
   locator: string;
   digest: string;
+  revision?: string;
   content?: string;
 }
 

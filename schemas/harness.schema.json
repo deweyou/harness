@@ -7,26 +7,31 @@
   "required": ["version"],
   "properties": {
     "$schema": { "type": "string" },
-    "version": { "const": 2 },
+    "version": { "const": 3 },
     "strategy": { "enum": ["branch", "worktree"], "default": "branch" },
     "imports": {
       "type": "array",
       "items": {
         "oneOf": [
-          { "type": "string", "minLength": 1 },
+          { "$ref": "#/$defs/relativePath" },
           {
             "type": "object",
             "additionalProperties": false,
             "required": ["path"],
             "properties": {
-              "path": { "type": "string", "minLength": 1 },
+              "path": { "$ref": "#/$defs/relativePath" },
               "as": { "$ref": "#/$defs/id" }
             }
           }
         ]
       }
     },
-    "resources": {
+    "context": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "$ref": "#/$defs/resource" }
+    },
+    "skills": {
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/id" },
       "additionalProperties": { "$ref": "#/$defs/resource" }
@@ -38,113 +43,70 @@
     }
   },
   "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\]).+"
+    },
     "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$" },
     "stringSet": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
     "resource": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "source"],
+      "required": ["source"],
       "properties": {
-        "kind": { "enum": ["skill", "rule", "knowledge"] },
-        "description": { "type": "string", "minLength": 1 },
-        "source": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["type", "path"],
-              "properties": { "type": { "const": "workspace" }, "path": { "type": "string", "minLength": 1 } }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["type", "repo", "skill"],
-              "properties": {
-                "type": { "const": "registry" },
-                "repo": { "type": "string", "minLength": 1 },
-                "skill": { "type": "string", "minLength": 1 }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["type", "repo", "path"],
-              "properties": {
-                "type": { "const": "git" },
-                "repo": { "type": "string", "minLength": 1 },
-                "path": { "type": "string", "minLength": 1 },
-                "ref": { "type": "string", "minLength": 1 }
-              }
-            }
-          ]
-        }
+        "source": { "$ref": "#/$defs/resourceSource" }
+      }
+    },
+    "resourceSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry"],
+      "properties": {
+        "repo": { "type": "string", "minLength": 1 },
+        "entry": { "$ref": "#/$defs/relativePath" }
       }
     },
     "node": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["executor"],
-      "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "description": { "type": "string", "minLength": 1 },
-        "resources": { "$ref": "#/$defs/stringSet" },
-        "inputs": { "$ref": "#/$defs/stringSet" },
-        "outputs": { "$ref": "#/$defs/stringSet" },
-        "claimTypes": { "$ref": "#/$defs/stringSet" },
-        "artifactTypes": { "$ref": "#/$defs/stringSet" },
-        "authority": { "$ref": "#/$defs/stringSet" },
-        "executionPolicy": {
+      "oneOf": [
+        {
           "type": "object",
           "additionalProperties": false,
-          "required": ["idempotent"],
+          "required": ["kind", "description"],
           "properties": {
-            "idempotent": { "type": "boolean" },
-            "timeoutMs": { "type": "integer", "minimum": 1 },
-            "retry": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["maxAttempts"],
-              "properties": {
-                "maxAttempts": { "type": "integer", "minimum": 1 },
-                "backoffMs": { "type": "integer", "minimum": 0 }
-              }
-            }
+            "kind": { "const": "agent" },
+            "description": { "type": "string", "minLength": 1 },
+            "skill": { "$ref": "#/$defs/stringSet" },
+            "inputs": { "$ref": "#/$defs/portMap" },
+            "outputs": { "$ref": "#/$defs/portMap" },
+            "authority": { "$ref": "#/$defs/stringSet" }
           }
         },
-        "executor": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["kind"],
-              "properties": {
-                "kind": { "const": "agent" },
-                "skills": { "$ref": "#/$defs/stringSet" },
-                "config": { "type": "object" }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["kind", "argv"],
-              "properties": {
-                "kind": { "const": "command" },
-                "argv": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-                "cwd": { "type": "string", "minLength": 1 }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["kind", "capability"],
-              "properties": {
-                "kind": { "const": "capability" },
-                "capability": { "type": "string", "minLength": 1 },
-                "config": { "type": "object" }
-              }
-            }
-          ]
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "command", "description"],
+          "properties": {
+            "kind": { "const": "command" },
+            "command": { "type": "string", "minLength": 1 },
+            "description": { "type": "string", "minLength": 1 },
+            "inputs": { "$ref": "#/$defs/portMap" },
+            "outputs": { "$ref": "#/$defs/portMap" },
+            "authority": { "$ref": "#/$defs/stringSet" }
+          }
         }
+      ]
+    },
+    "portMap": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["description"],
+        "properties": {
+          "description": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": true
       }
     }
   }

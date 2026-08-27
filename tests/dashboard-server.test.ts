@@ -17,11 +17,20 @@ afterEach(async () => {
 });
 
 const config: ResolvedHarnessConfig = {
-  version: 2,
+  version: 3,
   strategy: 'branch',
   sourceFiles: [],
-  resources: {},
-  nodes: { work: { name: 'Do work', executor: { kind: 'agent' } } },
+  context: {},
+  skills: {},
+  nodes: {
+    work: {
+      kind: 'agent',
+      description: 'Verify the global Dashboard state.',
+      outputs: {
+        dashboard: { type: 'object', description: 'Dashboard result.' },
+      },
+    },
+  },
 };
 
 function context(id: string) {
@@ -54,16 +63,22 @@ async function fixture() {
   const projection = await store.getProjection(run.workspace.id, run.id);
   const claimId = Object.keys(projection.claims)[0]!;
   const plan = await store.proposePlan(run.workspace.id, run.id, 1, [{
-    id: 'work-1', definitionId: 'work', dependsOn: [], input: { route: '/runs' }, targetClaimIds: [claimId], expectedOutputs: ['dashboard'],
+    id: 'work-1', definitionId: 'work', phase: 'verification', dependsOn: [], input: { route: '/runs' }, targetClaimIds: [claimId],
   }], context('plan'));
   await store.activatePlan(run.workspace.id, run.id, plan.revision, context('activate'));
-  const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', context('start'));
+  const execution = await store.startExecution(run.workspace.id, run.id, 'work-1', 1, 1, context('start'));
+  const blockedEvidence = await store.recordEvidence(run.workspace.id, run.id, {
+    executionId: execution.executionId,
+    content: 'waiting for browser verification',
+    kind: 'diagnostic',
+    summary: 'Browser verification is blocked',
+  }, context('blocked-evidence'));
   await store.finishExecution(
     run.workspace.id,
     run.id,
     execution.executionId,
     'blocked',
-    [],
+    [blockedEvidence.id],
     context('blocked'),
     { reason: 'waiting' },
     [
@@ -71,7 +86,7 @@ async function fixture() {
       { name: 'Result data', mediaType: 'application/json', content: '{"waiting":true}' },
     ],
   );
-  return { assetRoot, claimId, run, store };
+  return { assetRoot, blockedEvidenceId: blockedEvidence.id, blockedExecutionId: execution.executionId, claimId, run, store };
 }
 
 async function request(handler: ReturnType<typeof createDashboardRequestHandler>, url: string, method = 'GET') {
@@ -93,7 +108,7 @@ async function request(handler: ReturnType<typeof createDashboardRequestHandler>
 
 describe('Dashboard HTTP server', () => {
   test('serves the global Run list, Run details, events, and SPA assets', async () => {
-    const { assetRoot, run, store } = await fixture();
+    const { assetRoot, claimId, run, store } = await fixture();
     const handler = createDashboardRequestHandler({ assetRoot, store });
 
     expect((await request(handler, '/api/health')).json()).toEqual({
@@ -106,7 +121,7 @@ describe('Dashboard HTTP server', () => {
         title: 'Global dashboard work',
         status: 'blocked',
         needsAttention: true,
-        currentNode: 'Do work',
+        currentNode: 'Work',
         commitmentRevision: 1,
         planRevision: 1,
         completedNodes: 0,
@@ -118,10 +133,14 @@ describe('Dashboard HTTP server', () => {
       expect.objectContaining({
         id: 'work-1',
         definitionId: 'work',
-        label: 'Do work',
+        phase: 'verification',
+        label: 'Work',
+        description: 'Verify the global Dashboard state.',
         status: 'blocked',
         attempt: 1,
-        durationMs: 1000,
+        durationMs: 3000,
+        expectedOutputs: ['dashboard'],
+        targetClaims: [{ id: claimId, description: 'Dashboard exposes Run state', status: 'open', evidenceCount: 0 }],
         attempts: [expect.objectContaining({ attempt: 1, input: { route: '/runs' }, output: { reason: 'waiting' } })],
       }),
     ]);
@@ -130,7 +149,7 @@ describe('Dashboard HTTP server', () => {
     expect(exported.status).toBe(200);
     expect(exported.json()).toMatchObject({ export: { role: 'spec', mediaType: 'text/markdown' }, content: '# Dashboard spec\n' });
     const events = (await request(handler, `/api/runs/${encodeURIComponent(run.id)}/events`)).json() as { events: unknown[] };
-    expect(events.events).toHaveLength(6);
+    expect(events.events).toHaveLength(7);
     expect((await request(handler, `/runs/${run.id}`)).text()).toContain('Dashboard shell');
     expect((await request(handler, '/assets/app.js')).headers['content-type']).toBe('text/javascript; charset=utf-8');
     expect((await request(handler, '/asset.bin')).headers['content-type']).toBe('application/octet-stream');
@@ -151,13 +170,22 @@ describe('Dashboard HTTP server', () => {
   });
 
   test('serves a generated retrospective Markdown report for a completed Run', async () => {
-    const { assetRoot, claimId, run, store } = await fixture();
-    const retry = await store.startExecution(run.workspace.id, run.id, 'work-1', context('retry'));
+    const { assetRoot, blockedEvidenceId, blockedExecutionId, claimId, run, store } = await fixture();
+    const retry = await store.retryExecution(
+      run.workspace.id,
+      run.id,
+      blockedExecutionId,
+      1,
+      1,
+      'Browser is available now',
+      [blockedEvidenceId],
+      context('retry'),
+    );
     const evidence = await store.recordEvidence(run.workspace.id, run.id, {
+      executionId: retry.executionId,
       content: 'dashboard verified',
       kind: 'test',
       summary: 'Dashboard tests passed',
-      commitmentRevision: 1,
     }, context('report-evidence'));
     await store.finishExecution(
       run.workspace.id,
@@ -166,7 +194,7 @@ describe('Dashboard HTTP server', () => {
       'succeeded',
       [evidence.id],
       context('retry-finish'),
-      { route: '/runs', verified: true },
+      { dashboard: { route: '/runs', verified: true } },
     );
     await store.updateClaim(run.workspace.id, run.id, claimId, 'satisfied', [evidence.id], context('report-claim'));
     await store.completeRun(run.workspace.id, run.id, 1, 1, 'user', context('report-complete'));

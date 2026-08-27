@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/deweyou/harness/schemas/workspace-preparation.schema.json",
+  "title": "Deweyou Harness workspace preparation receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "strategy",
+    "sourceWorkspacePath",
+    "preparedWorkspacePath",
+    "taskBranch",
+    "remote",
+    "baseBranch",
+    "baseRevision",
+    "preparedRevision",
+    "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "strategy": { "enum": ["branch", "worktree"] },
+    "sourceWorkspacePath": { "type": "string", "minLength": 1 },
+    "preparedWorkspacePath": { "type": "string", "minLength": 1 },
+    "taskBranch": { "type": "string", "minLength": 1 },
+    "remote": { "type": "string", "minLength": 1 },
+    "baseBranch": { "type": "string", "minLength": 1 },
+    "baseRevision": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+    "preparedRevision": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

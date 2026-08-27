@@ -7,7 +7,7 @@ Server，用于管理 Run、Commitment、证据支撑的 Claim、任务级 Plan 
 时，会创建、迭代或迁移 `harness.yaml`。
 
 Harness Core 不内置 coding、写作、视频、产品或仓库规则。工作区通过
-`harness.yaml` 声明可复用的 skills、rules、knowledge 和 node capabilities。
+`harness.yaml` 声明可复用的 skills、context 和 node capabilities。
 单一的 `strategy` 字段用于选择本地任务分支或隔离 worktree。Plan 属于具体 Run，
 配置中不再存在 workflow 和固定 stage。
 

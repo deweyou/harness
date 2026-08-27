@@ -1,19 +1,22 @@
 export type RunStatus = 'running' | 'blocked' | 'completed';
 export type NodeStatus = 'pending' | 'ready' | 'running' | 'blocked' | 'succeeded' | 'failed' | 'cancelled' | 'skipped' | 'interrupted';
 export type ClaimStatus = 'open' | 'satisfied' | 'invalidated' | 'waived';
+export type PlanPhase = 'planning' | 'implementation' | 'integration' | 'verification' | 'delivery';
 
 export interface PlannedNode {
   [key: string]: unknown;
   id: string;
   definitionId: string;
+  phase?: PlanPhase;
   label: string;
+  description: string;
   status: NodeStatus;
   attempt: number | null;
   durationMs: number | null;
   evidenceCount: number;
   needs: string[];
   executionIds: string[];
-  targetClaimIds: string[];
+  targetClaims: DashboardClaim[];
   expectedOutputs: string[];
   attempts: ExecutionAttempt[];
 }

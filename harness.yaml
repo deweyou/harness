@@ -1,73 +1,90 @@
 $schema: ./schemas/harness.schema.json
-version: 2
+version: 3
 strategy: worktree
 
-resources:
+context:
   project-rules:
-    kind: rule
-    description: Repository product boundaries, asset conventions, and verification requirements.
     source:
-      type: workspace
-      path: AGENTS.md
+      entry: AGENTS.md
 
 nodes:
   implement-change:
-    name: Implement change
+    kind: agent
     description: Implement a scoped Harness change under the active Commitment and task-owned Plan.
-    resources: [project-rules]
-    outputs: [implementation, verification-evidence]
-    claimTypes: [acceptance]
+    outputs:
+      implementation:
+        type: object
+        description: Structured summary of the implemented change.
+      verification-evidence:
+        type: array
+        description: Evidence references produced while verifying the change.
     authority: [read-workspace, write-workspace]
-    executor:
-      kind: agent
 
   lint-assets:
-    name: Lint plugin assets
-    outputs: [asset-lint-result]
-    executor:
-      kind: command
-      argv: [pnpm, run, lint:assets]
+    kind: command
+    description: Validate bundled plugin asset structure and conventions.
+    command: pnpm run lint:assets
+    outputs:
+      asset-lint-result:
+        type: object
+        description: Result of validating bundled plugin assets.
 
   typecheck:
-    name: Typecheck workspace
-    outputs: [typecheck-result]
-    executor:
-      kind: command
-      argv: [pnpm, run, typecheck]
+    kind: command
+    description: Check the Harness TypeScript contracts without emitting files.
+    command: pnpm run typecheck
+    outputs:
+      typecheck-result:
+        type: object
+        description: TypeScript typecheck result.
 
   test:
-    name: Run tests
-    outputs: [test-result]
-    executor:
-      kind: command
-      argv: [pnpm, test]
+    kind: command
+    description: Run the automated Harness test suite.
+    command: pnpm test
+    outputs:
+      test-result:
+        type: object
+        description: Automated test result.
 
   test-coverage:
-    name: Verify test coverage
-    outputs: [coverage-result]
-    executor:
-      kind: command
-      argv: [pnpm, run, test:coverage]
+    kind: command
+    description: Run the automated suite and collect coverage evidence.
+    command: pnpm run test:coverage
+    outputs:
+      coverage-result:
+        type: object
+        description: Automated test coverage result.
 
   build:
-    name: Build plugin
-    outputs: [plugin-bundle]
-    executor:
-      kind: command
-      argv: [pnpm, run, build]
+    kind: command
+    description: Build the Dashboard assets and bundled Harness server.
+    command: pnpm run build
+    outputs:
+      plugin-bundle:
+        type: object
+        description: Metadata for the built plugin bundle.
 
   validate-plugin:
-    name: Validate plugin package
-    outputs: [plugin-validation-result]
-    executor:
-      kind: command
-      argv: [pnpm, run, validate:plugin]
+    kind: command
+    description: Validate the cross-agent plugin package for supported hosts.
+    command: pnpm run validate:plugin
+    outputs:
+      plugin-validation-result:
+        type: object
+        description: Cross-agent plugin validation result.
 
   summarize-delivery:
-    name: Summarize delivery
+    kind: agent
     description: Summarize changes, evidence, remaining risks, and delivery gates.
-    resources: [project-rules]
-    inputs: [implementation, verification-evidence]
-    outputs: [delivery-summary]
-    executor:
-      kind: agent
+    inputs:
+      implementation:
+        type: object
+        description: Structured summary of the implemented change.
+      verification-evidence:
+        type: array
+        description: Evidence references produced while verifying the change.
+    outputs:
+      delivery-summary:
+        type: object
+        description: Final summary of changes, evidence, risks, and delivery gates.

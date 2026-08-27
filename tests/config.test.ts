@@ -11,38 +11,48 @@ describe('Harness config', () => {
     });
   });
 
-  it('loads resources and reusable node definitions without workflows or dependencies', async () => {
+  it('loads repository Context, Skills, and reusable node definitions without workflows or dependencies', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'harness-config-'));
     await mkdir(join(directory, 'skills', 'review'), { recursive: true });
     await writeFile(join(directory, 'skills', 'review', 'SKILL.md'), '# Review');
     await writeFile(join(directory, 'harness.yaml'), `
-version: 2
+version: 3
 strategy: worktree
-resources:
+skills:
   review-skill:
-    kind: skill
-    source: { type: workspace, path: skills/review }
+    source: { entry: skills/review }
 nodes:
   review:
-    name: Review
+    kind: agent
     description: Review a bounded change
-    executor: { kind: agent, skills: [review-skill] }
-    outputs: [review-result]
-    claimTypes: [quality]
+    skill: [review-skill]
+    outputs:
+      review-result:
+        type: object
+        description: Structured review result.
     authority: [read-workspace]
 `);
 
     const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
-    expect(config.version).toBe(2);
+    expect(config.version).toBe(3);
     expect(config.strategy).toBe('worktree');
     expect(config).not.toHaveProperty('workflows');
     expect(config.nodes.review).not.toHaveProperty('needs');
-    expect(availableNodes(config)).toEqual([{ id: 'review', name: 'Review', description: 'Review a bounded change' }]);
+    expect(availableNodes(config)).toEqual([{
+      id: 'review',
+      kind: 'agent',
+      description: 'Review a bounded change',
+      skill: ['review-skill'],
+      outputs: {
+        'review-result': { type: 'object', description: 'Structured review result.' },
+      },
+      authority: ['read-workspace'],
+    }]);
   });
 
   it('defaults workspace preparation to a local branch', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'harness-strategy-default-'));
-    await writeFile(join(directory, 'harness.yaml'), 'version: 2\n');
+    await writeFile(join(directory, 'harness.yaml'), 'version: 3\n');
 
     await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).resolves.toMatchObject({
       strategy: 'branch',
@@ -51,45 +61,121 @@ nodes:
 
   it('rejects unknown workspace preparation strategies', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'harness-strategy-invalid-'));
-    await writeFile(join(directory, 'harness.yaml'), 'version: 2\nstrategy: checkout\n');
+    await writeFile(join(directory, 'harness.yaml'), 'version: 3\nstrategy: checkout\n');
 
     await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({
       code: 'INVALID_STRATEGY',
     });
   });
 
-  it('namespaces imported resources and node references', async () => {
+  it('namespaces imported Context, Skills, and Node Skill references', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'harness-import-'));
     await writeFile(join(directory, 'shared.yaml'), `
-version: 2
-resources:
+version: 3
+context:
+  repository:
+    source: { entry: AGENTS.md }
+skills:
   inspect:
-    kind: skill
-    source: { type: registry, repo: example/skills, skill: inspect }
+    source: { repo: example/skills, entry: inspect }
 nodes:
   inspect:
-    executor: { kind: agent, skills: [inspect] }
-    resources: [inspect]
+    kind: agent
+    description: Inspect repository state
+    skill: [inspect]
 `);
     await writeFile(join(directory, 'harness.yaml'), `
-version: 2
+version: 3
 imports:
   - path: shared.yaml
     as: shared
 `);
     const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
-    expect(config.nodes['shared.inspect']?.executor).toEqual({ kind: 'agent', skills: ['shared.inspect'] });
-    expect(config.nodes['shared.inspect']?.resources).toEqual(['shared.inspect']);
+    expect(config.context).toHaveProperty('shared.repository');
+    expect(config.skills).toHaveProperty('shared.inspect');
+    expect(config.nodes['shared.inspect']).toMatchObject({ kind: 'agent', skill: ['shared.inspect'] });
   });
 
   it('keeps strategy owned by the root configuration', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'harness-import-strategy-'));
-    await writeFile(join(directory, 'shared.yaml'), 'version: 2\nstrategy: worktree\n');
-    await writeFile(join(directory, 'harness.yaml'), 'version: 2\nimports: [shared.yaml]\n');
+    await writeFile(join(directory, 'shared.yaml'), 'version: 3\nstrategy: worktree\n');
+    await writeFile(join(directory, 'harness.yaml'), 'version: 3\nimports: [shared.yaml]\n');
 
     await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({
       code: 'INVALID_IMPORT',
     });
+  });
+
+  it('rejects absolute import paths across platforms', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-import-absolute-'));
+    const absoluteImports: Array<[string, string]> = [
+      ['posix.yaml', '/shared/harness.yaml'],
+      ['windows.yaml', 'C:\\shared\\harness.yaml'],
+      ['unc.yaml', '\\\\server\\share\\harness.yaml'],
+    ];
+    for (const [name, importPath] of absoluteImports) {
+      const configPath = join(directory, name);
+      await writeFile(configPath, `version: 3\nimports:\n  - path: ${JSON.stringify(importPath)}\n`);
+      await expect(loadHarnessConfig(configPath)).rejects.toMatchObject({ code: 'INVALID_IMPORT' });
+    }
+  });
+
+  it('requires config version 3 and rejects legacy resource fields', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-config-v3-'));
+    await writeFile(join(directory, 'v2.yaml'), 'version: 2\n');
+    await expect(loadHarnessConfig(join(directory, 'v2.yaml'))).rejects.toMatchObject({ code: 'UNSUPPORTED_CONFIG_VERSION' });
+
+    await writeFile(join(directory, 'legacy-resource.yaml'), `
+version: 3
+context:
+  project-context:
+    description: Legacy summary
+    source: { entry: AGENTS.md }
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-resource.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
+
+    await writeFile(join(directory, 'legacy-resources.yaml'), `
+version: 3
+resources:
+  project-rules:
+    source: { entry: AGENTS.md }
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-resources.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
+
+    await writeFile(join(directory, 'legacy-source.yaml'), `
+version: 3
+context:
+  project-context:
+    source: { type: workspace, path: AGENTS.md }
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-source.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
+
+    await writeFile(join(directory, 'legacy-node-name.yaml'), `
+version: 3
+nodes:
+  review:
+    kind: agent
+    name: Review
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-node-name.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
+
+    await writeFile(join(directory, 'legacy-node-resources.yaml'), `
+version: 3
+nodes:
+  review:
+    kind: agent
+    resources: [project-context]
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-node-resources.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
+
+    await writeFile(join(directory, 'legacy-claim-types.yaml'), `
+version: 3
+nodes:
+  verify:
+    kind: agent
+    claimTypes: [quality]
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-claim-types.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
   });
 
   it('rejects every v1 workflow field instead of translating it', async () => {
@@ -104,42 +190,140 @@ workflows:
     await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
   });
 
+  it('keeps Context global and validates Node Skill references', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-context-skill-'));
+    await writeFile(join(directory, 'collision.yaml'), `
+version: 3
+context:
+  shared: { source: { entry: AGENTS.md } }
+skills:
+  shared: { source: { entry: skills/shared } }
+`);
+    await expect(loadHarnessConfig(join(directory, 'collision.yaml'))).rejects.toMatchObject({ code: 'RESOURCE_ID_COLLISION' });
+
+    await writeFile(join(directory, 'missing-skill.yaml'), `
+version: 3
+nodes:
+  review:
+    kind: agent
+    description: Review a bounded change
+    skill: [missing]
+`);
+    await expect(loadHarnessConfig(join(directory, 'missing-skill.yaml'))).rejects.toMatchObject({ code: 'MISSING_SKILL' });
+  });
+
   it('rejects dependencies embedded in reusable node definitions', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'harness-node-dependency-'));
     await writeFile(join(directory, 'harness.yaml'), `
-version: 2
+version: 3
 nodes:
   inspect:
-    executor: { kind: agent }
+    kind: agent
     needs: [prepare]
 `);
     await expect(loadHarnessConfig(join(directory, 'harness.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
   });
 
-  it('validates structured command and capability executors with execution policy', async () => {
+  it('validates flat Agent and shell Command nodes without speculative execution fields', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'harness-executors-'));
     await writeFile(join(directory, 'harness.yaml'), `
-version: 2
+version: 3
 nodes:
   check:
-    executor:
-      kind: command
-      argv: [pnpm, test]
-      cwd: packages/core
-    executionPolicy:
-      idempotent: true
-      timeoutMs: 60000
-      retry: { maxAttempts: 2, backoffMs: 100 }
-  publish:
-    executor:
-      kind: capability
-      capability: artifact-publisher
-      config: { channel: preview }
+    kind: command
+    description: Run the test suite
+    command: pnpm test
 `);
 
     const config = await loadHarnessConfig(join(directory, 'harness.yaml'));
-    expect(config.nodes.check?.executor).toEqual({ kind: 'command', argv: ['pnpm', 'test'], cwd: 'packages/core' });
-    expect(config.nodes.publish?.executor).toEqual({ kind: 'capability', capability: 'artifact-publisher', config: { channel: 'preview' } });
-    expect(config.nodes.check?.executionPolicy?.retry?.maxAttempts).toBe(2);
+    expect(config.nodes.check).toMatchObject({ kind: 'command', description: 'Run the test suite', command: 'pnpm test' });
+    expect(availableNodes(config)).toEqual([{
+      id: 'check',
+      kind: 'command',
+      description: 'Run the test suite',
+      command: 'pnpm test',
+    }]);
+
+    await writeFile(join(directory, 'missing-node-description.yaml'), `
+version: 3
+nodes:
+  check:
+    kind: command
+    command: pnpm test
+`);
+    await expect(loadHarnessConfig(join(directory, 'missing-node-description.yaml'))).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+
+    await writeFile(join(directory, 'empty-node-description.yaml'), `
+version: 3
+nodes:
+  check:
+    kind: command
+    description: ''
+    command: pnpm test
+`);
+    await expect(loadHarnessConfig(join(directory, 'empty-node-description.yaml'))).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+
+    await writeFile(join(directory, 'legacy-execution-fields.yaml'), `
+version: 3
+nodes:
+  check:
+    kind: command
+    command: pnpm test
+    artifactTypes: [test-report]
+    executionPolicy: { idempotent: true }
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-execution-fields.yaml'))).rejects.toMatchObject({ code: 'UNKNOWN_CONFIG_FIELD' });
+
+    await writeFile(join(directory, 'legacy-executor.yaml'), `
+version: 3
+nodes:
+  check:
+    executor: { kind: command, argv: [pnpm, test] }
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-executor.yaml'))).rejects.toMatchObject({ code: 'INVALID_NODE_KIND' });
+
+    await writeFile(join(directory, 'capability.yaml'), `
+version: 3
+nodes:
+  publish:
+    kind: capability
+    capability: artifact-publisher
+`);
+    await expect(loadHarnessConfig(join(directory, 'capability.yaml'))).rejects.toMatchObject({ code: 'INVALID_NODE_KIND' });
+
+    await writeFile(join(directory, 'command-array.yaml'), `
+version: 3
+nodes:
+  check:
+    kind: command
+    description: Run the test suite
+    command: [pnpm, test]
+`);
+    await expect(loadHarnessConfig(join(directory, 'command-array.yaml'))).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+  });
+
+  it('requires inputs and outputs to be described inline JSON Schemas', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'harness-port-schema-'));
+    await writeFile(join(directory, 'missing-description.yaml'), `
+version: 3
+nodes:
+  deploy:
+    kind: agent
+    description: Deploy the service
+    outputs:
+      environment:
+        type: object
+`);
+    await expect(loadHarnessConfig(join(directory, 'missing-description.yaml'))).rejects.toMatchObject({ code: 'INVALID_PORT_SCHEMA' });
+
+    await writeFile(join(directory, 'legacy-array.yaml'), `
+version: 3
+nodes:
+  deploy:
+    kind: agent
+    description: Deploy the service
+    outputs: [environment]
+`);
+    await expect(loadHarnessConfig(join(directory, 'legacy-array.yaml'))).rejects.toMatchObject({ code: 'INVALID_NODE' });
   });
 });

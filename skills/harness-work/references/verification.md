@@ -18,4 +18,4 @@ satisfies a Claim.
 
 When inputs or the Commitment change, stale Evidence remains historical but
 cannot satisfy the current Claim. Attribute resource feedback only when the
-Evidence identifies a specific skill, rule, or knowledge resource as causal.
+Evidence identifies a specific skill or context resource as causal.

@@ -29,6 +29,7 @@ const requiredFiles = [
   'schemas/event.schema.json',
   'schemas/run.schema.json',
   'schemas/run-index.schema.json',
+  'schemas/workspace-preparation.schema.json',
   'schemas/resource-proposal.schema.json',
   'schemas/retrospective.schema.json',
 ];

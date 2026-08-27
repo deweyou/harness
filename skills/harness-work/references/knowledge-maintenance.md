@@ -1,7 +1,7 @@
 # Repository Knowledge Maintenance
 
 Use this workflow when the user explicitly asks to preserve repository
-knowledge, accepts a Knowledge resource proposal, requests a knowledge health
+knowledge, accepts a Context resource proposal, requests a knowledge health
 review, or when authorized repository work at any stage establishes a durable
 change that would otherwise leave active knowledge missing, stale, or
 contradictory. Do not invoke it merely because a question produced a useful
@@ -142,6 +142,8 @@ Publication Evidence records the changed resource locator, previous and new
 digests, validation results, and the proposal or source Evidence that authorized
 the change. A successful file edit is not sufficient validation.
 
-After publication, future resource activation should use the new digest. If the
-same evidence-backed feedback recurs, create a new proposal rather than silently
+After publication, new Runs should use the new digest. An existing Run keeps the
+resource digest pinned by its first activation unless the user starts a new Run;
+publication must not silently change its execution context. If the same
+evidence-backed feedback recurs, create a new proposal rather than silently
 editing the resource again.

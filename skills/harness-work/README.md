@@ -5,8 +5,9 @@ Deweyou Harness Work is the single user-facing skill in the plugin. Invoke
 run a task. It establishes a durable Commitment when needed, proposes a
 task-scoped Plan, uses subagents for bounded node executions, progressively
 activates capabilities, and stores a replayable Run under `~/.deweyou/harness/`.
-Before a new Run it prepares either a local task branch or an isolated worktree,
-as selected by the root `strategy` field in `harness.yaml`.
+Before a new Run, `workspace_prepare` fetches the base and prepares either a
+local task branch or an isolated worktree, as selected by the root `strategy`
+field in `harness.yaml`. `run_create` requires the resulting Receipt.
 
 The skill also routes explicit repository-knowledge maintenance through one
 evidence-backed SOP. Root and module-level `AGENTS.md` files remain concise

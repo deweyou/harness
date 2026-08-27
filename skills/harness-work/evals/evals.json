@@ -85,7 +85,7 @@
       "files": [],
       "expectations": [
         "Does not call run_create before configuration validation succeeds",
-        "Creates reusable resources and Node Definitions without Workflows or Stages",
+        "Creates repository Context, reusable Skills, and Node Definitions without Workflows or Stages",
         "Continues the original run request after config_inspect succeeds"
       ]
     },
@@ -114,11 +114,13 @@
     {
       "id": 10,
       "prompt": "/harness-work Start this task from the repository's default branch. config_inspect reports strategy worktree.",
-      "expected_output": "Fetch the remote default base, create an isolated task branch and worktree from the fetched base, validate config in the new path, and only then create the Run there.",
+      "expected_output": "Call workspace_prepare to fetch the remote default base and create an isolated task worktree, validate config in the returned path, and pass its Receipt to run_create.",
       "files": [],
       "expectations": [
         "Does not rewrite or rebase the user's base branch",
+        "Uses workspace_prepare rather than performing untracked Git preparation",
         "Uses the prepared worktree path for config_inspect and run_create",
+        "Passes the preparation Receipt to run_create",
         "Stops before Run creation when fetch or workspace preparation fails"
       ]
     },

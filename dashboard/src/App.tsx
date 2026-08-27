@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check, CheckCircle, Clock, Copy, FileText, Graph, ListBullets, MagnifyingGlass, Moon, SpinnerGap, Sun, Warning, X, XCircle } from '@phosphor-icons/react';
 import { Link, Navigate, Route, Routes, useParams } from 'react-router-dom';
-import { DashboardApiError, fetchExecutionExport, fetchRetrospective, fetchRun, fetchRunEvents, fetchRuns, type DashboardRun, type HarnessEvent, type NodeStatus, type PlannedNode, type RunStatus } from './data';
+import { DashboardApiError, fetchExecutionExport, fetchRetrospective, fetchRun, fetchRunEvents, fetchRuns, type ClaimStatus, type DashboardRun, type HarnessEvent, type NodeStatus, type PlanPhase, type PlannedNode, type RunStatus } from './data';
 import { Button } from './components/ui/button';
 import { cn } from './lib/utils';
 
@@ -20,8 +20,14 @@ function statusIcon(status: NodeStatus | RunStatus, size = 17) {
   return <span className="pending-dot" />;
 }
 
-function statusLabel(status: NodeStatus | RunStatus) {
+function statusLabel(status: NodeStatus | RunStatus | ClaimStatus) {
   return status[0]!.toUpperCase() + status.slice(1);
+}
+
+function claimStatusIcon(status: ClaimStatus) {
+  if (status === 'satisfied' || status === 'waived') return <CheckCircle size={16} weight="fill" />;
+  if (status === 'invalidated') return <XCircle size={16} weight="fill" />;
+  return <Clock size={16} />;
 }
 
 function formatDuration(milliseconds: number | null) {
@@ -118,8 +124,21 @@ function RunsPage() {
   </main>;
 }
 
+const PLAN_PHASES: PlanPhase[] = ['planning', 'implementation', 'integration', 'verification', 'delivery'];
+
+function phaseLabel(phase: PlanPhase) {
+  return phase[0]!.toUpperCase() + phase.slice(1);
+}
+
 function NodeTable({ planNodes, selectedNodeId, onSelectNode }: { planNodes: PlannedNode[]; selectedNodeId: string; onSelectNode: (id: string) => void }) {
-  return <div className="node-table"><div className="node-table__header"><span>Node</span><span>Status</span><span>Duration</span></div>{planNodes.map((node) => <button key={node.id} type="button" className={cn('node-row', selectedNodeId === node.id && 'is-selected')} onClick={() => onSelectNode(node.id)}><span className="node-row__name"><strong>{node.label}</strong><small>{node.needs.length ? `After ${node.needs.join(', ')}` : node.definitionId}</small></span><span className={`status status--${node.status}`}>{statusIcon(node.status)} {statusLabel(node.status)}</span><span>{formatDuration(node.durationMs)}</span></button>)}</div>;
+  const hasPhases = planNodes.some((node) => node.phase);
+  const sections = hasPhases
+    ? [
+        ...PLAN_PHASES.map((phase) => ({ label: phaseLabel(phase), nodes: planNodes.filter((node) => node.phase === phase) })),
+        { label: 'Unclassified', nodes: planNodes.filter((node) => !node.phase) },
+      ].filter((section) => section.nodes.length > 0)
+    : [{ label: '', nodes: planNodes }];
+  return <div className="node-table"><div className="node-table__header"><span>Node</span><span>Status</span><span>Duration</span></div>{sections.map((section) => <section className="node-phase" key={section.label || 'all'}>{section.label && <div className="node-phase__label">{section.label}<span>{section.nodes.length}</span></div>}{section.nodes.map((node) => <button key={node.id} type="button" className={cn('node-row', selectedNodeId === node.id && 'is-selected')} onClick={() => onSelectNode(node.id)}><span className="node-row__name"><strong>{node.label}</strong><small>{node.needs.length ? `After ${node.needs.join(', ')}` : node.definitionId}</small></span><span className={`status status--${node.status}`}>{statusIcon(node.status)} {statusLabel(node.status)}</span><span>{formatDuration(node.durationMs)}</span></button>)}</section>)}</div>;
 }
 
 function NodeDetailPanel({ runId, planNodes, events, selectedNodeId, onClose }: { runId: string; planNodes: PlannedNode[]; events: HarnessEvent[]; selectedNodeId: string; onClose: () => void }) {
@@ -149,10 +168,10 @@ function NodeDetailPanel({ runId, planNodes, events, selectedNodeId, onClose }: 
   const activity = events.filter((event) => event.payload.plannedNodeId === selectedNode.id || event.payload.executionId === selectedAttempt?.id);
   const tabs: NodeDetailTab[] = ['overview', 'input', 'output', 'exports', 'evidence', 'activity'];
   return <aside className="detail-panel" aria-label="Node details"><div className="detail-panel__scroll">
-    <header className="detail-header"><div><span className={`status status--${selectedNode.status}`}>{statusIcon(selectedNode.status)} {statusLabel(selectedNode.status)}</span><h2>{selectedNode.label}</h2><p>{selectedNode.needs.length ? `Depends on ${selectedNode.needs.join(', ')}` : 'No dependencies'} · {selectedNode.expectedOutputs.length ? `${selectedNode.expectedOutputs.length} expected outputs` : 'No declared outputs'}</p></div><Button variant="ghost" size="icon" onClick={onClose} aria-label="Close node details"><X /></Button></header>
+    <header className="detail-header"><div><span className={`status status--${selectedNode.status}`}>{statusIcon(selectedNode.status)} {statusLabel(selectedNode.status)}</span><h2>{selectedNode.label}</h2><p className="detail-header__description">{selectedNode.description}</p><p>{selectedNode.needs.length ? `Depends on ${selectedNode.needs.join(', ')}` : 'No dependencies'} · {selectedNode.expectedOutputs.length ? `${selectedNode.expectedOutputs.length} expected outputs` : 'No declared outputs'}</p></div><Button variant="ghost" size="icon" onClick={onClose} aria-label="Close node details"><X /></Button></header>
     {selectedNode.attempts.length > 0 && <label className="attempt-picker"><span>Execution attempt</span><select value={selectedAttempt?.id ?? ''} onChange={(event) => setSelectedAttemptId(event.target.value)}>{[...selectedNode.attempts].reverse().map((attempt) => <option value={attempt.id} key={attempt.id}>Attempt {attempt.attempt} · {statusLabel(attempt.status)}</option>)}</select></label>}
     <div className="detail-tabs" role="tablist" aria-label="Node execution data">{tabs.map((item) => <button className={tab === item ? 'is-active' : ''} onClick={() => setTab(item)} role="tab" aria-selected={tab === item} key={item}>{item}</button>)}</div>
-    {tab === 'overview' && <section className="detail-section"><h3>Execution overview</h3>{selectedAttempt ? <dl className="execution-summary"><div><dt>Status</dt><dd className={`status status--${selectedAttempt.status}`}>{statusLabel(selectedAttempt.status)}</dd></div><div><dt>Attempt</dt><dd>{selectedAttempt.attempt}</dd></div><div><dt>Duration</dt><dd>{formatDuration(selectedAttempt.durationMs)}</dd></div><div><dt>Evidence</dt><dd>{selectedAttempt.evidenceIds.length}</dd></div><div><dt>Exports</dt><dd>{selectedAttempt.exports.length}</dd></div></dl> : <div className="panel-empty">This node has not started yet.</div>}{selectedNode.status === 'blocked' && <div className="warning-callout"><Warning size={20} weight="fill" /><div><strong>Node is blocked</strong><p>Review its activity and external context before continuing.</p></div></div>}</section>}
+    {tab === 'overview' && <section className="detail-section"><h3>Execution overview</h3>{selectedAttempt ? <dl className="execution-summary"><div><dt>Status</dt><dd className={`status status--${selectedAttempt.status}`}>{statusLabel(selectedAttempt.status)}</dd></div><div><dt>Attempt</dt><dd>{selectedAttempt.attempt}</dd></div><div><dt>Duration</dt><dd>{formatDuration(selectedAttempt.durationMs)}</dd></div><div><dt>Evidence</dt><dd>{selectedAttempt.evidenceIds.length}</dd></div><div><dt>Exports</dt><dd>{selectedAttempt.exports.length}</dd></div></dl> : <div className="panel-empty">This node has not started yet.</div>}{selectedNode.targetClaims.length > 0 && <div className="claim-coverage"><h4>Acceptance claims</h4>{selectedNode.targetClaims.map((claim) => <div className={`claim-coverage__row claim-coverage__row--${claim.status}`} key={claim.id}>{claimStatusIcon(claim.status)}<div><strong>{claim.description}</strong><span>{statusLabel(claim.status)} · {claim.evidenceCount} evidence</span></div></div>)}</div>}{selectedNode.status === 'blocked' && <div className="warning-callout"><Warning size={20} weight="fill" /><div><strong>Node is blocked</strong><p>Review its activity and external context before continuing.</p></div></div>}</section>}
     {tab === 'input' && <section className="detail-section"><h3>Resolved input</h3><JsonPreview value={selectedAttempt?.input} emptyLabel="No structured input was recorded." /></section>}
     {tab === 'output' && <section className="detail-section"><h3>Structured output</h3><JsonPreview value={selectedAttempt?.output} emptyLabel="No structured output was recorded. Large results may be stored as Evidence." /></section>}
     {tab === 'exports' && <section className="detail-section"><h3>Execution exports</h3>{selectedAttempt?.exports.length ? <><label className="attempt-picker export-picker"><span>Export</span><select value={selectedExport?.id ?? ''} onChange={(event) => setSelectedExportId(event.target.value)}>{selectedAttempt.exports.map((item) => <option value={item.id} key={item.id}>{item.name}{item.role ? ` · ${item.role}` : ''}</option>)}</select></label>{selectedExport && <div className="export-meta"><span>{selectedExport.mediaType}</span><span>{selectedExport.sizeBytes.toLocaleString()} bytes</span>{selectedExport.sourceLocator && <span className="mono">{selectedExport.sourceLocator}</span>}</div>}{exportQuery.isPending && <LoadingState label="Loading export…" />}{exportQuery.isError && <ErrorState error={exportQuery.error} onRetry={() => void exportQuery.refetch()} />}{exportQuery.data && (exportQuery.data.export.mediaType === 'text/markdown' ? <MarkdownPreview markdown={exportQuery.data.content} /> : <JsonPreview value={JSON.parse(exportQuery.data.content) as unknown} emptyLabel="The JSON Export is empty." />)}</> : <div className="panel-empty">No JSON or Markdown Exports were recorded for this attempt.</div>}</section>}

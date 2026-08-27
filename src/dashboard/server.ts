@@ -3,8 +3,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load as loadYaml } from 'js-yaml';
-import type { ExecutionExport, HarnessEvent, NodeExecutionStatus, Plan, ResolvedHarnessConfig, RunIndexEntry, RunProjection } from '../core/types.js';
-import { RunStore } from '../core/state/store.js';
+import type { ExecutionExport, HarnessEvent, NodeExecutionStatus, Plan, PlanPhase, ResolvedHarnessConfig, RunIndexEntry, RunProjection } from '../core/types.js';
+import { RUN_CONFIG_SNAPSHOT_PATH, RunStore } from '../core/state/store.js';
 
 type DashboardNodeStatus = NodeExecutionStatus | 'pending';
 
@@ -25,14 +25,16 @@ const MIME_TYPES: Record<string, string> = {
 export interface DashboardRunNode {
   id: string;
   definitionId: string;
+  phase?: PlanPhase;
   label: string;
+  description: string;
   status: DashboardNodeStatus;
   attempt: number | null;
   durationMs: number | null;
   evidenceCount: number;
   needs: string[];
   executionIds: string[];
-  targetClaimIds: string[];
+  targetClaims: DashboardClaim[];
   expectedOutputs: string[];
   attempts: DashboardExecutionAttempt[];
 }
@@ -106,6 +108,12 @@ export interface DashboardServerLease {
   close(): Promise<void>;
 }
 
+interface DashboardNodeDefinition {
+  label: string;
+  description: string;
+  expectedOutputs: string[];
+}
+
 function pluginDashboardAssetRoot(): string {
   return resolve(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'dashboard');
 }
@@ -121,10 +129,14 @@ function humanize(identifier: string): string {
   return text ? `${text[0]!.toUpperCase()}${text.slice(1)}` : identifier;
 }
 
-async function readNodeLabels(store: RunStore, entry: RunIndexEntry): Promise<Record<string, string>> {
-  const source = await readFile(join(store.runDirectory(entry.workspaceId, entry.runId), 'config.snapshot.yaml'), 'utf8');
+async function readNodeDefinitions(store: RunStore, entry: RunIndexEntry): Promise<Record<string, DashboardNodeDefinition>> {
+  const source = await readFile(join(store.runDirectory(entry.workspaceId, entry.runId), RUN_CONFIG_SNAPSHOT_PATH), 'utf8');
   const config = loadYaml(source) as Pick<ResolvedHarnessConfig, 'nodes'>;
-  return Object.fromEntries(Object.entries(config.nodes ?? {}).map(([id, definition]) => [id, definition.name ?? humanize(id)]));
+  return Object.fromEntries(Object.entries(config.nodes ?? {}).map(([id, definition]) => [id, {
+    label: humanize(id),
+    description: definition.description,
+    expectedOutputs: Object.keys(definition.outputs ?? {}),
+  }]));
 }
 
 function visiblePlan(projection: RunProjection): Plan | undefined {
@@ -134,7 +146,7 @@ function visiblePlan(projection: RunProjection): Plan | undefined {
     .sort((left, right) => right.revision - left.revision)[0];
 }
 
-function materializeNodes(plan: Plan | undefined, projection: RunProjection, labels: Record<string, string>): DashboardRunNode[] {
+function materializeNodes(plan: Plan | undefined, projection: RunProjection, definitions: Record<string, DashboardNodeDefinition>): DashboardRunNode[] {
   return (plan?.nodes ?? []).map((plannedNode) => {
     const executions = projection.nodeExecutions.filter(
       (execution) => execution.planRevision === plan!.revision && execution.plannedNodeId === plannedNode.id,
@@ -144,15 +156,20 @@ function materializeNodes(plan: Plan | undefined, projection: RunProjection, lab
     return {
       id: plannedNode.id,
       definitionId: plannedNode.definitionId,
-      label: labels[plannedNode.definitionId] ?? humanize(plannedNode.id),
+      ...(plannedNode.phase ? { phase: plannedNode.phase } : {}),
+      label: definitions[plannedNode.definitionId]?.label ?? humanize(plannedNode.id),
+      description: definitions[plannedNode.definitionId]?.description ?? '',
       status: projection.nodeStatuses[`${plan!.revision}:${plannedNode.id}`] ?? 'pending',
       attempt: latest?.attempt ?? null,
       durationMs: latest?.durationMs ?? null,
       evidenceCount: evidenceIds.size,
       needs: plannedNode.dependsOn,
       executionIds: executions.map((execution) => execution.id),
-      targetClaimIds: plannedNode.targetClaimIds ?? [],
-      expectedOutputs: plannedNode.expectedOutputs ?? [],
+      targetClaims: (plannedNode.targetClaimIds ?? []).flatMap((claimId) => {
+        const claim = projection.claims[claimId];
+        return claim ? [{ id: claim.id, description: claim.description, status: claim.status, evidenceCount: claim.evidenceIds.length }] : [];
+      }),
+      expectedOutputs: definitions[plannedNode.definitionId]?.expectedOutputs ?? [],
       attempts: executions.map((execution) => ({
         id: execution.id,
         attempt: execution.attempt,
@@ -170,9 +187,9 @@ function materializeNodes(plan: Plan | undefined, projection: RunProjection, lab
 }
 
 async function runDetail(store: RunStore, entry: RunIndexEntry): Promise<{ detail: DashboardRunDetail; events: HarnessEvent[] }> {
-  const [projection, labels, events] = await Promise.all([
+  const [projection, definitions, events] = await Promise.all([
     store.getProjection(entry.workspaceId, entry.runId),
-    readNodeLabels(store, entry),
+    readNodeDefinitions(store, entry),
     store.readEvents(entry.workspaceId, entry.runId),
   ]);
   const plan = visiblePlan(projection);
@@ -183,7 +200,7 @@ async function runDetail(store: RunStore, entry: RunIndexEntry): Promise<{ detai
     const claim = projection.claims[claimId];
     return claim ? [{ id: claim.id, description: claim.description, status: claim.status, evidenceCount: claim.evidenceIds.length }] : [];
   });
-  const nodes = materializeNodes(plan, projection, labels);
+  const nodes = materializeNodes(plan, projection, definitions);
   const currentNode = nodes.find((node) => node.status === 'blocked')
     ?? nodes.find((node) => node.status === 'running')
     ?? nodes.find((node) => node.status === 'ready')

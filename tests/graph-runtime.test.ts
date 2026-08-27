@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { readyPlannedNodes, validatePlanGraph } from '../src/core/graph.js';
-import { assertClaimDecision, assertCommitmentRevision, assertNodeExecution, assertPlanRevision, isCommitmentAccepted } from '../src/core/runtime.js';
+import { assertClaimDecision, assertCommitmentRevision, assertNodeExecution, assertPlanRevision, isCommitmentAccepted, structuredInputDigest } from '../src/core/runtime.js';
 import type { Claim, Commitment, Evidence, NodeExecution, Plan, Run } from '../src/core/types.js';
 
 const run: Run = {
@@ -34,8 +34,8 @@ const plan: Plan = {
   status: 'proposed',
   createdAt: '2026-08-21T00:00:02.000Z',
   nodes: [
-    { id: 'implement', definitionId: 'agent-work', dependsOn: [], targetClaimIds: ['claim-verified'] },
-    { id: 'verify', definitionId: 'agent-work', dependsOn: ['implement'], targetClaimIds: ['claim-verified'] },
+    { id: 'implement', definitionId: 'agent-work', phase: 'implementation', dependsOn: [], targetClaimIds: ['claim-verified'] },
+    { id: 'verify', definitionId: 'agent-work', phase: 'verification', dependsOn: ['implement'], targetClaimIds: ['claim-verified'] },
   ],
 };
 
@@ -53,9 +53,11 @@ describe('Plan graph and runtime invariants', () => {
       evidenceIds: [],
     };
     expect(readyPlannedNodes(plan, [execution]).map((node) => node.id)).toEqual(['verify']);
+    expect(readyPlannedNodes(plan, [{ ...execution, status: 'failed' }]).map((node) => node.id)).toEqual([]);
   });
 
   test('rejects missing dependencies, duplicate dependencies, and cycles', () => {
+    expect(() => validatePlanGraph({ ...plan, nodes: [{ id: 'a', definitionId: 'work', phase: 'review' as never, dependsOn: [] }] })).toThrow(/invalid phase/);
     expect(() => validatePlanGraph({ ...plan, nodes: [{ id: 'a', definitionId: 'work', dependsOn: ['missing'] }] })).toThrow(/missing node/);
     expect(() => validatePlanGraph({ ...plan, nodes: [{ id: 'a', definitionId: 'work', dependsOn: ['b', 'b'] }, { id: 'b', definitionId: 'work', dependsOn: [] }] })).toThrow(/repeats dependency/);
     expect(() => validatePlanGraph({ ...plan, nodes: [{ id: 'a', definitionId: 'work', dependsOn: ['b'] }, { id: 'b', definitionId: 'work', dependsOn: ['a'] }] })).toThrow(/dependency cycle/);
@@ -92,6 +94,16 @@ describe('Plan graph and runtime invariants', () => {
   });
 
   test('completes only from satisfied Claims for the current Commitment with fresh Evidence', () => {
+    const execution: NodeExecution = {
+      id: 'execution-1',
+      runId: run.id,
+      planRevision: plan.revision,
+      plannedNodeId: 'implement',
+      attempt: 1,
+      status: 'succeeded',
+      input: {},
+      evidenceIds: [],
+    };
     const proof: Evidence = {
       id: 'proof-1',
       runId: run.id,
@@ -101,7 +113,10 @@ describe('Plan graph and runtime invariants', () => {
       digest: 'sha256:proof',
       locator: 'evidence/proof-1.json',
       commitmentRevision: commitment.revision,
-      inputDigests: { source: 'sha256:source' },
+      executionId: execution.id,
+      planRevision: plan.revision,
+      plannedNodeId: execution.plannedNodeId,
+      inputDigest: structuredInputDigest(execution.input ?? {}),
     };
     const satisfied: Claim = {
       id: 'claim-verified',
@@ -112,12 +127,15 @@ describe('Plan graph and runtime invariants', () => {
       evidenceIds: [proof.id],
       createdAt: '2026-08-21T00:00:04.000Z',
     };
-    expect(() => assertClaimDecision(commitment, satisfied, { [proof.id]: proof })).not.toThrow();
-    expect(isCommitmentAccepted(commitment, { [satisfied.id]: satisfied }, { [proof.id]: proof })).toBe(true);
-    expect(isCommitmentAccepted(commitment, { [satisfied.id]: { ...satisfied, status: 'open' } }, { [proof.id]: proof })).toBe(false);
-    expect(() => assertClaimDecision(commitment, { ...satisfied, evidenceIds: [] }, {})).toThrow(/requires Evidence/);
+    const plans = { [plan.revision]: plan };
+    expect(() => assertClaimDecision(commitment, satisfied, { [proof.id]: proof }, plans, [execution])).not.toThrow();
+    expect(isCommitmentAccepted(commitment, { [satisfied.id]: satisfied }, { [proof.id]: proof }, plans, [execution])).toBe(true);
+    expect(isCommitmentAccepted(commitment, { [satisfied.id]: { ...satisfied, status: 'open' } }, { [proof.id]: proof }, plans, [execution])).toBe(false);
+    expect(() => assertClaimDecision(commitment, { ...satisfied, evidenceIds: [] }, {}, plans, [execution])).toThrow(/requires Evidence/);
     const newerCommitment: Commitment = { ...commitment, id: 'commitment-2', revision: 2, supersedesRevision: commitment.revision };
-    expect(isCommitmentAccepted(newerCommitment, { [satisfied.id]: satisfied }, { [proof.id]: proof })).toBe(false);
-    expect(isCommitmentAccepted({ ...commitment, unresolvedDecisions: ['Choose destination'] }, { [satisfied.id]: satisfied }, { [proof.id]: proof })).toBe(false);
+    expect(isCommitmentAccepted(newerCommitment, { [satisfied.id]: satisfied }, { [proof.id]: proof }, plans, [execution])).toBe(false);
+    expect(isCommitmentAccepted({ ...commitment, unresolvedDecisions: ['Choose destination'] }, { [satisfied.id]: satisfied }, { [proof.id]: proof }, plans, [execution])).toBe(false);
+    const changedPlan = { ...plan, revision: 2, nodes: plan.nodes.map((node) => node.id === 'implement' ? { ...node, input: { changed: true } } : node) };
+    expect(isCommitmentAccepted(commitment, { [satisfied.id]: satisfied }, { [proof.id]: proof }, { ...plans, 2: changedPlan }, [execution])).toBe(false);
   });
 });

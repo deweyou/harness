@@ -3,11 +3,13 @@ import { constants } from 'node:fs';
 import { access, appendFile, mkdir, open, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { dump as dumpYaml } from 'js-yaml';
+import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
 import { invariant } from '../errors.js';
 import { readyPlannedNodes } from '../graph.js';
+import { assertPortValues } from '../port-schema.js';
 import { buildRetrospective } from '../retrospective.js';
 import { buildRetrospectiveReport } from '../retrospective-report.js';
+import { structuredInputDigest } from '../runtime.js';
 import type {
   Claim,
   ClaimStatus,
@@ -20,6 +22,8 @@ import type {
   NodeExecutionStatus,
   Plan,
   PlannedNode,
+  ReadyNodeAssignment,
+  ReadyNodeAssignments,
   ResolvedHarnessConfig,
   ResourceProposal,
   ResourceProposalStatus,
@@ -69,6 +73,7 @@ export interface CreateRunInput {
   config: ResolvedHarnessConfig;
   commitment: CommitmentDraft;
   hostSessionId?: string;
+  workspacePreparationId?: string;
 }
 
 export interface CommandContext {
@@ -79,11 +84,10 @@ export interface CommandContext {
 }
 
 export interface EvidenceInput {
+  executionId: string;
   content: string;
   kind: string;
   summary: string;
-  commitmentRevision: number;
-  inputDigests?: Record<string, string>;
 }
 
 export interface ExecutionExportInput {
@@ -123,6 +127,8 @@ function assertStructuredPayloadSize(label: string, value: Record<string, unknow
     `${label} exceeds ${MAX_STRUCTURED_PAYLOAD_BYTES} bytes; store large content as Evidence`,
   );
 }
+
+export const RUN_CONFIG_SNAPSHOT_PATH = 'cache/config.snapshot.yaml';
 
 async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): Promise<T> {
   const deadline = Date.now() + 2_000;
@@ -204,11 +210,12 @@ export class LocalRunRepository implements RunRepository {
       mkdir(join(directory, 'proposals'), { recursive: true, mode: 0o700 }),
       mkdir(join(directory, 'reports'), { recursive: true, mode: 0o700 }),
       mkdir(join(directory, 'exports'), { recursive: true, mode: 0o700 }),
+      mkdir(join(directory, 'cache'), { recursive: true, mode: 0o700 }),
     ]);
     await Promise.all([
       atomicJson(join(directory, 'run.json'), run),
       atomicJson(join(directory, 'request.json'), request),
-      writeFile(join(directory, 'config.snapshot.yaml'), dumpYaml(config, { noRefs: true }), { mode: 0o600 }),
+      writeFile(join(directory, RUN_CONFIG_SNAPSHOT_PATH), dumpYaml(config, { noRefs: true }), { mode: 0o600 }),
       writeFile(join(directory, 'events.jsonl'), '', { mode: 0o600, flag: 'wx' }),
     ]);
   }
@@ -447,6 +454,7 @@ export class RunStore {
       workspaceMount: workspacePath,
       createdAt: this.now().toISOString(),
       hostSessions: input.hostSessionId ? [input.hostSessionId] : [],
+      ...(input.workspacePreparationId ? { workspacePreparationId: input.workspacePreparationId } : {}),
     };
     await this.repository.initialize(run, input.request, input.config);
     const traceId = randomUUID();
@@ -467,8 +475,12 @@ export class RunStore {
   }
 
   async reviseCommitment(workspaceId: string, runId: string, draft: CommitmentDraft, context: CommandContext): Promise<Commitment> {
+    const commandInputDigest = structuredInputDigest(draft);
     const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
-    if (replay) return replay.payload.commitment as Commitment;
+    if (replay) {
+      this.assertSemanticReplay(replay, 'commitment.revised', commandInputDigest, context.idempotencyKey);
+      return replay.payload.commitment as Commitment;
+    }
     const projection = await this.getProjection(workspaceId, runId);
     invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
     const previousRevision = projection.activeCommitmentRevision;
@@ -501,16 +513,44 @@ export class RunStore {
       claims,
       invalidatedClaimIds: Object.values(projection.claims).filter((claim) => claim.status === 'open').map((claim) => claim.id),
       ...(projection.activePlanRevision !== undefined ? { supersededPlanRevision: projection.activePlanRevision } : {}),
+      commandInputDigest,
     }));
     return commitment;
   }
 
   async proposePlan(workspaceId: string, runId: string, commitmentRevision: number, nodes: PlannedNode[], context: CommandContext): Promise<Plan> {
+    const commandInputDigest = structuredInputDigest({ commitmentRevision, nodes });
     const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
-    if (replay) return replay.payload.plan as Plan;
+    if (replay) {
+      this.assertSemanticReplay(replay, 'plan.proposed', commandInputDigest, context.idempotencyKey);
+      return replay.payload.plan as Plan;
+    }
     const projection = await this.getProjection(workspaceId, runId);
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
     invariant(projection.activeCommitmentRevision === commitmentRevision, 'STALE_COMMITMENT_REVISION', 'Plan must target the active Commitment revision');
-    for (const node of nodes) assertStructuredPayloadSize(`Planned node '${node.id}' input`, node.input ?? {});
+    const commitment = projection.commitments[commitmentRevision]!;
+    const acceptanceClaimIds = new Set(commitment.acceptanceClaimIds);
+    const previouslyTargetedClaimIds = new Set(
+      Object.values(projection.plans)
+        .filter((plan) => plan.commitmentRevision === commitmentRevision)
+        .flatMap((plan) => plan.nodes.flatMap((node) => node.targetClaimIds ?? [])),
+    );
+    const newlyTargetedClaimIds = new Set<string>();
+    for (const node of nodes) {
+      assertStructuredPayloadSize(`Planned node '${node.id}' input`, node.input ?? {});
+      const targetClaimIds = node.targetClaimIds ?? [];
+      invariant(new Set(targetClaimIds).size === targetClaimIds.length, 'DUPLICATE_TARGET_CLAIM', `Planned node '${node.id}' targets the same Claim more than once`);
+      for (const claimId of targetClaimIds) {
+        invariant(acceptanceClaimIds.has(claimId), 'UNREQUIRED_CLAIM', `Planned node '${node.id}' targets non-acceptance Claim '${claimId}'`);
+        newlyTargetedClaimIds.add(claimId);
+      }
+    }
+    const uncoveredClaimIds = commitment.acceptanceClaimIds.filter((claimId) => (
+      projection.claims[claimId]?.status === 'open'
+      && !previouslyTargetedClaimIds.has(claimId)
+      && !newlyTargetedClaimIds.has(claimId)
+    ));
+    invariant(uncoveredClaimIds.length === 0, 'UNCOVERED_ACCEPTANCE_CLAIM', `Plan does not cover open acceptance Claim(s): ${uncoveredClaimIds.join(', ')}`);
     const revision = Math.max(0, ...Object.keys(projection.plans).map(Number)) + 1;
     const plan: Plan = {
       schemaVersion: 2,
@@ -522,40 +562,172 @@ export class RunStore {
       createdAt: this.now().toISOString(),
       nodes,
     };
-    await this.commitEvent(workspaceId, runId, this.eventInput('plan.proposed', context, { plan }));
+    await this.commitEvent(workspaceId, runId, this.eventInput('plan.proposed', context, { plan, commandInputDigest }));
     return plan;
   }
 
   async activatePlan(workspaceId: string, runId: string, planRevision: number, context: CommandContext): Promise<RunProjection> {
+    const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
+    if (replay) {
+      invariant(replay.type === 'plan.activated' && replay.payload.planRevision === planRevision, 'IDEMPOTENCY_CONFLICT', `Idempotency key '${context.idempotencyKey}' has different command input`);
+      return this.getProjection(workspaceId, runId);
+    }
+    const projection = await this.getProjection(workspaceId, runId);
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
     await this.commitEvent(workspaceId, runId, this.eventInput('plan.activated', context, { planRevision }));
     return this.getProjection(workspaceId, runId);
   }
 
   async readyNodes(workspaceId: string, runId: string): Promise<PlannedNode[]> {
     const projection = await this.getProjection(workspaceId, runId);
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
     invariant(projection.activePlanRevision !== undefined, 'NO_ACTIVE_PLAN', 'Run has no active Plan');
     return readyPlannedNodes(projection.plans[projection.activePlanRevision]!, projection.nodeExecutions);
   }
 
-  async startExecution(workspaceId: string, runId: string, plannedNodeId: string, context: CommandContext): Promise<{ executionId: string; attempt: number }> {
-    const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
-    if (replay) return { executionId: replay.payload.executionId as string, attempt: replay.payload.attempt as number };
-    const projection = await this.getProjection(workspaceId, runId);
+  async readyNodeAssignments(workspaceId: string, runId: string): Promise<ReadyNodeAssignments> {
+    const [projection, config, run] = await Promise.all([
+      this.getProjection(workspaceId, runId),
+      this.readConfigSnapshot(workspaceId, runId),
+      this.repository.readJson<Run>(workspaceId, runId, 'run.json'),
+    ]);
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
+    invariant(projection.activeCommitmentRevision !== undefined, 'NO_ACTIVE_COMMITMENT', 'Run has no active Commitment');
     invariant(projection.activePlanRevision !== undefined, 'NO_ACTIVE_PLAN', 'Run has no active Plan');
-    invariant((await this.readyNodes(workspaceId, runId)).some((node) => node.id === plannedNodeId), 'NODE_NOT_READY', `Planned node '${plannedNodeId}' is not ready`);
+    const plan = projection.plans[projection.activePlanRevision]!;
+    const workspacePath = run.workspacePath ?? run.workspaceMount;
+    invariant(workspacePath, 'WORKSPACE_PATH_MISSING', `Run '${runId}' has no workspace path`);
+    const assignments: ReadyNodeAssignment[] = readyPlannedNodes(plan, projection.nodeExecutions).map((plannedNode) => {
+      const definition = config.nodes[plannedNode.definitionId];
+      invariant(definition, 'MISSING_NODE', `Run configuration snapshot has no Node Definition '${plannedNode.definitionId}'`);
+      return { plannedNode, definition };
+    });
+    return {
+      runId,
+      workspace: { ...run.workspace, path: workspacePath },
+      commitmentRevision: projection.activeCommitmentRevision,
+      planRevision: projection.activePlanRevision,
+      assignments,
+    };
+  }
+
+  async startExecution(
+    workspaceId: string,
+    runId: string,
+    plannedNodeId: string,
+    commitmentRevision: number,
+    planRevision: number,
+    context: CommandContext,
+  ): Promise<{ executionId: string; attempt: number }> {
+    const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
+    if (replay) {
+      invariant(
+        replay.type === 'node.started'
+        && replay.payload.plannedNodeId === plannedNodeId
+        && replay.payload.commitmentRevision === commitmentRevision
+        && replay.payload.planRevision === planRevision,
+        'IDEMPOTENCY_CONFLICT',
+        `Idempotency key '${context.idempotencyKey}' belongs to a different execution assignment`,
+      );
+      return { executionId: replay.payload.executionId as string, attempt: replay.payload.attempt as number };
+    }
+    const projection = await this.getProjection(workspaceId, runId);
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
+    invariant(projection.activeCommitmentRevision === commitmentRevision, 'STALE_COMMITMENT_REVISION', 'Execution must target the active Commitment revision');
+    invariant(projection.activePlanRevision === planRevision, 'STALE_PLAN_REVISION', 'Execution must target the active Plan revision');
+    const plan = projection.plans[planRevision];
+    invariant(plan, 'PLAN_NOT_FOUND', `Plan revision ${planRevision} does not exist`);
+    invariant(readyPlannedNodes(plan, projection.nodeExecutions).some((node) => node.id === plannedNodeId), 'NODE_NOT_READY', `Planned node '${plannedNodeId}' is not ready`);
     const attempts = projection.nodeExecutions.filter(
-      (execution) => execution.planRevision === projection.activePlanRevision && execution.plannedNodeId === plannedNodeId,
+      (execution) => execution.planRevision === planRevision && execution.plannedNodeId === plannedNodeId,
     );
     const executionId = randomUUID();
     const attempt = attempts.length + 1;
-    const plan = projection.plans[projection.activePlanRevision];
-    const input = plan?.nodes.find((node) => node.id === plannedNodeId)?.input ?? {};
+    const plannedNode = plan.nodes.find((node) => node.id === plannedNodeId);
+    invariant(plannedNode, 'PLANNED_NODE_NOT_FOUND', `Planned node '${plannedNodeId}' does not exist in the active Plan`);
+    const config = await this.readConfigSnapshot(workspaceId, runId);
+    const definition = config.nodes[plannedNode.definitionId];
+    invariant(definition, 'MISSING_NODE', `Node Definition '${plannedNode.definitionId}' is absent from the Run configuration snapshot`);
+    const input = plannedNode.input ?? {};
+    assertPortValues(definition.inputs, input, `Planned node '${plannedNodeId}' input`);
     await this.commitEvent(workspaceId, runId, this.eventInput('node.started', context, {
       executionId,
-      planRevision: projection.activePlanRevision,
+      commitmentRevision,
+      planRevision,
       plannedNodeId,
       attempt,
       input,
+    }));
+    return { executionId, attempt };
+  }
+
+  async retryExecution(
+    workspaceId: string,
+    runId: string,
+    previousExecutionId: string,
+    commitmentRevision: number,
+    planRevision: number,
+    reason: string,
+    evidenceIds: string[],
+    context: CommandContext,
+  ): Promise<{ executionId: string; attempt: number }> {
+    const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
+    if (replay) {
+      invariant(
+        replay.type === 'node.started'
+        && replay.payload.retryOfExecutionId === previousExecutionId
+        && replay.payload.commitmentRevision === commitmentRevision
+        && replay.payload.planRevision === planRevision
+        && replay.payload.retryReason === reason
+        && JSON.stringify(replay.payload.retryEvidenceIds) === JSON.stringify(evidenceIds),
+        'IDEMPOTENCY_CONFLICT',
+        `Idempotency key '${context.idempotencyKey}' belongs to a different retry request`,
+      );
+      return { executionId: replay.payload.executionId as string, attempt: replay.payload.attempt as number };
+    }
+    const projection = await this.getProjection(workspaceId, runId);
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
+    invariant(projection.activeCommitmentRevision === commitmentRevision, 'STALE_COMMITMENT_REVISION', 'Retry must target the active Commitment revision');
+    invariant(projection.activePlanRevision === planRevision, 'STALE_PLAN_REVISION', 'Retry must target the active Plan revision');
+    invariant(reason.trim().length > 0, 'RETRY_REASON_REQUIRED', 'Retry requires a non-empty reason');
+    invariant(evidenceIds.length > 0, 'RETRY_EVIDENCE_REQUIRED', 'Retry requires Evidence from the preceding attempt');
+    const previous = projection.nodeExecutions.find((execution) => execution.id === previousExecutionId);
+    invariant(previous, 'EXECUTION_NOT_FOUND', `Node execution '${previousExecutionId}' does not exist`);
+    invariant(previous.planRevision === planRevision, 'PLAN_SCOPE_MISMATCH', `Node execution '${previousExecutionId}' belongs to another Plan revision`);
+    invariant(['failed', 'blocked', 'cancelled', 'interrupted'].includes(previous.status), 'EXECUTION_NOT_RETRYABLE', `Node execution '${previousExecutionId}' cannot be retried from status '${previous.status}'`);
+    const attempts = projection.nodeExecutions.filter(
+      (execution) => execution.planRevision === planRevision && execution.plannedNodeId === previous.plannedNodeId,
+    );
+    invariant(Math.max(...attempts.map((execution) => execution.attempt)) === previous.attempt, 'RETRY_NOT_LATEST_ATTEMPT', 'Only the latest Node attempt can be retried');
+    for (const evidenceId of evidenceIds) {
+      const item = projection.evidence[evidenceId];
+      invariant(item, 'MISSING_EVIDENCE', `Retry refers to missing Evidence '${evidenceId}'`);
+      invariant(item.executionId === previousExecutionId, 'RETRY_EVIDENCE_SCOPE_MISMATCH', `Retry Evidence '${evidenceId}' must belong to the preceding execution`);
+    }
+    const plan = projection.plans[planRevision]!;
+    const plannedNode = plan.nodes.find((node) => node.id === previous.plannedNodeId);
+    invariant(plannedNode, 'PLANNED_NODE_NOT_FOUND', `Planned node '${previous.plannedNodeId}' does not exist in the active Plan`);
+    const succeeded = new Set(projection.nodeExecutions
+      .filter((execution) => execution.planRevision === planRevision && execution.status === 'succeeded')
+      .map((execution) => execution.plannedNodeId));
+    invariant(plannedNode.dependsOn.every((dependencyId) => succeeded.has(dependencyId)), 'NODE_NOT_READY', `Planned node '${plannedNode.id}' dependencies are not satisfied`);
+    const config = await this.readConfigSnapshot(workspaceId, runId);
+    const definition = config.nodes[plannedNode.definitionId];
+    invariant(definition, 'MISSING_NODE', `Node Definition '${plannedNode.definitionId}' is absent from the Run configuration snapshot`);
+    const input = plannedNode.input ?? {};
+    assertPortValues(definition.inputs, input, `Planned node '${plannedNode.id}' input`);
+    const executionId = randomUUID();
+    const attempt = previous.attempt + 1;
+    await this.commitEvent(workspaceId, runId, this.eventInput('node.started', context, {
+      executionId,
+      commitmentRevision,
+      planRevision,
+      plannedNodeId: plannedNode.id,
+      attempt,
+      input,
+      retryOfExecutionId: previousExecutionId,
+      retryReason: reason,
+      retryEvidenceIds: evidenceIds,
     }));
     return { executionId, attempt };
   }
@@ -571,6 +743,18 @@ export class RunStore {
     exportInputs: ExecutionExportInput[] = [],
   ): Promise<RunProjection> {
     if (output) assertStructuredPayloadSize(`Node execution '${executionId}' output`, output);
+    if (status === 'succeeded') {
+      const projection = await this.getProjection(workspaceId, runId);
+      const execution = projection.nodeExecutions.find((candidate) => candidate.id === executionId);
+      invariant(execution, 'EXECUTION_NOT_FOUND', `Node execution '${executionId}' does not exist`);
+      const plan = projection.plans[execution.planRevision];
+      const plannedNode = plan?.nodes.find((candidate) => candidate.id === execution.plannedNodeId);
+      invariant(plannedNode, 'PLANNED_NODE_NOT_FOUND', `Planned node '${execution.plannedNodeId}' does not exist in Plan revision ${execution.planRevision}`);
+      const config = await this.readConfigSnapshot(workspaceId, runId);
+      const definition = config.nodes[plannedNode.definitionId];
+      invariant(definition, 'MISSING_NODE', `Node Definition '${plannedNode.definitionId}' is absent from the Run configuration snapshot`);
+      assertPortValues(definition.outputs, output ?? {}, `Node execution '${executionId}' output`);
+    }
     const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
     const exports = await this.prepareExecutionExports(workspaceId, runId, executionId, exportInputs, Boolean(replay));
     await this.commitEvent(workspaceId, runId, this.eventInput(
@@ -579,6 +763,12 @@ export class RunStore {
       { executionId, evidenceIds, ...(exports.length ? { exports } : {}), ...(output !== undefined ? { output } : {}) },
     ));
     return this.getProjection(workspaceId, runId);
+  }
+
+  async readConfigSnapshot(workspaceId: string, runId: string): Promise<ResolvedHarnessConfig> {
+    const document = loadYaml(await this.repository.readText(workspaceId, runId, RUN_CONFIG_SNAPSHOT_PATH));
+    invariant(typeof document === 'object' && document !== null, 'INVALID_CONFIG_SNAPSHOT', `Run '${runId}' has an invalid configuration snapshot`);
+    return document as ResolvedHarnessConfig;
   }
 
   async getExecutionExport(
@@ -657,7 +847,12 @@ export class RunStore {
 
   async recordEvidence(workspaceId: string, runId: string, input: EvidenceInput, context: CommandContext): Promise<Evidence> {
     const projection = await this.getProjection(workspaceId, runId);
-    invariant(projection.activeCommitmentRevision === input.commitmentRevision, 'STALE_COMMITMENT_REVISION', 'Evidence must target the active Commitment revision');
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
+    const execution = projection.nodeExecutions.find((candidate) => candidate.id === input.executionId);
+    invariant(execution, 'EXECUTION_NOT_FOUND', `Node execution '${input.executionId}' does not exist`);
+    const plan = projection.plans[execution.planRevision];
+    invariant(plan, 'PLAN_NOT_FOUND', `Plan revision ${execution.planRevision} does not exist`);
+    invariant(projection.activeCommitmentRevision === plan.commitmentRevision, 'STALE_COMMITMENT_REVISION', 'Evidence must target an execution from the active Commitment revision');
     const digest = createHash('sha256').update(input.content).digest('hex');
     const locator = await this.repository.writeEvidence(workspaceId, runId, digest, input.content);
     const envelope = {
@@ -665,8 +860,11 @@ export class RunStore {
       kind: input.kind,
       summary: input.summary,
       digest,
-      commitmentRevision: input.commitmentRevision,
-      inputDigests: input.inputDigests ?? {},
+      commitmentRevision: plan.commitmentRevision,
+      executionId: execution.id,
+      planRevision: execution.planRevision,
+      plannedNodeId: execution.plannedNodeId,
+      inputDigest: structuredInputDigest(execution.input ?? {}),
     };
     const evidenceId = createHash('sha256').update(JSON.stringify(envelope)).digest('hex');
     const existing = projection.evidence[evidenceId];
@@ -706,10 +904,25 @@ export class RunStore {
     destination: string,
     context: CommandContext,
   ): Promise<RunProjection> {
+    const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
+    if (replay) {
+      invariant(
+        replay.type === 'run.completed'
+        && replay.payload.commitmentRevision === commitmentRevision
+        && replay.payload.planRevision === planRevision
+        && replay.payload.destination === destination,
+        'IDEMPOTENCY_CONFLICT',
+        `Idempotency key '${context.idempotencyKey}' has different command input`,
+      );
+      await this.ensureRetrospective(workspaceId, runId, context.traceId, context.spanId);
+      return this.getProjection(workspaceId, runId);
+    }
     const projection = await this.getProjection(workspaceId, runId);
+    invariant(projection.status !== 'completed', 'RUN_ALREADY_COMPLETED', `Run '${runId}' is already completed`);
     invariant(projection.activeCommitmentRevision === commitmentRevision, 'STALE_COMMITMENT_REVISION', 'Completion must target the active Commitment revision');
     invariant(projection.activePlanRevision === planRevision, 'STALE_PLAN_REVISION', 'Completion must target the active Plan revision');
     invariant(projection.commitmentAcceptanceSatisfied, 'ACCEPTANCE_INCOMPLETE', 'Current Commitment acceptance Claims are incomplete');
+    invariant(!projection.nodeExecutions.some((execution) => execution.status === 'running'), 'RUN_HAS_ACTIVE_EXECUTIONS', 'Run completion requires every running execution to reach a terminal status');
     const commitment = projection.commitments[commitmentRevision]!;
     invariant(commitment.destination === destination, 'DESTINATION_MISMATCH', `Completion destination must be '${commitment.destination}'`);
     invariant(commitment.authority.includes(`deliver:${destination}`), 'DELIVERY_UNAUTHORIZED', `Current Commitment does not authorize delivery to '${destination}'`);
@@ -718,8 +931,12 @@ export class RunStore {
     return this.getProjection(workspaceId, runId);
   }
 
-  async recordResourceActivation(workspaceId: string, runId: string, resourceId: string, digest: string, context: CommandContext): Promise<void> {
-    await this.commitEvent(workspaceId, runId, this.eventInput('resource.activated', context, { resourceId, digest }));
+  async recordResourceActivation(workspaceId: string, runId: string, resourceId: string, digest: string, context: CommandContext, revision?: string): Promise<void> {
+    await this.commitEvent(workspaceId, runId, this.eventInput('resource.activated', context, {
+      resourceId,
+      digest,
+      ...(revision ? { revision } : {}),
+    }));
   }
 
   async recordResourceFeedback(
@@ -849,6 +1066,12 @@ export class RunStore {
     reason?: string,
   ): Promise<ResourceProposal> {
     const proposal = await this.repository.readJson<ResourceProposal>(workspaceId, runId, `proposals/${proposalId}.json`);
+    const commandInputDigest = structuredInputDigest({ proposalId, decision, reason: reason ?? null });
+    const replay = await this.findEventByKey(workspaceId, runId, context.idempotencyKey);
+    if (replay) {
+      this.assertSemanticReplay(replay, decision === 'accepted' ? 'resource.change.accepted' : 'resource.change.rejected', commandInputDigest, context.idempotencyKey);
+      return { ...proposal, status: decision, decision: { decidedAt: replay.timestamp, ...(reason ? { reason } : {}) } };
+    }
     const current = (await this.getProjection(workspaceId, runId)).resourceProposals[proposalId];
     invariant(current, 'UNKNOWN_PROPOSAL', `Unknown proposal '${proposalId}'`);
     invariant(current.status === 'proposed' || current.status === decision, 'PROPOSAL_ALREADY_DECIDED', `Proposal '${proposalId}' is already ${current.status}`);
@@ -856,7 +1079,7 @@ export class RunStore {
       await this.commitEvent(workspaceId, runId, this.eventInput(
         decision === 'accepted' ? 'resource.change.accepted' : 'resource.change.rejected',
         context,
-        { proposalId, ...(reason ? { reason } : {}) },
+        { proposalId, commandInputDigest, ...(reason ? { reason } : {}) },
       ));
     }
     const decided = { ...proposal, status: decision, decision: { decidedAt: this.now().toISOString(), ...(reason ? { reason } : {}) } };
@@ -883,6 +1106,14 @@ export class RunStore {
       payload,
       ...(context.parentSpanId ? { parentSpanId: context.parentSpanId } : {}),
     };
+  }
+
+  private assertSemanticReplay(replay: HarnessEvent, type: EventInput['type'], commandInputDigest: string, idempotencyKey: string): void {
+    invariant(
+      replay.type === type && replay.payload.commandInputDigest === commandInputDigest,
+      'IDEMPOTENCY_CONFLICT',
+      `Idempotency key '${idempotencyKey}' has different command input`,
+    );
   }
 
   private async findEventByKey(workspaceId: string, runId: string, idempotencyKey: string): Promise<HarnessEvent | undefined> {

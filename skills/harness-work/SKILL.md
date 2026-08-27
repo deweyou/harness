@@ -18,7 +18,8 @@ durable agent work. The agent may
 explore and discuss freely. Create a Run only when the work needs a durable
 commitment, acceptance record, delegation, recovery, or delivery boundary.
 
-`harness.yaml` declares reusable resources and node capabilities. It does not
+`harness.yaml` declares repository Context, reusable Skills, and node
+capabilities. It does not
 declare a workflow. The Plan belongs to one Run and may be revised when the
 Commitment changes.
 
@@ -48,7 +49,7 @@ The main agent must:
 - keep material user choices and external authority in the main conversation
 - create and revise the current Commitment through semantic MCP commands
 - propose a small Plan DAG whose nodes serve the Commitment's acceptance Claims
-- activate only the rules, knowledge, skills, executors, and host capabilities
+- activate only the Context and Skills needed for the current assignment
   needed for the current assignment
 - delegate one bounded agent execution to one subagent when supported
 - record content-addressed Evidence and connect it to explicit Claims
@@ -82,18 +83,23 @@ not require a Run by itself.
    here without task workspace preparation or Run creation.
 4. For new implementation work, before the first project mutation, read
    [workspace-preparation.md](references/workspace-preparation.md) and prepare
-   the workspace using the inspected `strategy`. Validate the configuration
-   again from the prepared workspace and use that path for all Run commands.
+   the workspace with `workspace_prepare` using the inspected `strategy`.
+   Validate the configuration again from the returned workspace and retain its
+   preparation Receipt for `run_create`.
 5. Create durable state only when the work needs a Commitment, acceptance
    record, delegation, recovery, or delivery boundary. Call `run_create` with
-   the prepared workspace path. Core resolves it to a
+   the prepared workspace path and Receipt identity. Core verifies the current
+   branch, revision, base, and configured strategy, then resolves the path to a
    stable logical WorkspaceRef for the local repository, plus an initial
    Commitment: objective, scope, authority, intended destination, acceptance
    Claims, and unresolved material decisions.
-6. Use `capabilities_list` for summaries. Load full content with
-   `capability_activate` only when it is relevant to the current Run or node.
-7. Propose a Plan containing node instances, dependencies, inputs, expected
-   outputs, Claim links, and authority. Call `plan_propose`, inspect the result,
+6. Use `capabilities_list` for summaries. Activate every configured Context for
+   the Run and record its digest-bearing receipt. Activate a Node's declared
+   Skills when that Node is assigned; do not treat Context as Node-local.
+7. Propose a Plan containing node instances, dependencies, inputs, Claim links,
+   inherited authority, and an optional coarse phase (`planning`,
+   `implementation`, `integration`, `verification`, or `delivery`) for
+   Dashboard organization. Phase never substitutes for dependencies. Call `plan_propose`, inspect the result,
    then call `plan_activate` when it matches the current Commitment revision.
 
 To resume, call `run_get` with interrupted-execution recovery enabled. Re-list
@@ -111,14 +117,25 @@ Evidence; include only `rerun` and `add` work in the new Plan revision. Do not
 rerun discovery, design, implementation, or broad verification merely because
 the Plan revision changed.
 
-1. Ask Core for ready planned nodes in the active Plan revision.
-2. For each ready node, activate its declared capabilities and inspect its
+1. Ask Core for ready assignments in the active Plan revision. Use the resolved
+   Node Definition returned by `ready_nodes`; never reload it from the mutable
+   workspace configuration. Preserve the returned Run, Workspace, Commitment,
+   and Plan envelope unchanged when dispatching an assignment.
+2. For each ready assignment, activate its declared Skills and inspect its
    authority boundary.
-3. Call `execution_start`; use the returned execution identity and attempt.
-4. Let the host adapter invoke the configured project-owned StructuredExecutor
-   boundary. Pass cancellation and idempotency through unchanged; Cordis owns
-   only the executor capability's scoped lifecycle.
-5. Store large or raw verification material as Evidence. Publish durable,
+3. Call `execution_start` with the assignment envelope's Commitment revision,
+   Plan revision, and Planned Node ID unchanged; use the returned execution
+   identity and attempt. On a stale-revision error, discard the assignment and
+   call `ready_nodes` again.
+4. Dispatch the Node according to its configured `kind`. An Agent Node performs
+   the bounded assignment with its activated Skills. A Command Node executes
+   its frozen `command` string once through the host in the assignment's
+   `workspace.path`. Map exit `0` to `succeeded`, non-zero to `failed`, explicit
+   cancellation to `cancelled`, and unexpected loss to `interrupted`. Pass
+   cancellation and idempotency through unchanged.
+5. Store large or raw verification material as Evidence bound to the current
+   execution; Core derives its Plan, Planned Node, Commitment, and input digest.
+   Publish durable,
    human-readable or machine-readable node results as immutable Markdown or
    JSON Exports. A task Spec is a Markdown Export with role `spec`; it is not a
    special Core object. Call `execution_finish` exactly once with a concise
@@ -127,6 +144,11 @@ the Plan revision changed.
    Claim by itself.
 7. Continue until no node is ready, the Commitment changes, or a material
    decision requires the user.
+
+A terminal attempt does not become ready again. Retry only a failed, blocked,
+cancelled, or interrupted latest attempt through `execution_retry`, with a
+non-empty reason and Evidence from that attempt. Never retry `skipped` work;
+represent newly required work in a revised Plan instead.
 
 Independent ready nodes may run concurrently when their mutation and authority
 boundaries do not overlap. A changed requirement creates a new Commitment
@@ -149,8 +171,10 @@ with relevant Evidence tied to the current input and Commitment revision.
 Waiving an acceptance Claim requires the authority recorded by the Commitment.
 
 Call `run_complete` only after the destination and authority are current and
-every acceptance Claim is satisfied or validly waived. Core must reject
-completion for open Claims, stale Plan revisions, or stale Evidence.
+every acceptance Claim is satisfied or validly waived and no execution remains
+running. Core must reject completion for open Claims, stale Plan revisions,
+stale Evidence, or active executions. After completion, do not issue execution,
+Plan, Commitment, Claim, Evidence, or resource-activation mutations.
 
 The final response distinguishes what was produced, verified, and delivered,
 and states every remaining uncertainty. Retrospective resource suggestions are
@@ -161,7 +185,7 @@ completed Run.
 
 Read [knowledge-maintenance.md](references/knowledge-maintenance.md) when the
 user explicitly asks to preserve or review repository knowledge, or accepts a
-proposal targeting a Knowledge resource. Also read it during any stage of
+proposal targeting a Context resource. Also read it during any stage of
 authorized repository work when a verified change would otherwise leave current
 repository knowledge missing, stale, or contradictory. Ordinary questions and
 useful answers alone do not implicitly authorize knowledge-base edits.
@@ -170,7 +194,7 @@ Treat an accepted proposal as input to a separate maintenance task. Prepare the
 configured workspace before editing repository knowledge, preserve source
 Evidence and the prior resource digest, and record validation against the new
 digest. Keep Harness domain-neutral: concrete repository knowledge remains in
-the target repository and is activated through a configured Knowledge Provider.
+the target repository and is activated through a configured Context Provider.
 Publish only current useful knowledge. Keep superseded alternatives and the
 reasoning that led from one design to another in the task Spec, Run, or Evidence,
 not in the active knowledge consumed by future agents.

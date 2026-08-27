@@ -33,6 +33,7 @@ function PlanNodeCard({ data, selected }: NodeProps<FlowNode<PlannedNode>>) {
   return (
     <div className={cn('graph-node', `is-${data.status}`, selected && 'is-selected')}>
       <Handle type="target" position={Position.Left} className="graph-handle" />
+      {data.phase && <div className="graph-node__phase">{data.phase}</div>}
       <div className="graph-node__title">{data.label}</div>
       <div className="graph-node__meta">
         <span className={`status status--${data.status}`}>
@@ -75,7 +76,7 @@ export function GraphView({ planNodes, selectedNodeId, onSelectNode }: GraphView
       return {
         id: node.id,
         type: 'plan',
-        position: { x: 24 + depth * 210, y: 42 + row * 96 },
+        position: { x: 24 + depth * 210, y: 42 + row * 108 },
         data: node,
       };
     });

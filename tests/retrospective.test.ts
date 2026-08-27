@@ -22,12 +22,12 @@ describe('buildRetrospective', () => {
   it('groups only evidence-attributed observations by resource', () => {
     const generated = buildRetrospective('run-1', [
       event(1, 'resource.feedback.recorded', { resourceId: 'skill-a', category: 'missing-fact', summary: 'A fact was missing.' }),
-      event(2, 'node.failed', { resourceIds: ['skill-a', 'rule-b'], reason: 'The check failed.' }),
-      event(3, 'decision.recorded', { resourceId: 'rule-b', result: 'verification_rejected', message: 'Rejected.' }),
+      event(2, 'node.failed', { resourceIds: ['skill-a', 'context-b'], reason: 'The check failed.' }),
+      event(3, 'decision.recorded', { resourceId: 'context-b', result: 'verification_rejected', message: 'Rejected.' }),
       event(4, 'node.succeeded', { resourceId: 'skill-a' }),
     ], {
       'skill-a': { kind: 'skill', digest: 'digest-a' },
-      'rule-b': { kind: 'rule', digest: null },
+      'context-b': { kind: 'context', digest: null },
     }, '2026-08-21T00:00:05.000Z');
 
     expect(generated.retrospective.schemaVersion).toBe(2);
@@ -39,7 +39,7 @@ describe('buildRetrospective', () => {
       baseDigest: 'digest-a',
       status: 'proposed',
     });
-    expect(generated.proposals.find((proposal) => proposal.resourceId === 'rule-b')?.problem.categories)
+    expect(generated.proposals.find((proposal) => proposal.resourceId === 'context-b')?.problem.categories)
       .toEqual(['node.failed', 'verification-rejected']);
   });
 

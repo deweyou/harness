@@ -1,4 +1,4 @@
-import { assertClaimDecision, assertCommitmentRevision, assertNodeExecution, assertPlanRevision, isCommitmentAccepted } from '../runtime.js';
+import { assertClaimDecision, assertCommitmentRevision, assertNodeExecution, assertPlanRevision, isCommitmentAccepted, structuredInputDigest } from '../runtime.js';
 import type { Claim, Commitment, Evidence, ExecutionExport, HarnessEvent, NodeExecution, NodeExecutionStatus, Plan, Run, RunProjection } from '../types.js';
 
 const NODE_TERMINAL = new Map<string, NodeExecutionStatus>([
@@ -142,7 +142,7 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
         for (const claim of openedClaims as Claim[]) {
           if (claim.status !== 'open') throw new Error(`New Claim '${claim.id}' must be open`);
           if (claims[claim.id]) throw new Error(`Duplicate Claim '${claim.id}'`);
-          assertClaimDecision(commitment, claim, evidence);
+          assertClaimDecision(commitment, claim, evidence, Object.fromEntries(plans), [...executions.values()]);
           claims[claim.id] = claim;
         }
       }
@@ -175,6 +175,16 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       const item = objectValue<Evidence>(event.payload, 'evidence');
       if (item.runId !== run.id) throw new Error(`Evidence '${item.id}' belongs to another Run`);
       if (evidence[item.id]) throw new Error(`Duplicate Evidence '${item.id}'`);
+      const execution = executions.get(item.executionId);
+      if (!execution) throw new Error(`Evidence '${item.id}' refers to unknown execution '${item.executionId}'`);
+      const plan = plans.get(execution.planRevision);
+      if (
+        !plan
+        || item.planRevision !== execution.planRevision
+        || item.plannedNodeId !== execution.plannedNodeId
+        || item.commitmentRevision !== plan.commitmentRevision
+        || item.inputDigest !== structuredInputDigest(execution.input ?? {})
+      ) throw new Error(`Evidence '${item.id}' has stale execution scope`);
       evidence[item.id] = item;
     } else if (event.type === 'claim.opened') {
       const claim = objectValue<Claim>(event.payload, 'claim');
@@ -182,13 +192,14 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       if (claims[claim.id]) throw new Error(`Duplicate Claim '${claim.id}'`);
       const commitment = [...commitments.values()].find((candidate) => candidate.id === claim.commitmentId);
       if (!commitment) throw new Error(`Claim '${claim.id}' refers to unknown Commitment '${claim.commitmentId}'`);
-      assertClaimDecision(commitment, claim, evidence);
+      assertClaimDecision(commitment, claim, evidence, Object.fromEntries(plans), [...executions.values()]);
       claims[claim.id] = claim;
     } else if (event.type === 'claim.satisfied' || event.type === 'claim.invalidated' || event.type === 'claim.waived') {
       const claimId = stringValue(event.payload, 'claimId');
       const current = claims[claimId];
       if (!current) throw new Error(`Unknown Claim '${claimId}'`);
-      if (current.status !== 'open') throw new Error(`Claim '${claimId}' is already ${current.status}`);
+      const refreshesSatisfiedEvidence = event.type === 'claim.satisfied' && current.status === 'satisfied';
+      if (current.status !== 'open' && !refreshesSatisfiedEvidence) throw new Error(`Claim '${claimId}' is already ${current.status}`);
       const status = event.type.slice('claim.'.length) as Claim['status'];
       const updated: Claim = {
         ...current,
@@ -197,7 +208,7 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
         ...(status === 'satisfied' || status === 'waived' ? { evidenceIds: stringArray(event.payload, 'evidenceIds') } : {}),
       };
       const commitment = [...commitments.values()].find((candidate) => candidate.id === updated.commitmentId)!;
-      assertClaimDecision(commitment, updated, evidence);
+      assertClaimDecision(commitment, updated, evidence, Object.fromEntries(plans), [...executions.values()]);
       claims[claimId] = updated;
     } else if (event.type === 'node.ready') {
       const planRevision = numberValue(event.payload, 'planRevision');
@@ -210,6 +221,8 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       const plannedNodeId = stringValue(event.payload, 'plannedNodeId');
       const plan = plans.get(planRevision);
       if (!plan) throw new Error(`Node execution refers to unknown Plan ${planRevision}`);
+      if (planRevision !== activePlanRevision || plan.status !== 'active') throw new Error(`Node execution refers to inactive Plan ${planRevision}`);
+      if (numberValue(event.payload, 'commitmentRevision') !== activeCommitmentRevision) throw new Error('Node execution refers to an inactive Commitment revision');
       const plannedNode = plan.nodes.find((node) => node.id === plannedNodeId);
       if (!plannedNode) throw new Error(`Unknown planned node '${plannedNodeId}' in Plan ${planRevision}`);
       const execution: NodeExecution = {
@@ -223,10 +236,31 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
           ? plannedNode.input ?? {}
           : objectValue<Record<string, unknown>>(event.payload, 'input'),
         evidenceIds: [],
+        ...(event.payload.retryOfExecutionId === undefined ? {} : {
+          retryOfExecutionId: stringValue(event.payload, 'retryOfExecutionId'),
+          retryReason: stringValue(event.payload, 'retryReason'),
+          retryEvidenceIds: stringArray(event.payload, 'retryEvidenceIds'),
+        }),
         exports: [],
         startedAt: event.timestamp,
       };
       if (executions.has(execution.id)) throw new Error(`Duplicate node execution '${execution.id}'`);
+      if (execution.attempt === 1 && execution.retryOfExecutionId !== undefined) throw new Error('The first Node attempt cannot be a retry');
+      if (execution.attempt > 1) {
+        if (!execution.retryOfExecutionId) throw new Error(`Node execution '${execution.id}' requires explicit retry metadata`);
+        const previous = executions.get(execution.retryOfExecutionId);
+        if (!previous || previous.planRevision !== planRevision || previous.plannedNodeId !== plannedNodeId || previous.attempt !== execution.attempt - 1) {
+          throw new Error(`Node execution '${execution.id}' does not retry the immediately preceding attempt`);
+        }
+        if (!['failed', 'blocked', 'cancelled', 'interrupted'].includes(previous.status)) {
+          throw new Error(`Node execution '${execution.id}' cannot retry a ${previous.status} attempt`);
+        }
+        if (execution.retryEvidenceIds?.length === 0) throw new Error(`Node execution '${execution.id}' requires retry Evidence`);
+        for (const evidenceId of execution.retryEvidenceIds ?? []) {
+          const item = evidence[evidenceId];
+          if (!item || item.executionId !== previous.id) throw new Error(`Retry Evidence '${evidenceId}' must belong to the preceding execution`);
+        }
+      }
       assertNodeExecution(plan, execution, [...executions.values()]);
       executions.set(execution.id, execution);
       nodeStatuses[`${execution.planRevision}:${execution.plannedNodeId}`] = 'running';
@@ -266,8 +300,11 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
       if (planRevision !== activePlanRevision || plans.get(planRevision)?.status !== 'active') {
         throw new Error('Run completion requires the active Plan revision');
       }
-      if (!activeCommitment || !isCommitmentAccepted(activeCommitment, claims, evidence)) {
+      if (!activeCommitment || !isCommitmentAccepted(activeCommitment, claims, evidence, Object.fromEntries(plans), [...executions.values()])) {
         throw new Error('Run completion requires the active Commitment acceptance Claims to be satisfied');
+      }
+      if ([...executions.values()].some((execution) => execution.status === 'running')) {
+        throw new Error('Run completion requires every running execution to reach a terminal status');
       }
       if (destination !== activeCommitment.destination || !activeCommitment.authority.includes(`deliver:${destination}`)) {
         throw new Error(`Run completion is not authorized for destination '${destination}'`);
@@ -299,7 +336,9 @@ export function projectRun(events: HarnessEvent[]): RunProjection {
 
   const activeCommitment = activeCommitmentRevision ? commitments.get(activeCommitmentRevision) : undefined;
   const nodeExecutions = [...executions.values()];
-  const isCompleted = activeCommitment ? isCommitmentAccepted(activeCommitment, claims, evidence) : false;
+  const isCompleted = activeCommitment
+    ? isCommitmentAccepted(activeCommitment, claims, evidence, Object.fromEntries(plans), nodeExecutions)
+    : false;
   const isBlocked = activePlanRevision !== undefined && nodeExecutions.some(
     (execution) => execution.planRevision === activePlanRevision && execution.status === 'blocked',
   );

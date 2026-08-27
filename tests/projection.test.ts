@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { structuredInputDigest } from '../src/core/runtime.js';
 import { projectRun } from '../src/core/state/projection.js';
 import type { Commitment, Evidence, HarnessEvent, HarnessEventType, Plan, Run } from '../src/core/types.js';
 
@@ -43,7 +44,10 @@ const proof: Evidence = {
   digest: 'sha256:proof',
   locator: 'evidence/proof-1.json',
   commitmentRevision: 1,
-  inputDigests: { source: 'sha256:source' },
+  executionId: 'execution-1',
+  planRevision: 1,
+  plannedNodeId: 'work',
+  inputDigest: structuredInputDigest({}),
   createdAt: '2026-08-21T00:00:05.000Z',
 };
 
@@ -71,7 +75,7 @@ describe('Run projection', () => {
       { type: 'plan.proposed', payload: { plan } },
       { type: 'plan.activated', payload: { planRevision: 1 } },
       { type: 'claim.opened', payload: { claim: { id: 'claim-1', runId: run.id, commitmentId: commitment.id, description: 'Core is verified', status: 'open', evidenceIds: [], createdAt: '2026-08-21T00:00:04.000Z' } } },
-      { type: 'node.started', payload: { executionId: 'execution-1', planRevision: 1, plannedNodeId: 'work', attempt: 1 } },
+      { type: 'node.started', payload: { executionId: 'execution-1', commitmentRevision: 1, planRevision: 1, plannedNodeId: 'work', attempt: 1 } },
       { type: 'evidence.recorded', payload: { evidence: proof } },
       { type: 'node.succeeded', payload: { executionId: 'execution-1', evidenceIds: [proof.id] } },
       { type: 'claim.satisfied', payload: { claimId: 'claim-1', evidenceIds: [proof.id] } },
@@ -112,13 +116,16 @@ describe('Run projection', () => {
   });
 
   test('fails closed when a satisfied Claim cites stale Evidence', () => {
-    const staleProof = { ...proof, commitmentRevision: 2 };
+    const staleProof = { ...proof, inputDigest: structuredInputDigest({ changed: true }) };
     expect(() => projectRun(events(
       { type: 'run.created', payload: { run } },
       { type: 'commitment.revised', payload: { commitment } },
+      { type: 'plan.proposed', payload: { plan } },
+      { type: 'plan.activated', payload: { planRevision: 1 } },
+      { type: 'node.started', payload: { executionId: 'execution-1', commitmentRevision: 1, planRevision: 1, plannedNodeId: 'work', attempt: 1 } },
       { type: 'evidence.recorded', payload: { evidence: staleProof } },
       { type: 'claim.opened', payload: { claim: { id: 'claim-1', runId: run.id, commitmentId: commitment.id, description: 'Core is verified', status: 'open', evidenceIds: [], createdAt: '2026-08-21T00:00:04.000Z' } } },
       { type: 'claim.satisfied', payload: { claimId: 'claim-1', evidenceIds: [proof.id] } },
-    ))).toThrow(/targets Commitment revision 2/);
+    ))).toThrow(/stale execution scope/);
   });
 });

@@ -21,10 +21,12 @@ change, or when approved exploratory work reaches a necessary project write.
 Configuration-only lifecycle work, read-only commands, builds that do not
 generate tracked files, and inspection of existing state do not establish it.
 
-Prepare immediately before the first mutating command, then retain the returned
-canonical workspace path as task state. All later mutations and any new Run use
-that path. Do not invoke preparation again during the same task unless the user
-explicitly changes the target repository or base.
+Call `workspace_prepare` immediately before the first mutating command. Pass a
+unique task branch and any user-requested base branch. The command performs the
+Git preparation and returns a durable Receipt plus the canonical prepared
+workspace path. All later mutations and any new Run use that path and Receipt.
+Do not invoke preparation again during the same task unless the user explicitly
+changes the target repository or base.
 
 ## Resolve The Base
 
@@ -34,9 +36,9 @@ falling back to `origin` only when it exists and no upstream is configured.
 Stop and ask for a base branch when the repository has no unambiguous remote
 default.
 
-Fetch the resolved remote before creating the task branch. Network access and
-credential prompts remain host-controlled actions. Do not claim the base is
-current when fetch did not succeed.
+`workspace_prepare` fetches the resolved remote before creating the task branch.
+Network access and credentials remain host-controlled authorization boundaries.
+The command does not issue a Receipt when fetch fails.
 
 Create a unique task branch from the freshly fetched remote base. If continuing
 an existing task branch, rebase that task branch onto the freshly fetched base
@@ -44,13 +46,13 @@ before work continues. Never rebase, reset, or rewrite the user's base branch.
 
 ## Apply The Strategy
 
-For `branch`, require the current checkout to be clean before switching. Do not
-stash, discard, or commit unrelated changes automatically. Create and switch to
-the task branch only after fetch succeeds.
+For `branch`, `workspace_prepare` requires the current checkout to be clean
+before switching. It does not stash, discard, or commit unrelated changes.
 
-For `worktree`, inspect existing worktrees and choose a new path and branch that
-do not collide. Create the worktree from the resolved remote base. Return and
-use its canonical path for `config_inspect`, `run_create`, every later MCP
+For `worktree`, provide an optional non-colliding target path or let Core choose
+one under `~/.deweyou/harness/worktrees/`. Core reuses an existing clean task
+worktree for the same branch or creates one from the fetched remote base. Use
+the returned canonical path for `config_inspect`, `run_create`, every later MCP
 command, agent execution, and command executor.
 
 If the host already placed the session in the intended task worktree, reuse it
@@ -60,9 +62,13 @@ worktree merely to reproduce the configured strategy.
 ## Failure And Recovery
 
 If fetch, branch creation, worktree creation, or rebase fails, stop before
-`run_create`. Abort an in-progress rebase when doing so restores the task branch
-without touching user changes. Do not delete an existing worktree or branch as
-automatic recovery.
+`run_create`. Core aborts a failed rebase but does not delete an existing
+worktree or branch as automatic recovery.
+
+`run_create` requires the Receipt identity and rejects a missing, mismatched, or
+stale Receipt. It verifies the configured strategy, prepared path, task branch,
+HEAD revision, fetched base revision, and base ancestry. Reuse an existing Run's
+recorded workspace without preparing again.
 
 After preparation, run `config_inspect` from the prepared path. If the base does
 not contain a valid `harness.yaml`, route through the configuration lifecycle in
