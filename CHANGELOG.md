@@ -76,6 +76,11 @@ All notable changes to Deweyou Harness are recorded here.
   mutations after completion, and reject conflicting Commitment or Plan
   idempotency replays by canonical command input.
 
+## [1.3.1] - 2026-08-28
+
+- fix: require explicit harness invocation (152b225)
+- Merge pull request #50 from deweyou/codex/harness-explicit-invocation (1e001ff)
+
 ## [1.3.0] - 2026-08-28
 
 - feat: add global harness dashboard (69c2c6f)
