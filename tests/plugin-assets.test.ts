@@ -24,6 +24,19 @@ describe('cross-agent plugin package', () => {
     await expect(lstat('CLAUDE.md')).resolves.toMatchObject({});
   });
 
+  test('keeps harness-work behind an explicit user invocation gate', async () => {
+    const skill = await readFile('skills/harness-work/SKILL.md', 'utf8');
+    const frontmatter = skill.split('---')[1];
+    expect(frontmatter).toContain('Use only when the user explicitly invokes');
+    expect(frontmatter).toContain('/harness-work or $harness-work');
+    expect(frontmatter).toContain('explicitly selects or attaches the');
+    expect(frontmatter).toContain('Do not use for semantic');
+    expect(frontmatter).toContain('user-invocable: true');
+    expect(skill).toContain('## Explicit Invocation Gate');
+    expect(skill).toContain('Handle the request as ordinary agent work');
+    expect(skill).toContain('outside Harness.');
+  });
+
   test('exposes the same identity and bundle to Claude Code', async () => {
     const manifest = JSON.parse(await readFile('.claude-plugin/plugin.json', 'utf8'));
     const marketplace = JSON.parse(await readFile('.claude-plugin/marketplace.json', 'utf8'));

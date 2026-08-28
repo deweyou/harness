@@ -1,13 +1,11 @@
 ---
 name: harness-work
 description: >
-  Deweyou Harness Work. Use when the user invokes /harness-work; asks to
-  create, update, or migrate harness.yaml; or asks to start or resume durable
-  work governed by a Commitment, evidence-backed Claims, and a task-scoped
-  Plan; or repository work reveals a necessary update to durable knowledge in
-  AGENTS.md and docs. Keeps exploration free, activates capabilities
-  progressively, delegates bounded node executions, and records replayable
-  state through the Deweyou Harness MCP server.
+  Deweyou Harness Work. Use only when the user explicitly invokes
+  /harness-work or $harness-work, or explicitly selects or attaches the
+  Deweyou Harness plugin through the host interface. Do not use for semantic
+  matches or ordinary requests that lack one of these explicit user activation
+  signals.
 user-invocable: true
 ---
 
@@ -17,6 +15,19 @@ user-invocable: true
 durable agent work. The agent may
 explore and discuss freely. Create a Run only when the work needs a durable
 commitment, acceptance record, delegation, recovery, or delivery boundary.
+
+## Explicit Invocation Gate
+
+This Skill is opt-in. Continue only when the current user turn explicitly
+invokes `/harness-work` or `$harness-work`, or the host indicates that the user
+explicitly selected or attached the Deweyou Harness plugin. Installation,
+semantic similarity, a request for durable work, a `harness.yaml` request, or
+repository knowledge becoming stale is not an activation signal by itself.
+
+If the host loads this Skill without an explicit user activation signal, do not
+call Harness MCP tools, prepare a workspace, create or resume a Run, or mutate
+Harness configuration or state. Handle the request as ordinary agent work
+outside Harness.
 
 `harness.yaml` declares repository Context, reusable Skills, and node
 capabilities. It does not

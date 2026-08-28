@@ -238,6 +238,28 @@
         "Does not create a Spec without durable value",
         "Does not add a framing node or fixed Stage"
       ]
+    },
+    {
+      "id": 21,
+      "prompt": "$harness-work Resume the active durable task and preserve its acceptance evidence.",
+      "expected_output": "Treat the explicit skill reference as user activation, inspect the active Run, and resume from its recorded state.",
+      "files": [],
+      "expectations": [
+        "Accepts $harness-work as an explicit user activation signal",
+        "Recovers authoritative Run state before continuing",
+        "Does not create a replacement Run for resumable work"
+      ]
+    },
+    {
+      "id": 22,
+      "prompt": "Please manage this large task with a durable plan and acceptance evidence.",
+      "expected_output": "Handle the request as ordinary agent work without activating Deweyou Harness because the user did not explicitly invoke the skill or select the plugin.",
+      "files": [],
+      "expectations": [
+        "Does not call a Harness MCP tool",
+        "Does not create or resume a Harness Run",
+        "Does not treat semantic similarity as user activation"
+      ]
     }
   ]
 }

@@ -1,10 +1,13 @@
 # Harness Work
 
-Deweyou Harness Work is the single user-facing skill in the plugin. Invoke
-`/harness-work` to create, update, or migrate workspace configuration, or to
-run a task. It establishes a durable Commitment when needed, proposes a
-task-scoped Plan, uses subagents for bounded node executions, progressively
-activates capabilities, and stores a replayable Run under `~/.deweyou/harness/`.
+Deweyou Harness Work is the single user-facing skill in the plugin. It is
+explicitly opt-in: invoke `/harness-work`, reference `$harness-work`, or select
+the Deweyou Harness plugin in the host interface. Installation and semantic
+similarity alone must not activate it. Once invoked, use it to create, update,
+or migrate workspace configuration, or to run a task. It establishes a durable
+Commitment when needed, proposes a task-scoped Plan, uses subagents for bounded
+node executions, progressively activates capabilities, and stores a replayable
+Run under `~/.deweyou/harness/`.
 Before a new Run, `workspace_prepare` fetches the base and prepares either a
 local task branch or an isolated worktree, as selected by the root `strategy`
 field in `harness.yaml`. `run_create` requires the resulting Receipt.
