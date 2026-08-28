@@ -76,6 +76,20 @@ All notable changes to Deweyou Harness are recorded here.
   mutations after completion, and reject conflicting Commitment or Plan
   idempotency replays by canonical command input.
 
+## [1.3.0] - 2026-08-28
+
+- feat: add global harness dashboard (69c2c6f)
+- chore: configure harness workflow (5242735)
+- refactor: align dashboard with harness v2 (66b9382)
+- fix: restore reusable harness node definitions (1f205c2)
+- feat: add harness-work configuration lifecycle (793355f)
+- feat: add lazy workspace preparation (9aee9ba)
+- feat: add incremental run retrospectives (a1b7f86)
+- docs: define current knowledge publication (4bc342d)
+- feat: add node export viewers and spec framing (713ad0c)
+- feat: close harness config and runtime contracts (cf2f09a)
+- Merge pull request #49 from deweyou/codex/global-dashboard (7b9da91)
+
 ## [1.2.0] - 2026-08-21
 
 - feat: redesign harness around nodes and commitments (99ce60a)
