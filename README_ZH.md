@@ -1,17 +1,20 @@
 # Deweyou Harness
 
 Deweyou Harness 是一个支持 Codex、Claude Code、Cursor、Trae、OpenClaw 和 Hermes
-Agent 的通用持久化工作插件。插件只提供一个用户入口 `/dhw`，以及一个本地 MCP
+Agent 的通用持久化工作插件。插件只提供一个用户入口 `/harness-work`，以及一个本地 MCP
 Server，用于管理 Run、Commitment、证据支撑的 Claim、任务级 Plan 和节点执行。
+同一个 Skill 也负责配置生命周期：用户主动要求配置，或运行前发现配置缺失、版本不兼容
+时，会创建、迭代或迁移 `harness.yaml`。
 
 Harness Core 不内置 coding、写作、视频、产品或仓库规则。工作区通过
-`harness.yaml` 声明可复用的 skills、rules、knowledge 和 node capabilities。
-Plan 属于具体 Run，配置中不再存在 workflow 和固定 stage。
+`harness.yaml` 声明可复用的 skills、context 和 node capabilities。
+单一的 `strategy` 字段用于选择本地任务分支或隔离 worktree。Plan 属于具体 Run，
+配置中不再存在 workflow 和固定 stage。
 
 ## 环境要求
 
 - Node.js 22.5 或更高版本
-- 工作区内存在 `harness.yaml`
+- 需要创建或更新 `harness.yaml` 时，具备工作区写权限
 
 ## 安装
 
@@ -22,7 +25,7 @@ codex plugin marketplace add deweyou/harness
 codex plugin add deweyou-harness@deweyou
 ```
 
-安装后开启一个新的 Codex session，再调用 `/dhw`。
+安装后开启一个新的 Codex session，再调用 `/harness-work`。
 
 ### Claude Code
 
@@ -32,7 +35,7 @@ claude plugin install deweyou-harness@deweyou
 ```
 
 在 Claude Code 中执行 `/reload-plugins`，然后调用
-`/deweyou-harness:dhw`。Claude Code 会自动为插件 Skill 添加插件命名空间。
+`/deweyou-harness:harness-work`。Claude Code 会自动为插件 Skill 添加插件命名空间。
 
 本地开发时也可以只在当前 session 加载：
 
@@ -46,7 +49,7 @@ claude --plugin-dir /absolute/path/to/harness
 git clone https://github.com/deweyou/harness.git ~/.cursor/plugins/local/deweyou-harness
 ```
 
-重启 Cursor 或执行 `Developer: Reload Window`，然后调用 `/dhw`。本地开发时可以
+重启 Cursor 或执行 `Developer: Reload Window`，然后调用 `/harness-work`。本地开发时可以
 改用软链接：
 
 ```bash
@@ -66,15 +69,15 @@ git -C ~/.cursor/plugins/local/deweyou-harness pull --ff-only
 ```text
 请从 https://github.com/deweyou/harness 安装 Deweyou Harness，把它作为原生
 Trae 插件接入。将仓库根目录作为插件根目录，通过
-.trae-plugin/plugin.json 发现插件，通过 skills/dhw/agents/openai.yaml
-注册 dhw Skill，并从 .trae-mcp.json 加载 MCP 配置。直接使用仓库内已跟踪的
+.trae-plugin/plugin.json 发现插件，通过 skills/harness-work/agents/openai.yaml
+注册 harness-work Skill，并从 .trae-mcp.json 加载 MCP 配置。直接使用仓库内已跟踪的
 dist/server.mjs，不要执行 pnpm install。安装后请报告实际插件根目录，并检查
-manifest、dhw Skill 和 deweyou-harness MCP Server 是否都已被识别。如果仍需用户
+manifest、harness-work Skill 和 deweyou-harness MCP Server 是否都已被识别。如果仍需用户
 启用插件，请提示我到 Trae 的插件设置中启用，不要直接修改 Trae 的内部插件配置。
 ```
 
 如有提示，在 Trae 插件设置中启用 **Deweyou Harness**，开启新 session 后调用
-`/dhw`。还可以让 Trae 列出 `deweyou-harness` 的 MCP tools，确认 runtime 已连接。
+`/harness-work`。还可以让 Trae 列出 `deweyou-harness` 的 MCP tools，确认 runtime 已连接。
 
 插件和 Skill 共用同一套四节点 Harness 标识，方便在菜单和侧边栏的小尺寸场景中识别。
 
@@ -92,7 +95,7 @@ openclaw gateway restart
 openclaw plugins inspect deweyou-harness
 ```
 
-开启新 session 后调用 `/dhw`，也可以在 prompt 中引用 `$dhw`。
+开启新 session 后调用 `/harness-work`，也可以在 prompt 中引用 `$harness-work`。
 
 ### Hermes Agent
 
@@ -103,7 +106,7 @@ hermes plugins install deweyou/harness --enable
 hermes plugins list
 ```
 
-开启新的 Hermes session，然后要求它使用 Deweyou Harness 的 `dhw` Skill。Portable
+开启新的 Hermes session，然后要求它使用 Deweyou Harness 的 `harness-work` Skill。Portable
 Plugin Skill 是只读且带命名空间的；需要精确名称时先调用 `skills_list`，再通过
 `skill_view` 加载。
 

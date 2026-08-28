@@ -1,0 +1,90 @@
+$schema: ./schemas/harness.schema.json
+version: 3
+strategy: worktree
+
+context:
+  project-rules:
+    source:
+      entry: AGENTS.md
+
+nodes:
+  implement-change:
+    kind: agent
+    description: Implement a scoped Harness change under the active Commitment and task-owned Plan.
+    outputs:
+      implementation:
+        type: object
+        description: Structured summary of the implemented change.
+      verification-evidence:
+        type: array
+        description: Evidence references produced while verifying the change.
+    authority: [read-workspace, write-workspace]
+
+  lint-assets:
+    kind: command
+    description: Validate bundled plugin asset structure and conventions.
+    command: pnpm run lint:assets
+    outputs:
+      asset-lint-result:
+        type: object
+        description: Result of validating bundled plugin assets.
+
+  typecheck:
+    kind: command
+    description: Check the Harness TypeScript contracts without emitting files.
+    command: pnpm run typecheck
+    outputs:
+      typecheck-result:
+        type: object
+        description: TypeScript typecheck result.
+
+  test:
+    kind: command
+    description: Run the automated Harness test suite.
+    command: pnpm test
+    outputs:
+      test-result:
+        type: object
+        description: Automated test result.
+
+  test-coverage:
+    kind: command
+    description: Run the automated suite and collect coverage evidence.
+    command: pnpm run test:coverage
+    outputs:
+      coverage-result:
+        type: object
+        description: Automated test coverage result.
+
+  build:
+    kind: command
+    description: Build the Dashboard assets and bundled Harness server.
+    command: pnpm run build
+    outputs:
+      plugin-bundle:
+        type: object
+        description: Metadata for the built plugin bundle.
+
+  validate-plugin:
+    kind: command
+    description: Validate the cross-agent plugin package for supported hosts.
+    command: pnpm run validate:plugin
+    outputs:
+      plugin-validation-result:
+        type: object
+        description: Cross-agent plugin validation result.
+
+  summarize-delivery:
+    kind: agent
+    description: Summarize changes, evidence, remaining risks, and delivery gates.
+    inputs:
+      implementation:
+        type: object
+        description: Structured summary of the implemented change.
+      verification-evidence:
+        type: array
+        description: Evidence references produced while verifying the change.
+    outputs:
+      delivery-summary:
+        type: object
+        description: Final summary of changes, evidence, risks, and delivery gates.

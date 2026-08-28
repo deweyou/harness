@@ -10,7 +10,7 @@
     "id": { "type": "string", "pattern": "^proposal_[a-f0-9]{20}$" },
     "runId": { "type": "string", "minLength": 1 },
     "resourceId": { "type": "string", "minLength": 1 },
-    "resourceKind": { "enum": ["skill", "rule", "knowledge", "unknown"] },
+    "resourceKind": { "enum": ["skill", "context", "rule", "knowledge", "unknown"] },
     "baseDigest": { "type": ["string", "null"] },
     "status": { "enum": ["proposed", "accepted", "rejected"] },
     "createdAt": { "type": "string", "format": "date-time" },

@@ -31,9 +31,9 @@
     ],
     "websiteURL": "https://github.com/deweyou/harness",
     "defaultPrompt": [
-      "Use /dhw to establish a Commitment and Plan for this task.",
-      "Use /dhw to resume the active Harness run.",
-      "Use /dhw to inspect available node capabilities for this workspace."
+      "Use /harness-work to establish a Commitment and Plan for this task.",
+      "Use /harness-work to resume the active Harness run.",
+      "Use /harness-work to create, update, or migrate this workspace's Harness configuration."
     ],
     "brandColor": "#4F46E5"
   }

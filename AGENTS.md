@@ -4,7 +4,7 @@ This repository contains the cross-agent Deweyou Harness plugin package.
 
 ## Repository Knowledge
 
-- Start with `docs/wiki/harness-v2.md` for the current architecture and invariants.
+- Start with `docs/wiki/harness-architecture.md` for the current architecture and invariants.
 - Use `docs/raw/registry.md` to trace design decisions to their immutable source records.
 - Treat `docs/harness-core.md` as the public contract; keep it aligned with the Wiki when Core changes.
 
@@ -12,10 +12,11 @@ This repository contains the cross-agent Deweyou Harness plugin package.
 
 - Keep the Harness domain-neutral. Do not bundle coding, writing, publishing,
   product, or repository-specific resources.
-- `skills/dhw/` is the only bundled user-facing skill.
-- `harness.yaml` is the workspace-owned source of reusable Node Definitions and
-  resource refs. Dependencies belong to a Run-scoped Plan, never configuration.
-- Workflow and fixed Stage concepts are not part of v2. Do not add compatibility
+- `skills/harness-work/` is the only bundled user-facing skill.
+- `harness.yaml` is the workspace-owned source of the branch/worktree strategy,
+  reusable Node Definitions, and resource refs. Dependencies belong to a
+  Run-scoped Plan, never configuration.
+- Workflow and fixed Stage concepts are not part of Harness. Do not add compatibility
   aliases, migration readers, recipes, or hidden stage loops.
 - The MCP server is a deterministic control/state plane; agents and subagents
   perform agent-node work.

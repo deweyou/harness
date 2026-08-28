@@ -1,6 +1,52 @@
+import { createHash } from 'node:crypto';
 import { invariant } from './errors.js';
 import { validatePlanGraph } from './graph.js';
 import type { Claim, Commitment, Evidence, NodeExecution, Plan, Run } from './types.js';
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function structuredInputDigest(input: unknown): string {
+  return createHash('sha256').update(canonicalJson(input)).digest('hex');
+}
+
+export function isEvidenceFresh(
+  item: Evidence,
+  plans: Readonly<Record<number, Plan>>,
+  executions: readonly NodeExecution[],
+): boolean {
+  const execution = executions.find((candidate) => candidate.id === item.executionId);
+  if (
+    !execution
+    || execution.runId !== item.runId
+    || execution.status !== 'succeeded'
+    || execution.planRevision !== item.planRevision
+    || execution.plannedNodeId !== item.plannedNodeId
+    || structuredInputDigest(execution.input ?? {}) !== item.inputDigest
+  ) return false;
+  const sourcePlan = plans[item.planRevision];
+  if (!sourcePlan || sourcePlan.commitmentRevision !== item.commitmentRevision) return false;
+  const sourceNode = sourcePlan.nodes.find((node) => node.id === item.plannedNodeId);
+  if (!sourceNode) return false;
+  const latestMatchingNode = Object.values(plans)
+    .filter((plan) => plan.commitmentRevision === item.commitmentRevision && plan.revision >= item.planRevision)
+    .sort((left, right) => right.revision - left.revision)
+    .flatMap((plan) => plan.nodes.filter((node) => node.id === item.plannedNodeId).map((node) => ({ plan, node })))
+    .at(0);
+  return Boolean(
+    latestMatchingNode
+    && latestMatchingNode.node.definitionId === sourceNode.definitionId
+    && structuredInputDigest(latestMatchingNode.node.input ?? {}) === item.inputDigest,
+  );
+}
 
 function assertPositiveRevision(value: number, label: string): void {
   invariant(Number.isInteger(value) && value > 0, 'INVALID_REVISION', `${label} must be a positive integer`);
@@ -66,6 +112,8 @@ export function isCommitmentAccepted(
   commitment: Commitment,
   claims: Readonly<Record<string, Claim>>,
   evidence: Readonly<Record<string, Evidence>>,
+  plans: Readonly<Record<number, Plan>>,
+  executions: readonly NodeExecution[],
 ): boolean {
   if (commitment.acceptanceClaimIds.length === 0 || commitment.unresolvedDecisions.length > 0) return false;
   return commitment.acceptanceClaimIds.every((claimId) => {
@@ -73,7 +121,9 @@ export function isCommitmentAccepted(
     if (!claim || claim.runId !== commitment.runId || claim.commitmentId !== commitment.id || !['satisfied', 'waived'].includes(claim.status)) return false;
     return claim.evidenceIds.length > 0 && claim.evidenceIds.every((evidenceId) => {
       const item = evidence[evidenceId];
-      return item?.runId === commitment.runId && item.commitmentRevision === commitment.revision;
+      return item?.runId === commitment.runId
+        && item.commitmentRevision === commitment.revision
+        && isEvidenceFresh(item, plans, executions);
     });
   });
 }
@@ -82,6 +132,8 @@ export function assertClaimDecision(
   commitment: Commitment,
   claim: Claim,
   evidence: Readonly<Record<string, Evidence>>,
+  plans: Readonly<Record<number, Plan>>,
+  executions: readonly NodeExecution[],
 ): void {
   invariant(claim.runId === commitment.runId, 'RUN_SCOPE_MISMATCH', `Claim '${claim.id}' belongs to another Run`);
   invariant(claim.commitmentId === commitment.id, 'COMMITMENT_SCOPE_MISMATCH', `Claim '${claim.id}' belongs to another Commitment`);
@@ -92,5 +144,6 @@ export function assertClaimDecision(
     invariant(item, 'MISSING_EVIDENCE', `Claim '${claim.id}' refers to missing Evidence '${evidenceId}'`);
     invariant(item.runId === commitment.runId, 'RUN_SCOPE_MISMATCH', `Evidence '${evidenceId}' belongs to another Run`);
     invariant(item.commitmentRevision === commitment.revision, 'STALE_EVIDENCE', `Evidence '${evidenceId}' targets Commitment revision ${item.commitmentRevision}`);
+    invariant(isEvidenceFresh(item, plans, executions), 'STALE_EVIDENCE', `Evidence '${evidenceId}' no longer matches a successful execution and its latest Planned Node input`);
   }
 }

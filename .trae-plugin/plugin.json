@@ -30,7 +30,7 @@
     ],
     "websiteURL": "https://github.com/deweyou/harness",
     "defaultPrompt": [
-      "Run durable Harness work with /dhw"
+      "Configure or run durable Harness work with /harness-work"
     ],
     "composerIcon": "./assets/harness-small.svg",
     "logo": "./assets/harness.png",

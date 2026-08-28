@@ -12,20 +12,24 @@ const requiredFiles = [
   '.trae-mcp.json',
   'assets/harness-small.svg',
   'assets/harness.png',
+  'assets/dashboard/index.html',
   'adapters/openclaw/index.mjs',
   'openclaw.plugin.json',
   'plugin.json',
   'mcp.json',
-  'skills/dhw/SKILL.md',
-  'skills/dhw/README.md',
-  'skills/dhw/README_ZH.md',
-  'skills/dhw/evals/evals.json',
-  'skills/dhw/agents/openai.yaml',
-  'skills/dhw/assets/dhw-small.svg',
-  'skills/dhw/assets/dhw.png',
+  'skills/harness-work/SKILL.md',
+  'skills/harness-work/README.md',
+  'skills/harness-work/README_ZH.md',
+  'skills/harness-work/evals/evals.json',
+  'skills/harness-work/agents/openai.yaml',
+  'skills/harness-work/references/workspace-preparation.md',
+  'skills/harness-work/assets/harness-work-small.svg',
+  'skills/harness-work/assets/harness-work.png',
   'schemas/harness.schema.json',
   'schemas/event.schema.json',
   'schemas/run.schema.json',
+  'schemas/run-index.schema.json',
+  'schemas/workspace-preparation.schema.json',
   'schemas/resource-proposal.schema.json',
   'schemas/retrospective.schema.json',
 ];
@@ -57,25 +61,25 @@ if (
   throw new Error('Plugin manifest does not expose the expected Harness components');
 }
 
-const skill = await readFile('skills/dhw/SKILL.md', 'utf8');
-if (!skill.startsWith('---\nname: dhw\n') || !skill.includes('\ndescription:')) {
-  throw new Error('skills/dhw/SKILL.md must have dhw frontmatter');
+const skill = await readFile('skills/harness-work/SKILL.md', 'utf8');
+if (!skill.startsWith('---\nname: harness-work\n') || !skill.includes('\ndescription:')) {
+  throw new Error('skills/harness-work/SKILL.md must have harness-work frontmatter');
 }
 
-const traeAgent = loadYaml(await readFile('skills/dhw/agents/openai.yaml', 'utf8'));
+const traeAgent = loadYaml(await readFile('skills/harness-work/agents/openai.yaml', 'utf8'));
 if (
   traeAgent?.interface?.display_name !== 'Deweyou Harness' ||
   typeof traeAgent?.interface?.short_description !== 'string' ||
-  traeAgent?.interface?.icon_small !== './assets/dhw-small.svg' ||
-  traeAgent?.interface?.icon_large !== './assets/dhw.png' ||
+  traeAgent?.interface?.icon_small !== './assets/harness-work-small.svg' ||
+  traeAgent?.interface?.icon_large !== './assets/harness-work.png' ||
   typeof traeAgent?.interface?.default_prompt !== 'string'
 ) {
-  throw new Error('Trae skill registration must expose the dhw interface metadata');
+  throw new Error('Trae skill registration must expose the harness-work interface metadata');
 }
 
-const evals = JSON.parse(await readFile('skills/dhw/evals/evals.json', 'utf8'));
-if (evals.skill_name !== 'dhw' || !Array.isArray(evals.evals) || evals.evals.length === 0) {
-  throw new Error('dhw evals must be present');
+const evals = JSON.parse(await readFile('skills/harness-work/evals/evals.json', 'utf8'));
+if (evals.skill_name !== 'harness-work' || !Array.isArray(evals.evals) || evals.evals.length === 0) {
+  throw new Error('harness-work evals must be present');
 }
 
 console.log('Harness plugin assets are valid.');

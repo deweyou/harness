@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/deweyou/harness/schemas/run-index.schema.json",
+  "title": "Deweyou Harness global Run index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "updatedAt", "runs"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "runId",
+          "workspaceId",
+          "workspacePath",
+          "title",
+          "status",
+          "needsAttention",
+          "createdAt",
+          "updatedAt",
+          "acceptanceSatisfied",
+          "acceptanceTotal"
+        ],
+        "properties": {
+          "schemaVersion": { "const": 2 },
+          "runId": { "type": "string", "minLength": 1 },
+          "workspaceId": { "type": "string", "minLength": 1 },
+          "workspacePath": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 96 },
+          "status": { "enum": ["running", "blocked", "completed"] },
+          "needsAttention": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "activeCommitmentRevision": { "type": "integer", "minimum": 1 },
+          "activePlanRevision": { "type": "integer", "minimum": 1 },
+          "acceptanceSatisfied": { "type": "integer", "minimum": 0 },
+          "acceptanceTotal": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

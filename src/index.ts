@@ -7,3 +7,4 @@ export * from './core/runtime.js';
 export * from './core/state/projection.js';
 export * from './core/state/store.js';
 export * from './core/types.js';
+export * from './core/workspace.js';

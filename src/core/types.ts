@@ -1,51 +1,48 @@
-export type ResourceKind = 'skill' | 'rule' | 'knowledge';
+export type ResourceKind = 'skill' | 'context';
 
-export interface WorkspaceSource { type: 'workspace'; path: string }
-export interface RegistrySource { type: 'registry'; repo: string; skill: string }
-export interface GitSource { type: 'git'; repo: string; path: string; ref?: string }
-export type ResourceSource = WorkspaceSource | RegistrySource | GitSource;
+export interface ResourceSource { repo?: string; entry: string }
 
 export interface ResourceDefinition {
-  kind: ResourceKind;
-  description?: string;
   source: ResourceSource;
 }
 
-export interface AgentExecutor { kind: 'agent'; skills?: string[]; config?: Record<string, unknown> }
-export interface CommandExecutor { kind: 'command'; argv: string[]; cwd?: string }
-export interface CapabilityExecutor { kind: 'capability'; capability: string; config?: Record<string, unknown> }
-export type Executor = AgentExecutor | CommandExecutor | CapabilityExecutor;
+export type PortSchema = Record<string, unknown> & { description: string };
 
-export interface ExecutionPolicy {
-  idempotent: boolean;
-  timeoutMs?: number;
-  retry?: { maxAttempts: number; backoffMs?: number };
-}
-
-export interface NodeDefinition {
-  name?: string;
-  description?: string;
-  executor: Executor;
-  resources?: string[];
-  inputs?: string[];
-  outputs?: string[];
-  claimTypes?: string[];
-  artifactTypes?: string[];
+interface NodeDefinitionBase {
+  description: string;
+  inputs?: Record<string, PortSchema>;
+  outputs?: Record<string, PortSchema>;
   authority?: string[];
-  executionPolicy?: ExecutionPolicy;
 }
+
+export interface AgentNodeDefinition extends NodeDefinitionBase {
+  kind: 'agent';
+  skill?: string[];
+}
+
+export interface CommandNodeDefinition extends NodeDefinitionBase {
+  kind: 'command';
+  command: string;
+}
+
+export type NodeDefinition = AgentNodeDefinition | CommandNodeDefinition;
 
 export interface HarnessImport { path: string; as?: string }
+export type WorkspaceStrategy = 'branch' | 'worktree';
 export interface HarnessConfig {
-  version: 2;
+  version: 3;
+  strategy?: WorkspaceStrategy;
   imports?: Array<string | HarnessImport>;
-  resources?: Record<string, ResourceDefinition>;
+  context?: Record<string, ResourceDefinition>;
+  skills?: Record<string, ResourceDefinition>;
   nodes?: Record<string, NodeDefinition>;
 }
 export interface ResolvedHarnessConfig {
-  version: 2;
+  version: 3;
+  strategy: WorkspaceStrategy;
   sourceFiles: string[];
-  resources: Record<string, ResourceDefinition>;
+  context: Record<string, ResourceDefinition>;
+  skills: Record<string, ResourceDefinition>;
   nodes: Record<string, NodeDefinition>;
 }
 
@@ -65,6 +62,29 @@ export interface Run {
   workspaceMount?: string;
   createdAt: string;
   hostSessions: string[];
+  workspacePreparationId?: string;
+}
+
+export interface RunIndexEntry {
+  schemaVersion: 2;
+  runId: string;
+  workspaceId: string;
+  workspacePath: string;
+  title: string;
+  status: RunProjection['status'];
+  needsAttention: boolean;
+  createdAt: string;
+  updatedAt: string;
+  activeCommitmentRevision?: number;
+  activePlanRevision?: number;
+  acceptanceSatisfied: number;
+  acceptanceTotal: number;
+}
+
+export interface RunIndex {
+  schemaVersion: 2;
+  updatedAt: string;
+  runs: RunIndexEntry[];
 }
 
 export interface Commitment {
@@ -101,17 +121,52 @@ export interface Evidence {
   digest: string;
   locator: string;
   commitmentRevision: number;
-  inputDigests: Record<string, string>;
+  executionId: string;
+  planRevision: number;
+  plannedNodeId: string;
+  inputDigest: string;
 }
+
+export type ExecutionExportMediaType = 'application/json' | 'text/markdown';
+
+export interface ExecutionExport {
+  id: string;
+  runId: string;
+  executionId: string;
+  commitmentRevision: number;
+  name: string;
+  mediaType: ExecutionExportMediaType;
+  digest: string;
+  locator: string;
+  sourceLocator?: string;
+  role?: string;
+  sizeBytes: number;
+}
+
+export const PLAN_PHASES = ['planning', 'implementation', 'integration', 'verification', 'delivery'] as const;
+export type PlanPhase = typeof PLAN_PHASES[number];
 
 export interface PlannedNode {
   id: string;
   definitionId: string;
+  phase?: PlanPhase;
   dependsOn: string[];
   input?: Record<string, unknown>;
   targetClaimIds?: string[];
-  expectedOutputs?: string[];
   authority?: string[];
+}
+
+export interface ReadyNodeAssignment {
+  plannedNode: PlannedNode;
+  definition: NodeDefinition;
+}
+
+export interface ReadyNodeAssignments {
+  runId: string;
+  workspace: WorkspaceRef & { path: string };
+  commitmentRevision: number;
+  planRevision: number;
+  assignments: ReadyNodeAssignment[];
 }
 
 export interface Plan {
@@ -142,7 +197,13 @@ export interface NodeExecution {
   plannedNodeId: string;
   attempt: number;
   status: NodeExecutionStatus;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
   evidenceIds: string[];
+  retryOfExecutionId?: string;
+  retryReason?: string;
+  retryEvidenceIds?: string[];
+  exports?: ExecutionExport[];
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;
@@ -204,7 +265,7 @@ export interface ResourceProposal {
   id: string;
   runId: string;
   resourceId: string;
-  resourceKind: ResourceKind | 'unknown';
+  resourceKind: ResourceKind | 'rule' | 'knowledge' | 'unknown';
   baseDigest: string | null;
   status: ResourceProposalStatus;
   createdAt: string;

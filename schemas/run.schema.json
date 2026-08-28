@@ -20,6 +20,7 @@
     },
     "workspacePath": { "type": "string", "minLength": 1 },
     "workspaceMount": { "type": "string", "minLength": 1 },
+    "workspacePreparationId": { "type": "string", "minLength": 1 },
     "createdAt": { "type": "string", "format": "date-time" },
     "hostSessions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
   }

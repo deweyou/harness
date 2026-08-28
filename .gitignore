@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+.pnpm-store/
 
 # local build cache (the bundled plugin server in dist/server.mjs is tracked)
 dist/*

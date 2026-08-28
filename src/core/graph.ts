@@ -1,11 +1,12 @@
 import { invariant } from './errors.js';
-import type { NodeExecution, Plan, PlannedNode } from './types.js';
+import { PLAN_PHASES, type NodeExecution, type Plan, type PlannedNode } from './types.js';
 
 export function validatePlanGraph(plan: Plan): void {
   const nodesById = new Map<string, PlannedNode>();
   for (const node of plan.nodes) {
     invariant(node.id.length > 0, 'INVALID_PLANNED_NODE', 'Planned node id cannot be empty');
     invariant(node.definitionId.length > 0, 'INVALID_PLANNED_NODE', `Planned node '${node.id}' must reference a definition`);
+    invariant(node.phase === undefined || PLAN_PHASES.includes(node.phase), 'INVALID_PLAN_PHASE', `Planned node '${node.id}' has invalid phase '${node.phase}'`);
     invariant(!nodesById.has(node.id), 'DUPLICATE_PLANNED_NODE', `Plan ${plan.revision} has duplicate node '${node.id}'`);
     nodesById.set(node.id, node);
   }
@@ -37,12 +38,8 @@ export function readyPlannedNodes(plan: Plan, executions: readonly NodeExecution
   validatePlanGraph(plan);
   const currentExecutions = executions.filter((execution) => execution.runId === plan.runId && execution.planRevision === plan.revision);
   const succeeded = new Set(currentExecutions.filter((execution) => execution.status === 'succeeded').map((execution) => execution.plannedNodeId));
-  const active = new Set(
-    currentExecutions
-      .filter((execution) => execution.status === 'ready' || execution.status === 'running')
-      .map((execution) => execution.plannedNodeId),
-  );
+  const attempted = new Set(currentExecutions.map((execution) => execution.plannedNodeId));
   return plan.nodes.filter(
-    (node) => !succeeded.has(node.id) && !active.has(node.id) && node.dependsOn.every((dependencyId) => succeeded.has(dependencyId)),
+    (node) => !attempted.has(node.id) && node.dependsOn.every((dependencyId) => succeeded.has(dependencyId)),
   );
 }

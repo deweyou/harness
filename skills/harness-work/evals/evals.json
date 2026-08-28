@@ -1,0 +1,243 @@
+{
+  "skill_name": "harness-work",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "/harness-work Please implement this request and keep durable acceptance evidence.",
+      "expected_output": "Inspect config, establish a Commitment, propose and activate a task-scoped Plan, then dispatch bounded node executions.",
+      "files": [],
+      "expectations": [
+        "Does not look for or select a workflow",
+        "Creates a Commitment with explicit acceptance Claims",
+        "Keeps dependencies in the Plan rather than Node Definitions",
+        "Uses one subagent per non-trivial agent-node execution"
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "Explain what /harness-work does. Do not start work.",
+      "expected_output": "Explain the Commitment, Claim, Plan, and capability model without creating a Run.",
+      "files": [],
+      "expectations": [
+        "Does not create Run state for a read-only explanation",
+        "Does not introduce workflows or fixed stages"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/harness-work Resume run 2026-example after the previous context was compacted.",
+      "expected_output": "Recover interrupted executions, rebuild state from events, and reactivate current capabilities with fresh receipts.",
+      "files": [],
+      "expectations": [
+        "Rebuilds state from the authoritative event chain",
+        "Does not trust compressed context as a capability cache",
+        "Preserves earlier attempts and Evidence"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/harness-work The requested outcome changed after two nodes completed.",
+      "expected_output": "Create a new Commitment revision, invalidate affected Claims, supersede the active Plan, and preserve prior executions and Evidence.",
+      "files": [],
+      "expectations": [
+        "Does not mutate historical Commitment or Plan revisions",
+        "Does not discard completed execution Evidence",
+        "Proposes a new Plan against the current Commitment revision"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/harness-work Two independent planned nodes are ready and a third depends on both.",
+      "expected_output": "Dispatch the independent nodes concurrently, then dispatch the dependent node only after both succeed.",
+      "files": [],
+      "expectations": [
+        "Respects Plan DAG dependencies",
+        "Parallelizes independent ready nodes when supported",
+        "Keeps the main agent as controller"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/harness-work All planned nodes succeeded, but one acceptance Claim has no current Evidence.",
+      "expected_output": "Refuse Run completion and obtain relevant Evidence or an authorized waiver.",
+      "files": [],
+      "expectations": [
+        "Does not equate node success with Claim satisfaction",
+        "Does not call completion while an acceptance Claim is open",
+        "Rejects stale Evidence from an earlier Commitment revision"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/harness-work Upload the final video, but I have not specified the account or visibility.",
+      "expected_output": "Prepare and verify safely if possible, then ask for destination and authority without uploading.",
+      "files": [],
+      "expectations": [
+        "Requires current Commitment authority for external delivery",
+        "Does not guess the destination or visibility",
+        "Does not claim the Run is complete"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/harness-work Start durable work in this repository, which has no harness.yaml.",
+      "expected_output": "Create a minimal repository-appropriate Harness configuration, validate it, then continue the requested Run flow.",
+      "files": [],
+      "expectations": [
+        "Does not call run_create before configuration validation succeeds",
+        "Creates repository Context, reusable Skills, and Node Definitions without Workflows or Stages",
+        "Continues the original run request after config_inspect succeeds"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/harness-work Update harness.yaml with a reusable documentation validation node.",
+      "expected_output": "Make the narrow requested configuration change, preserve unrelated entries, and validate the result.",
+      "files": [],
+      "expectations": [
+        "Routes directly to configuration update without creating a Run",
+        "Preserves unrelated valid configuration",
+        "Validates the edited configuration with config_inspect"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "/harness-work Run this task, but preflight reports that harness.yaml uses an unsupported older version with workflow stages.",
+      "expected_output": "Route through configuration migration, keep reusable capabilities, avoid copying workflow structure into the current config, validate, and then resume the run request.",
+      "files": [],
+      "expectations": [
+        "Does not silently copy Workflow, Stage, or dependency fields into Node Definitions",
+        "Requests a decision when migration would change semantics or authority",
+        "Does not create a Run until the migrated configuration validates"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "/harness-work Start this task from the repository's default branch. config_inspect reports strategy worktree.",
+      "expected_output": "Call workspace_prepare to fetch the remote default base and create an isolated task worktree, validate config in the returned path, and pass its Receipt to run_create.",
+      "files": [],
+      "expectations": [
+        "Does not rewrite or rebase the user's base branch",
+        "Uses workspace_prepare rather than performing untracked Git preparation",
+        "Uses the prepared worktree path for config_inspect and run_create",
+        "Passes the preparation Receipt to run_create",
+        "Stops before Run creation when fetch or workspace preparation fails"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "/harness-work Start this task. config_inspect reports strategy branch, but the current checkout has unrelated changes.",
+      "expected_output": "Stop workspace preparation and ask the user how to handle the dirty checkout without stashing, committing, or discarding it automatically.",
+      "files": [],
+      "expectations": [
+        "Does not switch branches with a dirty checkout",
+        "Does not automatically stash, commit, or discard unrelated changes",
+        "Does not create a Run before workspace preparation succeeds"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "/harness-work Why does this repository use a worktree strategy? Please only explain it.",
+      "expected_output": "Inspect only what is needed and answer without creating or switching a branch, creating a worktree, or creating a Run.",
+      "files": [],
+      "expectations": [
+        "Does not invoke workspace preparation for a question",
+        "Does not mutate Git state or repository files",
+        "Does not create an empty Run"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "/harness-work First investigate why the test fails. Only fix it if the investigation shows a repository change is needed.",
+      "expected_output": "Investigate in the current checkout, then prepare exactly one workspace immediately before the first necessary repository mutation and continue there.",
+      "files": [],
+      "expectations": [
+        "Does not prepare a workspace during read-only investigation",
+        "Prepares before the first mutating command when a fix is needed",
+        "Reuses the same prepared workspace for the remainder of the task"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "/harness-work Preserve what we learned about the payments package in this monorepo. It has independent commands and domain rules; shared service contracts are documented at the root.",
+      "expected_output": "Use evidence-backed knowledge maintenance, keep shared contracts at the root, and update or create concise package-level routing and documentation only at the payments module boundary.",
+      "files": [],
+      "expectations": [
+        "Does not put all module knowledge in the root AGENTS.md",
+        "Does not create AGENTS.md files in ordinary child directories",
+        "Keeps cross-module contracts in root documentation",
+        "Prepares the task workspace before editing knowledge files"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "/harness-work Explain the runtime architecture. Do not preserve or update repository knowledge.",
+      "expected_output": "Answer from existing sources without editing AGENTS.md or docs and without creating a knowledge proposal merely because the answer may be reusable.",
+      "files": [],
+      "expectations": [
+        "Does not treat an ordinary answer as permission to maintain knowledge",
+        "Does not mutate repository knowledge or Git state",
+        "Uses existing documentation as a source rather than rewriting it"
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "/harness-work The implementation is halfway done. Please make this small spacing correction without restarting the technical design or the completed implementation work.",
+      "expected_output": "Keep the current Commitment, classify work as reuse, rerun, or add, and propose a minimal patch Plan containing only the affected edit and focused verification.",
+      "files": [],
+      "expectations": [
+        "Does not rerun unaffected design or implementation nodes",
+        "Keeps the current Commitment because material boundaries are unchanged",
+        "Preserves prior Attempts and current Evidence",
+        "Includes only affected patch and verification work in the new Plan revision"
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "/harness-work During implementation we replaced design A with B. B is now the only supported behavior, while the task Spec already records why A was rejected. Keep repository knowledge accurate.",
+      "expected_output": "Update the canonical repository knowledge during implementation to describe only current design B, while preserving the A-to-B reasoning in the task Spec and Run Evidence.",
+      "files": [],
+      "expectations": [
+        "Does not wait for Retrospective to correct stale active knowledge",
+        "Does not narrate the obsolete A-to-B history in canonical knowledge",
+        "Keeps design alternatives and reasoning in the Spec or Run Evidence",
+        "Retains A in active knowledge only if a current operational constraint still depends on it"
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "/harness-work Help me improve a non-coding operating process. The desired outcome is still ambiguous and there are several plausible approaches.",
+      "expected_output": "Use lightweight problem framing to clarify the outcome and compare alternatives without forcing a Run, fixed Stage, or coding template.",
+      "files": [],
+      "expectations": [
+        "Applies framing outside coding work",
+        "Asks only questions that materially change the outcome or authority",
+        "Does not create a Run solely for exploration",
+        "Does not introduce a fixed problem-framing Stage"
+      ]
+    },
+    {
+      "id": 19,
+      "prompt": "/harness-work This is a small correction inside a large ongoing feature whose Spec already exists. Keep the durable design accurate.",
+      "expected_output": "Assess the whole feature context, update the existing Spec when the correction changes durable behavior, and export the current Markdown Spec from the affected node attempt.",
+      "files": [],
+      "expectations": [
+        "Does not classify Spec need from the edit size alone",
+        "Updates the existing canonical Spec rather than creating a competing file",
+        "Publishes the Spec as a Markdown Export with role spec",
+        "Keeps the Plan limited to affected work"
+      ]
+    },
+    {
+      "id": 20,
+      "prompt": "/harness-work Make an obvious, self-contained wording correction with no durable design impact.",
+      "expected_output": "Proceed directly with the smallest authorized change and verification without manufacturing framing documents or a Spec.",
+      "files": [],
+      "expectations": [
+        "Uses direct mode",
+        "Does not create a Spec without durable value",
+        "Does not add a framing node or fixed Stage"
+      ]
+    }
+  ]
+}
