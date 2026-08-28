@@ -6,6 +6,9 @@ Server，用于管理 Run、Commitment、证据支撑的 Claim、任务级 Plan 
 同一个 Skill 也负责配置生命周期：用户主动要求配置，或运行前发现配置缺失、版本不兼容
 时，会创建、迭代或迁移 `harness.yaml`。
 
+Harness 只接受显式触发。安装插件不会让语义相似的普通请求自动进入 Harness；用户必须
+调用 `/harness-work`、引用 `$harness-work`，或在宿主界面明确选择 Deweyou Harness 插件。
+
 Harness Core 不内置 coding、写作、视频、产品或仓库规则。工作区通过
 `harness.yaml` 声明可复用的 skills、context 和 node capabilities。
 单一的 `strategy` 字段用于选择本地任务分支或隔离 worktree。Plan 属于具体 Run，

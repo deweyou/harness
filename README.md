@@ -8,6 +8,10 @@ The same skill creates, updates, or migrates `harness.yaml` when the user asks
 for configuration work or run preflight finds that configuration is missing or
 unsupported.
 
+Harness is explicitly opt-in. Installing the plugin does not activate it for
+semantically similar requests; the user must invoke `/harness-work`, reference
+`$harness-work`, or explicitly select the Deweyou Harness plugin in the host.
+
 The Harness owns no coding, writing, video, product, or repository policy.
 Workspaces declare reusable skills, context, and node capabilities
 through `harness.yaml`. A single `strategy` setting chooses a local task branch
