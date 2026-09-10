@@ -260,6 +260,70 @@
         "Does not create or resume a Harness Run",
         "Does not treat semantic similarity as user activation"
       ]
+    },
+    {
+      "id": 23,
+      "prompt": "/harness-work The analysis is complete. Continue the authorized task; implementation and verification remain.",
+      "expected_output": "End the progress response with the concrete next action and its owner, then continue authorized execution.",
+      "files": [],
+      "expectations": [
+        "Names the next concrete action at the end of the response",
+        "Identifies the agent as the next actor",
+        "Continues actionable work without waiting for a continue reply"
+      ]
+    },
+    {
+      "id": 24,
+      "prompt": "/harness-work Help me choose an approach. You need one material clarification before proceeding.",
+      "expected_output": "Ask the material clarification and end with that question.",
+      "files": [],
+      "expectations": [
+        "Does not append a next-step sentence after the clarification question",
+        "Does not assume an answer or proceed with dependent work"
+      ]
+    },
+    {
+      "id": 25,
+      "prompt": "/harness-work The deliverable is verified and ready, but publishing requires my confirmation. Present it for approval.",
+      "expected_output": "Present the reviewable result and end with the confirmation request.",
+      "files": [],
+      "expectations": [
+        "Ends with the confirmation request rather than a competing next action",
+        "Does not publish or imply confirmation was received"
+      ]
+    },
+    {
+      "id": 26,
+      "prompt": "/harness-work The external validation service is unavailable. No independent authorized work remains; background monitoring has not been arranged.",
+      "expected_output": "Explain the dependency and end by identifying how validation can resume and who can unblock it.",
+      "files": [],
+      "expectations": [
+        "Names the external dependency and a concrete resumption condition",
+        "Does not claim completion without validation",
+        "Does not promise unarranged background monitoring"
+      ]
+    },
+    {
+      "id": 27,
+      "prompt": "/harness-work All requested work is verified and delivered, and the Run is complete. Give me the final result.",
+      "expected_output": "Summarize the outcome and end by stating that no required next action remains.",
+      "files": [],
+      "expectations": [
+        "Clearly states no required work remains",
+        "Does not invent required work or reopen the Run",
+        "Labels any suggested follow-up as optional"
+      ]
+    },
+    {
+      "id": 28,
+      "prompt": "/harness-work Explain the difference between a Commitment and a Plan. Only explain; do not start a Run.",
+      "expected_output": "Answer the question without creating state and close by stating that no further action is required for this explanation.",
+      "files": [],
+      "expectations": [
+        "Applies the closing convention before any Run exists",
+        "Does not confuse answering a user question with asking a clarification question",
+        "Does not create a Run or invent implementation work"
+      ]
     }
   ]
 }
