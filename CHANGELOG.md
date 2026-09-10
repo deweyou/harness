@@ -76,6 +76,11 @@ All notable changes to Deweyou Harness are recorded here.
   mutations after completion, and reject conflicting Commitment or Plan
   idempotency replays by canonical command input.
 
+## [1.3.2] - 2026-09-10
+
+- fix: keep harness conversations moving with explicit next steps (87de609)
+- Merge pull request #51 from deweyou/codex/harness-conversation-continuity (631f148)
+
 ## [1.3.1] - 2026-08-28
 
 - fix: require explicit harness invocation (152b225)
