@@ -19,6 +19,11 @@ routers, while durable explanations live in the appropriately scoped `docs/`.
 In-progress feedback uses minimal incremental Plans: unaffected work is reused,
 while only affected nodes and focused verification are rerun or added.
 
+Each response ends with a concrete next action and its owner, except when it
+ends with a clarification question or confirmation request. Authorized work
+continues without requiring a "continue" reply. Completed tasks explicitly
+state that no required work remains; optional follow-ups stay optional.
+
 Problem framing stays conversational and lightweight. Durable Specs are
 published through the same immutable Markdown Export contract used by other
 node results, and the Dashboard renders both Markdown and JSON Exports.

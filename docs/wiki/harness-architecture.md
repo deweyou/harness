@@ -123,6 +123,16 @@ Unchanged material boundaries keep the current Commitment; changes to objective,
 scope, acceptance, authority, destination, or unresolved material decisions
 create a new Commitment revision.
 
+## Conversation continuity
+
+The controller ends each user-facing response with a concrete next action and
+its owner, including exploration before a Run exists and intermediate progress.
+Clarification questions and confirmation requests end with the question or
+request instead. Actionable authorized work continues without requiring another
+user prompt. External waits identify the dependency and how it can be unblocked;
+completed tasks state that no required work remains and keep optional follow-ups
+optional. This convention adds no Core state or scheduling semantics.
+
 ## Knowledge maintenance
 
 Harness may attribute evidence-backed feedback to an activated Context

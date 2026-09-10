@@ -71,6 +71,29 @@ transition validation. Never append arbitrary events or invent those fields in
 the controller. Cordis owns capability lifecycles only; it is not Run or Plan
 authority.
 
+## Conversation Continuity
+
+End every user-facing response with a concise, concrete next step, including
+exploration, progress updates, intermediate results, and final delivery. State
+who acts next and what they will do, based on the current task or Run state.
+This applies before a Run exists as well as during execution and recovery.
+
+- When asking the user a clarification question or requesting confirmation,
+  end with that question or request instead; do not append a competing next
+  step or imply that the pending decision has been made.
+- When authorized work remains actionable, state the next action and continue
+  it. A next-step sentence is not a reason to yield or ask the user to say
+  "continue".
+- When waiting on an external dependency, name what is awaited and who or what
+  can unblock it. Do not promise background monitoring unless it is arranged.
+- When the requested task is complete, explicitly say no required work remains.
+  Identify any useful optional follow-up as optional, without expanding scope
+  or reopening a completed Run.
+
+Avoid vague endings such as "continue working" or "let me know" when a concrete
+next action is known. This is a conversation convention, not a new Stage,
+Plan node, authority grant, or Core state field.
+
 ## Start Or Resume
 
 Read [commitment.md](references/commitment.md) before creating durable state.
